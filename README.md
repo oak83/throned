@@ -1,8 +1,25 @@
-# Throned
+<p align="center">
+  <img src="res/public/Throned.png" width="88" alt="Throned logo">
+</p>
 
-Throned is a practical fork of [Throne](https://github.com/throneproj/Throne), a Qt desktop proxy client powered by sing-box and Xray.
+<h1 align="center">Throned</h1>
 
-The fork exists to ship focused networking fixes quickly while staying close enough to upstream to keep receiving protocol, security, and compatibility updates.
+<p align="center">
+  A personal, unofficial fork of <a href="https://github.com/throneproj/Throne">Throne</a>,
+  focused on the networking fixes and release workflow I need in my own setup.
+</p>
+
+Throned is a Qt desktop proxy client powered by sing-box and Xray. I maintain
+this fork because I wanted to fix a few problems that affected me directly,
+test those changes on Windows and Linux, and publish installers I can actually
+use without waiting for a particular upstream release.
+
+This project uses AI-assisted tools extensively while developing, reviewing,
+and documenting changes. I still test releases before publishing them, but this
+is a personal best-effort project, not an official Throne build or a promise of
+support. If you need the upstream project and its support channels, please use
+[Throne](https://github.com/throneproj/Throne). Throned is provided as-is,
+without warranty.
 
 The application, core process, installer, Linux bundle, and TUN interface use the
 Throned name. On the first packaged launch, an existing Throne configuration is
@@ -38,9 +55,10 @@ Stable builds are published on the [Releases](https://github.com/troshkindm/thro
 | --- | --- | --- |
 | Windows x64 | Installer EXE | Recommended |
 | Windows x64 | Portable ZIP | Supported |
-| Linux x64 | Portable ZIP | Supported |
+| Linux x64 / ARM64 | Portable ZIP | Supported |
+| Debian/Ubuntu x64 / ARM64 | Bundled-Qt DEB | Recommended |
+| Debian/Ubuntu x64 / ARM64 | System-Qt DEB | Smaller package; uses distro Qt |
 | Windows ARM64 / legacy Windows | Not currently published | Planned |
-| Linux ARM64 | Not currently published | Planned |
 | macOS | Build from source | Upstream-compatible, not CI-tested here |
 
 TUN mode requires administrator privileges on Windows and elevated network capabilities on Linux.
@@ -53,7 +71,10 @@ Throned uses ordinary numeric [Semantic Versioning](https://semver.org/):
 - backward-compatible features: `1.1.0`;
 - incompatible changes: `2.0.0`.
 
-Each release note states which Throne version or commit it is based on. A release is published only after the Windows x64 installer and the Windows/Linux x64 portable builds complete successfully. Development builds remain available as GitHub Actions artifacts.
+Each release note states which Throne version or commit it is based on. A
+release is published only after the Windows x64 installer, Windows portable
+build, Linux x64/ARM64 portable builds, and all four Debian packages complete
+successfully. Development builds remain available as GitHub Actions artifacts.
 
 ## Building
 

@@ -13,6 +13,8 @@ cp $GITHUB_WORKSPACE/res/public/Throned.png $DEST/Throned.png
 #### copy Core ####
 source "$(dirname "$0")/extract_core_artifact.sh"
 cp deployment/${DEST_SUFFIX%-system-qt}/ThronedCore $DEST
+cp deployment/${DEST_SUFFIX%-system-qt}/updater $DEST
+cp deployment/${DEST_SUFFIX%-system-qt}/Throne $DEST
 rm -rf deployment/${DEST_SUFFIX%-system-qt}
 
 # handle debug info

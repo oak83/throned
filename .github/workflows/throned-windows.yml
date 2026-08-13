@@ -7,6 +7,11 @@ on:
         description: Version shown by the application
         required: false
         default: dev
+      full_matrix:
+        description: Build all Linux architectures and Debian variants
+        required: false
+        type: boolean
+        default: false
   pull_request:
   push:
     branches:
@@ -61,16 +66,20 @@ jobs:
           compression-level: 0
 
   core-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ (github.ref_type == 'tag' || inputs.full_matrix) && fromJSON('["amd64","arm64"]') || fromJSON('["amd64"]') }}
     runs-on: ubuntu-22.04
     env:
-      DEST: ${{ github.workspace }}/deployment/linux-amd64
+      DEST: ${{ github.workspace }}/deployment/linux-${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/cache@v6.1.0
         id: core-cache
         with:
           path: artifacts.tgz
-          key: throned-core-linux-amd64-go-1.26.5-${{ hashFiles('script/build_go.sh', 'core/**', 'updater/**') }}
+          key: throned-core-linux-${{ matrix.arch }}-go-1.26.5-${{ hashFiles('script/build_go.sh', 'core/**', 'updater/**') }}
       - uses: actions/setup-go@v6.5.0
         if: steps.core-cache.outputs.cache-hit != 'true'
         with:
@@ -91,7 +100,7 @@ jobs:
         if: steps.core-cache.outputs.cache-hit != 'true'
         with:
           path: ~/cronet-go
-          key: cronet-go-linux-amd64-9ed95366-v1
+          key: cronet-go-linux-${{ matrix.arch }}-9ed95366-v1
       - name: Prepare Chromium toolchain
         if: steps.core-cache.outputs.cache-hit != 'true' && steps.cronet-cache.outputs.cache-hit != 'true'
         run: |
@@ -102,22 +111,22 @@ jobs:
           git -C "$HOME/cronet-go" checkout FETCH_HEAD
           git -C "$HOME/cronet-go" submodule update --init --recursive --depth=1
           cd "$HOME/cronet-go"
-          go run ./cmd/build-naive --target=linux/amd64 download-toolchain
+          go run ./cmd/build-naive --target=linux/${{ matrix.arch }} download-toolchain
       - name: Load Chromium environment
         if: steps.core-cache.outputs.cache-hit != 'true'
         run: |
           set -xeuo pipefail
           cd "$HOME/cronet-go"
-          go run ./cmd/build-naive --target=linux/amd64 env >> "$GITHUB_ENV"
+          go run ./cmd/build-naive --target=linux/${{ matrix.arch }} env >> "$GITHUB_ENV"
       - name: Build ThronedCore
         if: steps.core-cache.outputs.cache-hit != 'true'
-        run: GOOS=linux GOARCH=amd64 ./script/build_go.sh
+        run: GOOS=linux GOARCH=${{ matrix.arch }} ./script/build_go.sh
       - name: Pack core artifact
         if: steps.core-cache.outputs.cache-hit != 'true'
         run: tar czf artifacts.tgz deployment
       - uses: actions/upload-artifact@v7.0.1
         with:
-          name: throned-core-linux-amd64
+          name: throned-core-linux-${{ matrix.arch }}
           path: artifacts.tgz
           compression-level: 0
 
@@ -177,31 +186,38 @@ jobs:
 
   linux:
     needs: core-linux
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ (github.ref_type == 'tag' || inputs.full_matrix) && fromJSON('[{"runner":"ubuntu-22.04","arch":"amd64","qt_arch":"x86_64","system_qt":false},{"runner":"ubuntu-22.04","arch":"amd64","qt_arch":"x86_64","system_qt":true},{"runner":"ubuntu-24.04-arm","arch":"arm64","qt_arch":"aarch64","system_qt":false},{"runner":"ubuntu-22.04-arm","arch":"arm64","qt_arch":"aarch64","system_qt":true}]') || fromJSON('[{"runner":"ubuntu-22.04","arch":"amd64","qt_arch":"x86_64","system_qt":false}]') }}
+    runs-on: ${{ matrix.runner }}
     env:
       INPUT_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version || 'dev' }}
-      DEST: ${{ github.workspace }}/deployment/linux-amd64
+      DEST_SUFFIX: linux-${{ matrix.arch }}${{ matrix.system_qt && '-system-qt' || '' }}
+      DEST: ${{ github.workspace }}/deployment/linux-${{ matrix.arch }}${{ matrix.system_qt && '-system-qt' || '' }}
       GITHUB_WORKSPACE: ${{ github.workspace }}
-      ARCH: x86_64
+      ARCH: ${{ matrix.qt_arch }}
       LAUNCHER_ARGS: -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: hendrikmuhs/ccache-action@v1.2.23
         with:
-          key: linux-amd64-qt-6.11.1
+          key: linux-${{ matrix.arch }}-${{ matrix.system_qt && 'system-qt' || 'qt-6.11.1' }}
           variant: ccache
           max-size: 500M
       - uses: actions/download-artifact@v8.0.1
         with:
-          name: throned-core-linux-amd64
+          name: throned-core-linux-${{ matrix.arch }}
           path: download-artifact
       - uses: jurplel/install-qt-action@v4.3.1
+        if: ${{ !matrix.system_qt }}
         with:
           version: "6.11.1"
           setup-python: true
           cache: true
-          cache-key-prefix: throned-linux-amd64
+          cache-key-prefix: throned-linux-${{ matrix.arch }}
       - name: Build portable application
+        if: ${{ !matrix.system_qt }}
         run: |
           mkdir build
           cd build
@@ -210,10 +226,22 @@ jobs:
           ninja
           cd ..
           ./script/deploy_linux64.sh
+      - name: Build system Qt application
+        if: ${{ matrix.system_qt }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-base-dev qt6-tools-dev qt6-tools-dev-tools qt6-l10n-tools libqt6svg6-dev qt6-translations-l10n libglx-dev libgl1-mesa-dev
+          mkdir build
+          cd build
+          curl -fLso srslist.h https://raw.githubusercontent.com/throneproj/routeprofiles/rule-set/srslist.h
+          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc" $LAUNCHER_ARGS ..
+          ninja
+          cd ..
+          ./script/deploy_linux64_system_qt.sh
       - uses: actions/upload-artifact@v7.0.1
         with:
-          name: throned-${{ github.sha }}-linux-amd64
-          path: deployment/linux-amd64
+          name: throned-${{ github.sha }}-${{ env.DEST_SUFFIX }}
+          path: deployment/${{ env.DEST_SUFFIX }}
 
   release:
     if: github.ref_type == 'tag'
@@ -231,23 +259,37 @@ jobs:
           path: deployment/windows-amd64
       - uses: actions/download-artifact@v8.0.1
         with:
-          name: throned-${{ github.sha }}-linux-amd64
-          path: deployment/linux-amd64
+          pattern: throned-${{ github.sha }}-linux-*
+          path: deployment
+          merge-multiple: false
       - name: Pack release files
         run: |
-          mkdir -p package/windows/Throned package/linux/Throned package/windows-legacy/Throne package/linux-legacy/Throne
+          for artifact in deployment/throned-${GITHUB_SHA}-linux-*; do
+            suffix="${artifact#deployment/throned-${GITHUB_SHA}-}"
+            mv "$artifact" "deployment/$suffix"
+          done
+          mkdir -p package/windows/Throned package/windows-legacy/Throne package/linux-legacy/Throne
           cp -a deployment/windows-amd64/. package/windows/Throned/
-          cp -a deployment/linux-amd64/. package/linux/Throned/
           rm -f package/windows/Throned/Throned.pdb
-          rm -f package/linux/Throned/Throned.debug
           cd package/windows
           zip -9 -r "../../Throned-${GITHUB_REF_NAME}-windows64.zip" Throned
-          cd ../linux
-          zip -9 -r "../../Throned-${GITHUB_REF_NAME}-linux-amd64.zip" Throned
+          cd ../..
+          for arch in amd64 arm64; do
+            (cd deployment && bash ../script/pack_debian.sh "$GITHUB_REF_NAME" "$arch")
+            mv deployment/Throned.deb "Throned-${GITHUB_REF_NAME}-debian-${arch}.deb"
+            rm -rf deployment/Throned
+            (cd deployment && bash ../script/pack_debian.sh "$GITHUB_REF_NAME" "$arch" systemqt)
+            mv deployment/Throned.deb "Throned-${GITHUB_REF_NAME}-debian-${arch}-system-qt.deb"
+            rm -rf deployment/Throned
+            mkdir -p "package/linux-${arch}/Throned"
+            cp -a "deployment/linux-${arch}/." "package/linux-${arch}/Throned/"
+            rm -f "package/linux-${arch}/Throned/Throned.debug"
+            (cd "package/linux-${arch}" && zip -9 -r "../../Throned-${GITHUB_REF_NAME}-linux-${arch}.zip" Throned)
+          done
           if [[ "$GITHUB_REF_NAME" == "1.1.0" ]]; then
-            cp -a ../windows/Throned/. ../windows-legacy/Throne/
-            cp -a Throned/. ../linux-legacy/Throne/
-            cd ../windows-legacy
+            cp -a package/windows/Throned/. package/windows-legacy/Throne/
+            cp -a package/linux-amd64/Throned/. package/linux-legacy/Throne/
+            cd package/windows-legacy
             zip -9 -r "../../Throne-${GITHUB_REF_NAME}-windows64.zip" Throne
             cd ../linux-legacy
             zip -9 -r "../../Throne-${GITHUB_REF_NAME}-linux-amd64.zip" Throne
@@ -269,6 +311,11 @@ jobs:
             "Throned-${GITHUB_REF_NAME}-windows64.zip"
             "Throned-${GITHUB_REF_NAME}-windows64-installer.exe"
             "Throned-${GITHUB_REF_NAME}-linux-amd64.zip"
+            "Throned-${GITHUB_REF_NAME}-linux-arm64.zip"
+            "Throned-${GITHUB_REF_NAME}-debian-amd64.deb"
+            "Throned-${GITHUB_REF_NAME}-debian-amd64-system-qt.deb"
+            "Throned-${GITHUB_REF_NAME}-debian-arm64.deb"
+            "Throned-${GITHUB_REF_NAME}-debian-arm64-system-qt.deb"
           )
           if [[ "$GITHUB_REF_NAME" == "1.1.0" ]]; then
             assets=(
