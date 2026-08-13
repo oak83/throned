@@ -184,6 +184,11 @@ namespace Configs {
         bool disable_mixed_inbound = false;
         QString inbound_address = "127.0.0.1";
         int inbound_socks_port = 2080; // Mixed, actually
+        // Ephemeral authenticated mixed inbound used only by Throned's own HTTP
+        // client. It is regenerated with each running config and always routes
+        // through the active proxy, independent of the user's final outbound.
+        int internal_proxy_port = 0;
+        QString internal_proxy_auth;
         bool random_inbound_port = false;
         QString custom_inbound = "{\"inbounds\": []}";
         QString proxy_scheme = "{ip}:{port}";

@@ -17,26 +17,48 @@
 #include "include/global/DeviceDetailsHelper.hpp"
 
 namespace Configs_network {
+    namespace {
+        QString configureProxy(QNetworkAccessManager &accessManager, bool forceProxy) {
+            const auto &settings = Configs::dataManager->settingsRepo;
+            // Once a profile is running, keep every application-owned request on its
+            // dedicated loopback inbound.  This avoids bootstrap failures when the
+            // direct route cannot reach GitHub, geo assets or subscription endpoints.
+            const bool requested = settings->internal_proxy_port > 0 ||
+                                   settings->net_use_proxy ||
+                                   settings->spmode_system_proxy ||
+                                   forceProxy;
+            if (!requested) return {};
+            if (settings->started_id < 0 && settings->internal_proxy_port <= 0) {
+                return QObject::tr("Request with proxy but no profile started.");
+            }
+
+            QNetworkProxy proxy;
+            proxy.setType(QNetworkProxy::HttpProxy);
+            if (settings->internal_proxy_port > 0 && !settings->internal_proxy_auth.isEmpty()) {
+                proxy.setHostName("127.0.0.1");
+                proxy.setPort(settings->internal_proxy_port);
+                proxy.setUser(settings->internal_proxy_auth);
+                proxy.setPassword(settings->internal_proxy_auth);
+            } else {
+                proxy.setHostName(settings->inbound_address == "::" ? "127.0.0.1" : settings->inbound_address);
+                proxy.setPort(settings->inbound_socks_port);
+                if (settings->inbound_auth) {
+                    proxy.setUser(settings->inbound_user);
+                    proxy.setPassword(settings->inbound_pass);
+                }
+            }
+            accessManager.setProxy(proxy);
+            return {};
+        }
+    }
 
     HTTPResponse NetworkRequestHelper::HttpGet(const QString &url, bool sendHwid, bool useProxy) {
         QNetworkRequest request;
         QNetworkAccessManager accessManager;
         accessManager.setTransferTimeout(10000);
         request.setUrl(url);
-        if (Configs::dataManager->settingsRepo->net_use_proxy || Configs::dataManager->settingsRepo->spmode_system_proxy || useProxy) {
-            if (Configs::dataManager->settingsRepo->started_id < 0) {
-                return HTTPResponse{QObject::tr("Request with proxy but no profile started.")};
-            }
-            QNetworkProxy p;
-            p.setType(QNetworkProxy::HttpProxy);
-            p.setHostName(Configs::dataManager->settingsRepo->inbound_address == "::" ? "127.0.0.1" : Configs::dataManager->settingsRepo->inbound_address);
-            p.setPort(Configs::dataManager->settingsRepo->inbound_socks_port);
-            if (Configs::dataManager->settingsRepo->inbound_auth) {
-                p.setUser(Configs::dataManager->settingsRepo->inbound_user);
-                p.setPassword(Configs::dataManager->settingsRepo->inbound_pass);
-            }
-            accessManager.setProxy(p);
-        }
+        if (const auto proxyError = configureProxy(accessManager, useProxy); !proxyError.isEmpty())
+            return HTTPResponse{proxyError};
         // Set attribute
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
         request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, Configs::dataManager->settingsRepo->GetUserAgent());
@@ -113,24 +135,13 @@ namespace Configs_network {
         return "";
     }
 
-    QString NetworkRequestHelper::DownloadAsset(const QString &url, const QString &fileName) {
+    QString NetworkRequestHelper::DownloadAsset(const QString &url, const QString &fileName, bool useProxy) {
         QNetworkRequest request;
         QNetworkAccessManager accessManager;
+        accessManager.setTransferTimeout(30000);
         request.setUrl(url);
-        if (Configs::dataManager->settingsRepo->net_use_proxy || Configs::dataManager->settingsRepo->spmode_system_proxy) {
-            if (Configs::dataManager->settingsRepo->started_id < 0) {
-                return QObject::tr("Request with proxy but no profile started.");
-            }
-            QNetworkProxy p;
-            p.setType(QNetworkProxy::HttpProxy);
-            p.setHostName(Configs::dataManager->settingsRepo->inbound_address == "::" ? "127.0.0.1" : Configs::dataManager->settingsRepo->inbound_address);
-            p.setPort(Configs::dataManager->settingsRepo->inbound_socks_port);
-            if (Configs::dataManager->settingsRepo->inbound_auth) {
-                p.setUser(Configs::dataManager->settingsRepo->inbound_user);
-                p.setPassword(Configs::dataManager->settingsRepo->inbound_pass);
-            }
-            accessManager.setProxy(p);
-        }
+        if (const auto proxyError = configureProxy(accessManager, useProxy); !proxyError.isEmpty())
+            return proxyError;
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
         if (Configs::dataManager->settingsRepo->net_insecure) {
             QSslConfiguration c;

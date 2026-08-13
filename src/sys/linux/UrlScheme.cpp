@@ -9,7 +9,7 @@
 #include <QStandardPaths>
 #include <QTextStream>
 
-static const QString kDesktopId = "throne-url-handler.desktop";
+static const QString kDesktopId = "throned-url-handler.desktop";
 
 // For AppImage the launcher must point at the outer image ($APPIMAGE), not the
 // extracted binary inside the mount, which disappears after exit.
@@ -41,8 +41,8 @@ void UrlScheme_Apply() {
         // entries, so the entry has to be a visible one.
         ts << "[Desktop Entry]\n"
            << "Type=Application\n"
-           << "Name=Throne\n"
-           << "Icon=throne\n"
+           << "Name=Throned\n"
+           << "Icon=throned\n"
            << "Exec=\"" << execTarget() << "\" %U\n"
            << "MimeType=x-scheme-handler/throne;application/json;application/yaml;text/yaml;text/plain;\n"
            << "Terminal=false\n";

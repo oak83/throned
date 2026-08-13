@@ -9,14 +9,17 @@
 
 #include "3rdparty/WinCommander.hpp"
 
-QString GetTaskName() {
-    QString exePath = QDir::cleanPath(QCoreApplication::applicationFilePath()).toLower();
-
-    QByteArray hash = QCryptographicHash::hash(exePath.toUtf8(), QCryptographicHash::Md5).toHex();
+QString taskNameFor(const QString &exePath, const QString &brand) {
+    const QString cleanPath = QDir::cleanPath(exePath).toLower();
+    QByteArray hash = QCryptographicHash::hash(cleanPath.toUtf8(), QCryptographicHash::Md5).toHex();
 
     QString shortHash = QString(hash).left(8);
 
-    return QString("Throne AutoRun %1").arg(shortHash);
+    return QString("%1 AutoRun %2").arg(brand, shortHash);
+}
+
+QString GetTaskName() {
+    return taskNameFor(QCoreApplication::applicationFilePath(), "Throned");
 }
 
 QString getCurrentUser() {
@@ -77,7 +80,7 @@ void enable_autorun() {
         "</Task>"
     ).arg(userId, runLevel, exePath);
 
-    QString xmlFilePath = QDir::toNativeSeparators(QDir::tempPath() + "\\Throne_Task.xml");
+    QString xmlFilePath = QDir::toNativeSeparators(QDir::tempPath() + "\\Throned_Task.xml");
     QFile xmlFile(xmlFilePath);
     if (xmlFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream out(&xmlFile);
@@ -182,13 +185,43 @@ bool old_autoRun_isEnabled() {
 }
 
 void AutoRun_MigrateIfNeeded() {
-    if (!old_autoRun_isEnabled()) return;
-
     auto appPath = QApplication::applicationFilePath();
     QFileInfo fInfo(appPath);
     QString name = fInfo.baseName();
     QSettings settings("HKEY_CURRENT_USER\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", QSettings::NativeFormat);
-    settings.remove(name);
 
-    AutoRun_SetEnabled(true);
+    bool migrate = old_autoRun_isEnabled();
+    if (settings.contains("Throne")) {
+        settings.remove("Throne");
+        migrate = true;
+    }
+    if (migrate) settings.remove(name);
+
+    QStringList legacyExecutables{
+        QDir(QApplication::applicationDirPath()).absoluteFilePath("Throne.exe"),
+    };
+    const QFileInfo currentDir(QApplication::applicationDirPath());
+    if (currentDir.fileName().compare("Throned", Qt::CaseInsensitive) == 0) {
+        legacyExecutables << currentDir.dir().absoluteFilePath("Throne/Throne.exe");
+    }
+    legacyExecutables.removeDuplicates();
+
+    for (const auto &legacyExe : legacyExecutables) {
+        const QString legacyTask = taskNameFor(legacyExe, "Throne");
+        QProcess query;
+        query.start("schtasks.exe", QStringList() << "/query" << "/tn" << legacyTask);
+        query.waitForFinished();
+        if (query.exitStatus() != QProcess::NormalExit || query.exitCode() != 0) continue;
+
+        migrate = true;
+        QStringList deleteArgs{"/delete", "/tn", legacyTask, "/f"};
+        QProcess remove;
+        remove.start("schtasks.exe", deleteArgs);
+        remove.waitForFinished();
+        if (remove.exitStatus() != QProcess::NormalExit || remove.exitCode() != 0) {
+            WinCommander::runProcessElevated("schtasks.exe", deleteArgs, "", 0, true);
+        }
+    }
+
+    if (migrate) AutoRun_SetEnabled(true);
 }

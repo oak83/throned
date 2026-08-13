@@ -208,13 +208,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     // Prepare core
     auto core_path = QApplication::applicationDirPath() + "/";
-    core_path += "ThroneCore";
+    core_path += "ThronedCore";
 
     bool coreDebugMode = (Configs::dataManager->settingsRepo->log_level == "debug");
 
     // Create IPC server with a random UUID name
     Configs::dataManager->settingsRepo->core_socket_name =
-        "throneIPC-" + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        "thronedIPC-" + QUuid::createUuid().toString(QUuid::WithoutBraces);
     core_server = new QLocalServer(this);
     core_server->setSocketOptions(QLocalServer::UserAccessOption);
     if (!core_server->listen(Configs::dataManager->settingsRepo->core_socket_name)) {
@@ -321,7 +321,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     }
 
     // software_name
-    software_name = "Throne";
+    software_name = "Throned";
     software_core_name = "sing-box";
     //
     if (auto dashDir = QDir("dashboard"); !dashDir.exists() && QDir().mkdir("dashboard")) {
@@ -1034,18 +1034,30 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             MessageBoxWarning("Build config error", result->error);
             return;
         }
-        QString config_core = QJsonObject2QString(result->xrayConfig, true);
+        const QString singConfig = QJsonObject2QString(result->coreConfig, true);
+        QStringList xrayConfigs;
+        if (!result->xrayConfig.isEmpty()) {
+            xrayConfigs << QJsonObject2QString(result->xrayConfig, true);
+        }
+        xrayConfigs.append(result->xrayFullConfigs);
+        QString config_core = xrayConfigs.join("\n\n");
+        const QString pairedConfigs =
+            QStringLiteral("=== sing-box ===\n") + singConfig +
+            QStringLiteral("\n\n=== Xray ===\n") + config_core;
         QApplication::clipboard()->setText(config_core);
 
         QMessageBox msg(QMessageBox::Information, tr("Config copied"), config_core);
-        QPushButton *button_1 = msg.addButton(tr("Copy core config"), QMessageBox::YesRole);
+        QPushButton *button_1 = msg.addButton(tr("Copy sing-box config"), QMessageBox::YesRole);
+        QPushButton *button_pair = msg.addButton(tr("Copy paired configs"), QMessageBox::YesRole);
         QPushButton *button_2 = msg.addButton(tr("Copy test config"), QMessageBox::YesRole);
         msg.addButton(QMessageBox::Ok);
         msg.setEscapeButton(QMessageBox::Ok);
         msg.setDefaultButton(QMessageBox::Ok);
         msg.exec();
         if (msg.clickedButton() == button_1) {
-            QApplication::clipboard()->setText(config_core);
+            QApplication::clipboard()->setText(singConfig);
+        } else if (msg.clickedButton() == button_pair) {
+            QApplication::clipboard()->setText(pairedConfigs);
         } else if (msg.clickedButton() == button_2) {
             auto res = Configs::BuildTestConfig({ent});
             if (!res->error.isEmpty()) {

@@ -31,6 +31,8 @@ namespace Configs
         QString error;
         QJsonObject coreConfig;
         QString tunIPv4CIDR;
+        int serviceProxyPort = 0;
+        QString serviceProxyAuth;
         bool isXrayNeeded = false;
         QJsonObject xrayConfig;
         // Opaque full configs, one instance each; never merged into xrayConfig.

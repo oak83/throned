@@ -51,6 +51,7 @@ namespace Configs {
 
             constexpr auto dnsIn = "dns-in";
             constexpr auto mixedIn = "mixed-in";
+            constexpr auto serviceIn = "throned-service-in";
             constexpr auto tunIn = "tun-in";
             constexpr auto redirectIn = "hijack";
             constexpr auto dnsServerIn = "hijack-dns";
@@ -362,7 +363,7 @@ namespace Configs {
         }
 
         QString genTunName() {
-            auto tun_name = "throne-tun";
+            auto tun_name = "throned-tun";
 #ifdef Q_OS_MACOS
             tun_name = "";
 #endif
@@ -1038,6 +1039,25 @@ namespace Configs {
                 }
                 inbounds += inboundObj;
             }
+
+            const int servicePort = MkPort("127.0.0.1");
+            if (servicePort <= 0) {
+                ctx.error = "Could not reserve the internal service proxy port";
+                return;
+            }
+            const QString serviceAuth = GetRandomString(32);
+            ctx.result->serviceProxyPort = servicePort;
+            ctx.result->serviceProxyAuth = serviceAuth;
+            inbounds += QJsonObject{
+                {"tag", tags::serviceIn},
+                {"type", "mixed"},
+                {"listen", "127.0.0.1"},
+                {"listen_port", servicePort},
+                {"users", QJsonArray{QJsonObject{
+                    {"username", serviceAuth},
+                    {"password", serviceAuth},
+                }}},
+            };
 
             // Tun
             if (settings.spmode_vpn) {
@@ -1851,12 +1871,21 @@ namespace Configs {
             struct InjectedRules {
                 QJsonObject tunDNSHijack;
                 QJsonObject tunPeerReject;
+                QJsonObject serviceProxy;
                 QJsonObject sniff;
                 QJsonObject resolve;
                 QJsonObject dnsHijack;
                 QJsonObject dnsInReject;
                 QJsonObject redirectSniff;
             } injected;
+
+            if (!ctx.forTest) {
+                injected.serviceProxy = QJsonObject{
+                    {"inbound", tags::serviceIn},
+                    {"action", "route"},
+                    {"outbound", tags::proxy},
+                };
+            }
 
             // A network-interface update can briefly leave Windows with an incomplete
             // TUN route table (#1513). In that state a direct socket can be captured by
@@ -1953,6 +1982,7 @@ namespace Configs {
             auto appendIfSet = [&routeRules](const QJsonObject& r) { if (!r.isEmpty()) routeRules.append(r); };
             appendIfSet(injected.tunDNSHijack);
             appendIfSet(injected.tunPeerReject);
+            appendIfSet(injected.serviceProxy);
             appendIfSet(injected.sniff);
             appendIfSet(injected.resolve);
             appendIfSet(injected.dnsHijack);
@@ -1965,6 +1995,14 @@ namespace Configs {
 
             QJsonObject route = routeChain->isRaw ? rawRouteObj : QJsonObject{};
             route["rules"] = routeRules;
+            for (qsizetype idx = 0; idx < ruleSetArray.size(); idx++) {
+                auto ruleSet = ruleSetArray[idx].toObject();
+                if (ruleSet.value("type").toString() == "remote" &&
+                    !ruleSet.contains("download_detour")) {
+                    ruleSet["download_detour"] = tags::proxy;
+                    ruleSetArray[idx] = ruleSet;
+                }
+            }
             route["rule_set"] = ruleSetArray;
             if (routeChain->isRaw) {
                 if (!route.contains("final")) route["final"] = tags::proxy; // user's final, else a safe default

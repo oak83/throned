@@ -45,7 +45,7 @@ namespace Configs {
     }
 
     QString FindCoreRealPath() {
-        auto fn = QApplication::applicationDirPath() + "/ThroneCore";
+        auto fn = QApplication::applicationDirPath() + "/ThronedCore";
 #ifdef Q_OS_WIN
         fn += ".exe";
 #endif

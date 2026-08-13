@@ -155,7 +155,7 @@ namespace Logging {
 
         QString sessionHeader() {
             QString out;
-            out += "===== Throne session start =====\n";
+            out += "===== Throned session start =====\n";
             out += "  version   : " NKR_VERSION "\n";
             out += "  built     : " __DATE__ " " __TIME__ "\n";
             out += "  qt        : " + QString(qVersion()) + " (built against " QT_VERSION_STR ")\n";
@@ -300,7 +300,7 @@ namespace Logging {
         QMutexLocker lock(&g_mutex);
         if (!g_initialized) return;
         if (g_file.isOpen()) {
-            writeLocked(formatLine(Level::Info, "===== Throne session end (clean) =====", nullptr, 0), true);
+            writeLocked(formatLine(Level::Info, "===== Throned session end (clean) =====", nullptr, 0), true);
             g_file.close();
         }
         QFile::remove(g_markerPath);

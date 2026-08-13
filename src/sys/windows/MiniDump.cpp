@@ -137,7 +137,7 @@ static void WriteSidecar(const wchar_t *path, EXCEPTION_POINTERS *pException, bo
     SYSTEMTIME st;
     GetLocalTime(&st);
 
-    AppendA(file, "Throne crash report\r\n===================\r\n");
+    AppendA(file, "Throned crash report\r\n====================\r\n");
     wsprintfA(line, "time      : %04d-%02d-%02d %02d:%02d:%02d\r\n",
               st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
     AppendA(file, line);
@@ -214,10 +214,10 @@ static void WriteCrashArtifacts(EXCEPTION_POINTERS *pException) {
 
     wchar_t dumpPath[MAX_PATH];
     wchar_t sidecarPath[MAX_PATH];
-    wsprintfW(dumpPath, L"%s\\Throne_%s_%s_%04d%02d%02d-%02d%02d%02d.dmp",
+    wsprintfW(dumpPath, L"%s\\Throned_%s_%s_%04d%02d%02d-%02d%02d%02d.dmp",
               g_dumpPathTemplate, L"" NKR_VERSION, THRONE_ARCH,
               st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-    wsprintfW(sidecarPath, L"%s\\Throne_%s_%s_%04d%02d%02d-%02d%02d%02d.txt",
+    wsprintfW(sidecarPath, L"%s\\Throned_%s_%s_%04d%02d%02d-%02d%02d%02d.txt",
               g_dumpPathTemplate, L"" NKR_VERSION, THRONE_ARCH,
               st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
 
@@ -259,13 +259,13 @@ static void WriteCrashArtifacts(EXCEPTION_POINTERS *pException) {
     wchar_t addrHex[17];
     HexPtrW(addrHex, record != nullptr ? record->ExceptionAddress : nullptr);
     wsprintfW(msg,
-              L"Throne %s (%s) crashed.\n\nException: 0x%08X\nAddress: 0x%s\n\n"
+              L"Throned %s (%s) crashed.\n\nException: 0x%08X\nAddress: 0x%s\n\n"
               L"A crash report was saved to:\n%s\n\nPlease attach the .txt file (and the .dmp if you can) to a bug report.",
               L"" NKR_VERSION, THRONE_ARCH,
               record != nullptr ? record->ExceptionCode : 0,
               addrHex,
               g_dumpPathTemplate);
-    MessageBoxW(nullptr, msg, L"Throne crashed", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+    MessageBoxW(nullptr, msg, L"Throned crashed", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
 }
 
 LONG __stdcall CreateCrashHandler(EXCEPTION_POINTERS *pException) {
@@ -379,9 +379,9 @@ void Windows_ConfigureWER() {
     // The core is a separate process; its fatal Go runtime aborts are invisible
     // to anything installed in this one.
     const bool ok = RegisterWerApp(exeName, g_dumpPathTemplate) &&
-                    RegisterWerApp(L"ThroneCore.exe", g_dumpPathTemplate);
+                    RegisterWerApp(L"ThronedCore.exe", g_dumpPathTemplate);
     if (ok) {
-        LOG_INFO("WER LocalDumps registered for Throne.exe and ThroneCore.exe");
+        LOG_INFO("WER LocalDumps registered for Throned.exe and ThronedCore.exe");
     } else {
         // One elevated run is enough to make this stick, and Throne already
         // elevates for TUN, so this is a notice rather than a problem.

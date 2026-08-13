@@ -84,11 +84,14 @@ func writeHeapProfile() (string, error) {
 }
 
 func RunCore() {
-	socketName := os.Getenv("THRONE_CORE_SOCKET")
+	socketName := os.Getenv("THRONED_CORE_SOCKET")
 	if socketName == "" {
-		log.Fatal("THRONE_CORE_SOCKET not set")
+		socketName = os.Getenv("THRONE_CORE_SOCKET")
 	}
-	debug = os.Getenv("THRONE_CORE_DEBUG") == "1"
+	if socketName == "" {
+		log.Fatal("THRONED_CORE_SOCKET not set")
+	}
+	debug = os.Getenv("THRONED_CORE_DEBUG") == "1" || os.Getenv("THRONE_CORE_DEBUG") == "1"
 
 	parentcheck.CheckParentProcess()
 
@@ -129,7 +132,7 @@ func RunCore() {
 		log.Fatalf("failed to connect to GUI socket after 10 attempts: %v", err)
 	}
 
-	fmt.Println("Core Has Successfully Connected to Throne!")
+	fmt.Println("Core has successfully connected to Throned!")
 	runDispatch(conn)
 }
 

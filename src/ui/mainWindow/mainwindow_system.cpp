@@ -219,7 +219,7 @@ bool MainWindow::get_elevated_permissions(ExitReason reason) {
     }
 #endif
 #ifdef Q_OS_WIN
-    auto n = QMessageBox::warning(GetMessageBoxParent(), software_name, tr("Please run Throne as admin"), QMessageBox::Yes | QMessageBox::No);
+    auto n = QMessageBox::warning(GetMessageBoxParent(), software_name, tr("Please run Throned as admin"), QMessageBox::Yes | QMessageBox::No);
     if (n == QMessageBox::Yes) {
         this->exit_reason = reason;
         on_menu_exit_triggered();
@@ -317,7 +317,9 @@ namespace {
 
 bool isNewer(QString assetName) {
     if (QString(NKR_VERSION).isEmpty()) return false;
-    assetName = assetName.mid(7); // take out Throne-
+    const auto firstDash = assetName.indexOf('-');
+    if (firstDash < 0) return false;
+    assetName = assetName.mid(firstDash + 1); // take out Throned- (or legacy Throne-)
     QString version;
     auto spl = assetName.split('-');
     version += spl[0]; // version: 1.2.3
@@ -438,11 +440,13 @@ void MainWindow::CheckUpdate() {
         QJsonObject release = value.toObject();
         if (release["prerelease"].toBool() && !Configs::dataManager->settingsRepo->allow_beta_update) continue;
         for (const QJsonValue asset : release["assets"].toArray()) {
-            if (asset["name"].toString().contains(search) && asset["name"].toString().section('.', -1) == QString("zip")) {
+            const QString assetName = asset["name"].toString();
+            if (assetName.startsWith("Throned-") && assetName.contains(search) &&
+                assetName.section('.', -1) == QString("zip")) {
                 note_pre_release = release["prerelease"].toBool() ? " (Pre-release)" : "";
                 release_url = release["html_url"].toString();
                 release_note = release["body"].toString();
-                assets_name = asset["name"].toString();
+                assets_name = assetName;
                 release_download_url = asset["browser_download_url"].toString();
                 exitFlag = true;
                 break;
@@ -482,7 +486,8 @@ void MainWindow::CheckUpdate() {
                 }
                 QString errors;
                 if (!release_download_url.isEmpty()) {
-                    auto res = NetworkRequestHelper::DownloadAsset(release_download_url, "Throne.zip");
+                    const bool proxyAvailable = Configs::dataManager->settingsRepo->started_id >= 0;
+                    auto res = NetworkRequestHelper::DownloadAsset(release_download_url, "Throned.zip", proxyAvailable);
                     if (!res.isEmpty()) {
                         errors += res;
                     }

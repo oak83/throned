@@ -32,7 +32,7 @@ jobs:
         id: core-cache
         with:
           path: artifacts.tgz
-          key: throned-core-windows-amd64-go-1.26.5-${{ hashFiles('script/build_go.sh', 'core/**') }}
+          key: throned-core-windows-amd64-go-1.26.5-${{ hashFiles('script/build_go.sh', 'core/**', 'updater/**') }}
       - uses: actions/setup-go@v6.5.0
         if: steps.core-cache.outputs.cache-hit != 'true'
         with:
@@ -48,7 +48,7 @@ jobs:
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
-      - name: Build ThroneCore
+      - name: Build ThronedCore
         if: steps.core-cache.outputs.cache-hit != 'true'
         run: GOOS=windows GOARCH=amd64 ./script/build_go.sh
       - name: Pack core artifact
@@ -70,7 +70,7 @@ jobs:
         id: core-cache
         with:
           path: artifacts.tgz
-          key: throned-core-linux-amd64-go-1.26.5-${{ hashFiles('script/build_go.sh', 'core/**') }}
+          key: throned-core-linux-amd64-go-1.26.5-${{ hashFiles('script/build_go.sh', 'core/**', 'updater/**') }}
       - uses: actions/setup-go@v6.5.0
         if: steps.core-cache.outputs.cache-hit != 'true'
         with:
@@ -109,7 +109,7 @@ jobs:
           set -xeuo pipefail
           cd "$HOME/cronet-go"
           go run ./cmd/build-naive --target=linux/amd64 env >> "$GITHUB_ENV"
-      - name: Build ThroneCore
+      - name: Build ThronedCore
         if: steps.core-cache.outputs.cache-hit != 'true'
         run: GOOS=linux GOARCH=amd64 ./script/build_go.sh
       - name: Pack core artifact
@@ -235,31 +235,49 @@ jobs:
           path: deployment/linux-amd64
       - name: Pack release files
         run: |
-          mkdir -p package/windows/Throne package/linux/Throne
-          cp -a deployment/windows-amd64/. package/windows/Throne/
-          cp -a deployment/linux-amd64/. package/linux/Throne/
-          rm -f package/windows/Throne/Throne.pdb
-          rm -f package/linux/Throne/Throne.debug
+          mkdir -p package/windows/Throned package/linux/Throned package/windows-legacy/Throne package/linux-legacy/Throne
+          cp -a deployment/windows-amd64/. package/windows/Throned/
+          cp -a deployment/linux-amd64/. package/linux/Throned/
+          rm -f package/windows/Throned/Throned.pdb
+          rm -f package/linux/Throned/Throned.debug
           cd package/windows
-          zip -9 -r "../../Throne-${GITHUB_REF_NAME}-windows64.zip" Throne
+          zip -9 -r "../../Throned-${GITHUB_REF_NAME}-windows64.zip" Throned
           cd ../linux
-          zip -9 -r "../../Throne-${GITHUB_REF_NAME}-linux-amd64.zip" Throne
+          zip -9 -r "../../Throned-${GITHUB_REF_NAME}-linux-amd64.zip" Throned
+          if [[ "$GITHUB_REF_NAME" == "1.1.0" ]]; then
+            cp -a ../windows/Throned/. ../windows-legacy/Throne/
+            cp -a Throned/. ../linux-legacy/Throne/
+            cd ../windows-legacy
+            zip -9 -r "../../Throne-${GITHUB_REF_NAME}-windows64.zip" Throne
+            cd ../linux-legacy
+            zip -9 -r "../../Throne-${GITHUB_REF_NAME}-linux-amd64.zip" Throne
+          fi
       - name: Build Windows installer
         run: |
           sudo apt-get update
           sudo apt-get install -y nsis
           makensis -NOCD \
             -DTHRONED_X64_ONLY \
-            -DOUTPUT_FILE="Throne-${GITHUB_REF_NAME}-windows64-installer.exe" \
+            -DAPP_VERSION="${GITHUB_REF_NAME}" \
+            -DOUTPUT_FILE="Throned-${GITHUB_REF_NAME}-windows64-installer.exe" \
             script/windows_installer.nsi
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            "Throne-${GITHUB_REF_NAME}-windows64.zip" \
-            "Throne-${GITHUB_REF_NAME}-windows64-installer.exe" \
-            "Throne-${GITHUB_REF_NAME}-linux-amd64.zip" \
+          assets=(
+            "Throned-${GITHUB_REF_NAME}-windows64.zip"
+            "Throned-${GITHUB_REF_NAME}-windows64-installer.exe"
+            "Throned-${GITHUB_REF_NAME}-linux-amd64.zip"
+          )
+          if [[ "$GITHUB_REF_NAME" == "1.1.0" ]]; then
+            assets=(
+              "Throne-${GITHUB_REF_NAME}-windows64.zip"
+              "Throne-${GITHUB_REF_NAME}-linux-amd64.zip"
+              "${assets[@]}"
+            )
+          fi
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes

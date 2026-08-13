@@ -11,12 +11,12 @@ from urllib.request import urlopen, urlretrieve
 from pathlib import Path
 from typing import Union
 
-REPO = "throneproj/Throne"
+REPO = "troshkindm/throned"
 
-APPDIR = Path("/opt/Throne")
+APPDIR = Path("/opt/Throned")
 DESKTOPDIR = Path("/usr/share/applications")
 
-CONFIGDIR = Path.home() / ".config/Throne"
+CONFIGDIR = Path.home() / ".config/Throned"
 AUTOSTARTDIR = Path.home() / ".config/autostart"
 
 
@@ -50,13 +50,13 @@ def remove_path(path: Path) -> bool:
 
 
 # Returns "version" or "unknown" when installation exists
-# Returns None when neither the Version file nor the Throne executable are found
+# Returns None when neither the Version file nor the Throned executable are found
 def get_installed_version(path: Path) -> Union[str, None]:
     if (path / "Version").exists():
         with open(path / Path("Version"), "r") as file:
             return file.read().strip()
 
-    if (path / "Throne").exists():
+    if (path / "Throned").exists():
         return "unknown"
 
     return None
@@ -92,9 +92,12 @@ def get_github_releases() -> dict:
     while True:
         data: dict = {}
         with urlopen(
-            f"https://api.github.com/repos/{REPO}/releases?page={page}"
+            f"https://api.github.com/repos/{REPO}/releases?per_page=100&page={page}"
         ) as response:
             data = json.loads(response.read())
+
+        if not data:
+            break
 
         result["stable"].extend([parse_release(i) for i in data if not i["prerelease"]])
         result["unstable"].extend([parse_release(i) for i in data if i["prerelease"]])
@@ -198,7 +201,7 @@ def run(main):
         curses.curs_set(0)
         init_colors()
         scr.clear()
-        scr.addstr(0, 0, "┌  Welcome to Throne CLI manager!")
+        scr.addstr(0, 0, "┌  Welcome to Throned CLI manager!")
         scr.addstr(1, 0, "|")
         main(scr, 2)
 
@@ -213,7 +216,7 @@ def main(scr, y):
     arch = get_arch()
     version = get_installed_version(APPDIR)
     if version:
-        y = message(scr, y, f"Looks like you already have Throne ({version}) installed")
+        y = message(scr, y, f"Looks like you already have Throned ({version}) installed")
         bar(scr, y, 0, "|", "", C_DIM)
         scr.refresh()
         y += 1
@@ -221,9 +224,10 @@ def main(scr, y):
     releases = get_github_releases()
 
     y = message(scr, y, f"Latest Stable release: {releases['stable'][0]['version']}")
-    y = message(
-        scr, y, f"Latest Unstable release: {releases['unstable'][0]['version']}"
-    )
+    if releases["unstable"]:
+        y = message(
+            scr, y, f"Latest Unstable release: {releases['unstable'][0]['version']}"
+        )
 
     bar(scr, y, 0, "|", "", C_DIM)
     scr.refresh()
@@ -237,11 +241,14 @@ def main(scr, y):
     )
 
     if action == "Install":
+        branches = ["Stable"]
+        if releases["unstable"]:
+            branches.append("Unstable")
         branch, y = select(
             scr,
             y,
             "Which branch would you like?",
-            ["Stable", "Unstable"],
+            branches,
         )
 
         with TemporaryDirectory() as tmp:
@@ -251,25 +258,25 @@ def main(scr, y):
             version = release["version"]
             url = release["assets"][arch]
 
-            p = Progress(scr, y, f"Downloading Throne ({version}) from GitHub")
+            p = Progress(scr, y, f"Downloading Throned ({version}) from GitHub")
             urlretrieve(
                 url,
-                tmpdir / "Throne.zip",
+                tmpdir / "Throned.zip",
                 p.hook,
             )
             y = p.next_y()
 
             y = message(scr, y, "Unpacking zip archive")
-            with ZipFile(tmpdir / "Throne.zip", "r") as zip:
+            with ZipFile(tmpdir / "Throned.zip", "r") as zip:
                 zip.extractall(tmpdir)
 
             y = message(scr, y, "Creating .desktop file")
-            with open(tmpdir / "Throne.desktop", "w") as file:
+            with open(tmpdir / "Throned.desktop", "w") as file:
                 file.write(f"""[Desktop Entry]
-Name=Throne
+Name=Throned
 Comment=Qt based cross-platform GUI proxy configuration manager (backend: sing-box)
-Exec={APPDIR}/Throne -appdata
-Icon={APPDIR}/Throne.png
+Exec={APPDIR}/Throned -appdata
+Icon={APPDIR}/Throned.png
 Terminal=false
 Type=Application
 Categories=Network;Application;
@@ -280,21 +287,21 @@ Categories=Network;Application;
             install(tmpdir / "Version", APPDIR / "Version", 0o644)
 
             y = message(scr, y, f"Installing binaries to {APPDIR}")
-            for name in ("ThroneCore", "Throne"):
-                install(tmpdir / "Throne" / name, APPDIR / name, 0o755)
-            usr_src = tmpdir / "Throne/usr"
+            for name in ("ThronedCore", "Throned", "Throne", "updater"):
+                install(tmpdir / "Throned" / name, APPDIR / name, 0o755)
+            usr_src = tmpdir / "Throned/usr"
             for f in usr_src.rglob("*"):
                 if f.is_file():
                     rel = f.relative_to(usr_src)
                     install(f, APPDIR / "usr" / rel, 0o644)
-            install(tmpdir / "Throne/Throne.png", APPDIR / "Throne.png", 0o644)
+            install(tmpdir / "Throned/Throned.png", APPDIR / "Throned.png", 0o644)
 
             y = message(scr, y, f"Installing .desktop to {DESKTOPDIR}")
-            install(tmpdir / "Throne.desktop", DESKTOPDIR / "Throne.desktop", 0o644)
+            install(tmpdir / "Throned.desktop", DESKTOPDIR / "Throned.desktop", 0o644)
 
     elif action == "Uninstall":
         if version is None:
-            y = message(scr, y, "Throne installation was not found", ok=False)
+            y = message(scr, y, "Throned installation was not found", ok=False)
             scr.addstr(y, 0, "└  Press any key to exit")
             scr.refresh()
             scr.getch()
@@ -303,7 +310,7 @@ Categories=Network;Application;
         confirm, y = select(
             scr,
             y,
-            "Are you sure you want to uninstall Throne?",
+            "Are you sure you want to uninstall Throned?",
             ["Yes", "No"],
         )
 
@@ -317,7 +324,7 @@ Categories=Network;Application;
         remove_path(APPDIR)
 
         y = message(scr, y, f"Removing .desktop file from {DESKTOPDIR}")
-        remove_path(DESKTOPDIR / "Throne.desktop")
+        remove_path(DESKTOPDIR / "Throned.desktop")
 
         y = message(scr, y, "Uninstallation successfully completed!")
     scr.addstr(y, 0, "└  Press any key to exit")

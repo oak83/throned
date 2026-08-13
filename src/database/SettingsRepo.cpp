@@ -288,7 +288,7 @@ namespace Configs {
         if (isDefault) {
             QString version = SubStrBefore(NKR_VERSION, "-");
             if (!version.contains(".")) version = "1.0.0";
-            return "Throne/" + version;
+            return "Throned/" + version;
         }
         return user_agent;
     }

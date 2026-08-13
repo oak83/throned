@@ -136,6 +136,31 @@ namespace {
         }
     }
 
+    void MigrateLegacyConfigIfNeeded(const QDir &targetWd) {
+        const QString targetConfig = targetWd.absoluteFilePath("config");
+        if (QFile::exists(targetConfig + "/throne.db")) return;
+
+        QStringList candidates;
+        const QDir targetParent = QFileInfo(targetWd.absolutePath()).dir();
+        if (QFileInfo(targetWd.absolutePath()).fileName().compare("Throned", Qt::CaseInsensitive) == 0) {
+            candidates << targetParent.absoluteFilePath("Throne/config");
+        }
+
+        const QString appConfig = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+        const QDir appConfigParent = QFileInfo(appConfig).dir();
+        candidates << appConfigParent.absoluteFilePath("Throne/config");
+        candidates.removeDuplicates();
+
+        for (const QString &legacyConfig : candidates) {
+            if (!QFile::exists(QDir(legacyConfig).absoluteFilePath("throne.db"))) continue;
+            CopyDirContents(legacyConfig, targetConfig);
+            if (QFile::exists(targetConfig + "/throne.db")) {
+                LOG_INFO(QString("migrated Throne config from %1 to %2").arg(legacyConfig, targetConfig));
+                return;
+            }
+        }
+    }
+
     // An elevated relaunch finds the install dir writable again, so the fallback is
     // pinned by a marker or the two runs land on different databases.
     bool AdoptUserConfigDir(const QDir &installWd, const QDir &userWd) {
@@ -164,7 +189,7 @@ namespace {
     }
 } // namespace
 
-#define LOCAL_SERVER_PREFIX "throne-"
+#define LOCAL_SERVER_PREFIX "throned-"
 
 int main(int argc, char* argv[]) {
     Logging::InstallQtMessageHandler();
@@ -231,18 +256,21 @@ int main(int argc, char* argv[]) {
 #ifdef NKR_CPP_USE_APPDATA
     useAppdata = true; // Example: Package & MacOS
 #endif
-    QApplication::setApplicationName("Throne");
+    QApplication::setApplicationName("Throned");
     if(useAppdata) {
         if (!appdataDir.isEmpty()) {
             wd.setPath(appdataDir);
         } else {
             wd.setPath(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation));
         }
+        MigrateLegacyConfigIfNeeded(wd);
     } else {
         const QDir userWd(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation));
+        MigrateLegacyConfigIfNeeded(wd);
         if (AdoptUserConfigDir(wd, userWd)) {
             wd = userWd;
             useAppdata = true;
+            MigrateLegacyConfigIfNeeded(wd);
         }
     }
     if (!wd.exists()) wd.mkpath(wd.absolutePath());
@@ -439,7 +467,7 @@ int main(int argc, char* argv[]) {
     Configs::dataManager->RunDeferredMaintenance();
 
     if (Logging::PreviousSessionCrashed()) {
-        MW_show_log(QObject::tr("[Warn] Throne did not shut down cleanly last time. "
+        MW_show_log(QObject::tr("[Warn] Throned did not shut down cleanly last time. "
                                 "Diagnostics were saved to: %1").arg(Logging::LogDir()));
     }
 

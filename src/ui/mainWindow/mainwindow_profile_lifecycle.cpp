@@ -147,12 +147,13 @@ bool MainWindow::handleXrayGeoAssetError(const QString& error, const QString& co
 
             runOnNewThread([=, this] {
                 QString dlErr;
+                const bool proxyAvailable = Configs::dataManager->settingsRepo->started_id >= 0;
                 if (!haveGeoip) {
-                    auto e = NetworkRequestHelper::DownloadAsset(Configs::dataManager->settingsRepo->xray_geoip_url, "geoip.dat");
+                    auto e = NetworkRequestHelper::DownloadAsset(Configs::dataManager->settingsRepo->xray_geoip_url, "geoip.dat", proxyAvailable);
                     if (!e.isEmpty()) dlErr += "geoip.dat: " + e + "\n";
                 }
                 if (!haveGeosite) {
-                    auto e = NetworkRequestHelper::DownloadAsset(Configs::dataManager->settingsRepo->xray_geosite_url, "geosite.dat");
+                    auto e = NetworkRequestHelper::DownloadAsset(Configs::dataManager->settingsRepo->xray_geosite_url, "geosite.dat", proxyAvailable);
                     if (!e.isEmpty()) dlErr += "geosite.dat: " + e + "\n";
                 }
                 runOnUiThread([=, this] {
@@ -229,6 +230,26 @@ void MainWindow::profile_start(int _id) {
     if (!result->error.isEmpty()) {
         MessageBoxWarning(tr("BuildConfig return error"), result->error);
         return;
+    }
+
+    // Validate Xray while the currently running profile (and therefore the
+    // internal download proxy) is still alive.  If a route edit introduces a
+    // missing geo asset, the download prompt can now fetch it through that
+    // connection instead of stopping it first and falling back to a blocked
+    // direct route.
+    if (Configs::dataManager->settingsRepo->core_running && running != nullptr) {
+        QStringList xrayConfigs;
+        if (!result->xrayConfig.isEmpty()) {
+            xrayConfigs << QJsonObject2QString(result->xrayConfig, true);
+        }
+        xrayConfigs.append(result->xrayFullConfigs);
+        for (const auto &xrayConfig : xrayConfigs) {
+            bool rpcOK = false;
+            const QString checkError = defaultClient->CheckConfig(&rpcOK, xrayConfig, true);
+            if (rpcOK && handleXrayGeoAssetError(checkError, ent->outbound->DisplayTypeAndName())) {
+                return;
+            }
+        }
     }
 
     auto profile_start_stage2 = [=, this] {
@@ -335,6 +356,8 @@ void MainWindow::profile_start(int _id) {
         }
 
         Configs::dataManager->settingsRepo->UpdateStartedId(ent->id);
+        Configs::dataManager->settingsRepo->internal_proxy_port = result->serviceProxyPort;
+        Configs::dataManager->settingsRepo->internal_proxy_auth = result->serviceProxyAuth;
         running = ent;
         if (Configs::dataManager->settingsRepo->spmode_system_proxy) set_system_proxy(true);
 
@@ -428,6 +451,8 @@ void MainWindow::profile_stop(bool crash, bool block, bool manual) {
         return;
     }
     const auto id = running->id;
+    Configs::dataManager->settingsRepo->internal_proxy_port = 0;
+    Configs::dataManager->settingsRepo->internal_proxy_auth.clear();
 
     auto profile_stop_stage2 = [=,this] {
         if (testRunner->isTestingCurrent()) {

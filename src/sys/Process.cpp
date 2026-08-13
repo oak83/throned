@@ -90,11 +90,11 @@ namespace Configs_sys {
         started = true;
 
         auto env = QProcessEnvironment::systemEnvironment();
-        env.insert("THRONE_CORE_SOCKET", m_socketName);
+        env.insert("THRONED_CORE_SOCKET", m_socketName);
         // Turns an unrecovered Go panic into a real abort, so it dumps all
         // goroutine stacks and WER captures a minidump of the core too.
         env.insert("GOTRACEBACK", "crash");
-        if (m_debugMode) env.insert("THRONE_CORE_DEBUG", "1");
+        if (m_debugMode) env.insert("THRONED_CORE_DEBUG", "1");
         // Point Xray-core's asset loader at our writable config dir so full Xray
         // configs whose routing uses geoip:/geosite: tags can find geoip.dat /
         // geosite.dat there. Setting it here (rather than in the Go core) means a

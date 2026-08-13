@@ -4,16 +4,31 @@ Throned is a practical fork of [Throne](https://github.com/throneproj/Throne), a
 
 The fork exists to ship focused networking fixes quickly while staying close enough to upstream to keep receiving protocol, security, and compatibility updates.
 
+The application, core process, installer, Linux bundle, and TUN interface use the
+Throned name. On the first packaged launch, an existing Throne configuration is
+copied into Throned when no Throned database exists yet. The legacy
+`throne://` link scheme remains supported so old subscriptions and shared
+profiles keep opening.
+
+The `1.1.0` release also publishes legacy-named transition archives solely so
+the `1.0.0` updater can hand over to Throned. New installations and later
+updates use the `Throned-*` packages.
+
 ## Why Throned?
 
 Throned addresses an intermittent Windows TUN self-loop. After a network-interface change, an internal sing-tun system-stack connection could fall through to `direct`, get captured by the same TUN again, and repeat indefinitely. Typical symptoms included:
 
 - Discord or in-game voice chat suddenly stopping;
-- repeated `ThroneCore.exe -> 172.19.0.2:<port>` log entries;
+- repeated `ThronedCore.exe -> 172.19.0.2:<port>` log entries (or
+  `ThroneCore.exe` on builds before `1.1.0`);
 - increased CPU or memory use;
 - temporarily recovering after restarting TUN mode.
 
 Throned updates sing-tun with the upstream interface-monitor fix and adds an early peer guard calculated from the configured TUN subnet, so custom TUN ranges are protected too. DNS requests to the peer remain hijacked normally; other recaptured peer traffic is dropped before sniffing, user rules, or a direct outbound can loop it again.
+
+Remote sing-box rule sets and Throned's own route/GeoIP/GeoSite downloads use
+the active proxy through a dedicated authenticated local inbound. They no longer
+depend on a routing profile's `final` outbound being set to `proxy`.
 
 ## Downloads
 
@@ -42,7 +57,7 @@ Each release note states which Throne version or commit it is based on. A releas
 
 ## Building
 
-The authoritative build recipes live in [.github/workflows/throned-windows.yml](.github/workflows/throned-windows.yml). They build `ThroneCore`, the Qt application, and portable packages in clean GitHub runners.
+The authoritative build recipes live in [.github/workflows/throned-windows.yml](.github/workflows/throned-windows.yml). They build `ThronedCore`, the Qt application, and portable packages in clean GitHub runners.
 
 The project currently expects:
 

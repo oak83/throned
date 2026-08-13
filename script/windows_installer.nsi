@@ -1,6 +1,12 @@
-Name "Throne"
+Name "Throned"
 !ifndef OUTPUT_FILE
-  !define OUTPUT_FILE "ThroneSetup.exe"
+  !define OUTPUT_FILE "ThronedSetup.exe"
+!endif
+!ifndef APP_VERSION
+  !define APP_VERSION "dev"
+!endif
+!ifndef THRONED_X64_DIR
+  !define THRONED_X64_DIR "deployment\windows-amd64"
 !endif
 OutFile "${OUTPUT_FILE}"
 
@@ -17,14 +23,14 @@ SetCompressorDictSize 64
 !include WinVer.nsh
 !include x64.nsh
 
-!define APP_DIR_NAME "Throne"
+!define APP_DIR_NAME "Throned"
 
 !define MUI_ICON "res\Throne.ico"
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TITLE "Welcome to Throne Installer"
-!define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of Throne."
-!define MUI_FINISHPAGE_RUN "$INSTDIR\Throne.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "Launch Throne"
+!define MUI_WELCOMEPAGE_TITLE "Welcome to Throned Installer"
+!define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of Throned."
+!define MUI_FINISHPAGE_RUN "$INSTDIR\Throned.exe"
+!define MUI_FINISHPAGE_RUN_TEXT "Launch Throned"
 !addplugindir .\script\
 
 ; This is the Windows constant used to draw the UAC Shield on a button
@@ -53,7 +59,7 @@ Page custom InstallModePageCreate InstallModePageLeave
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipPageCheck
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW DirectoryShow
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE DirectoryLeave
-!define MUI_DIRECTORYPAGE_TEXT_TOP "Setup will install Throne in the folder below. If the folder you choose is not named '${APP_DIR_NAME}', Setup creates a '${APP_DIR_NAME}' subfolder inside it, so uninstalling only ever removes Throne's own folder."
+!define MUI_DIRECTORYPAGE_TEXT_TOP "Setup will install Throned in the folder below. If the folder you choose is not named '${APP_DIR_NAME}', Setup creates a '${APP_DIR_NAME}' subfolder inside it, so uninstalling only ever removes Throned's own folder."
 !insertmacro MUI_PAGE_DIRECTORY
 
 !insertmacro MUI_PAGE_INSTFILES
@@ -66,7 +72,7 @@ UninstPage custom un.DataPageCreate un.DataPageLeave
 
 !insertmacro MUI_LANGUAGE "English"
 
-UninstallText "This will uninstall Throne. Do you wish to continue?"
+UninstallText "This will uninstall Throned. Do you wish to continue?"
 UninstallIcon "res\ThroneDel.ico"
 
 ; =====================================
@@ -83,8 +89,8 @@ Function .onInit
     StrCpy $IsAllUsers "1"
 
     ; Read the chosen installation path from the temporary registry key
-    ReadRegStr $INSTDIR HKCU "Software\Throne" "TempSetupPath"
-    DeleteRegValue HKCU "Software\Throne" "TempSetupPath" ; Clean it up immediately
+    ReadRegStr $INSTDIR HKCU "Software\Throned" "TempSetupPath"
+    DeleteRegValue HKCU "Software\Throned" "TempSetupPath" ; Clean it up immediately
 
     ${If} $INSTDIR == ""
       StrCpy $INSTDIR "$PROGRAMFILES64\${APP_DIR_NAME}"
@@ -161,7 +167,7 @@ Function DirectoryShow
 FunctionEnd
 
 Function EnsureAppSubfolder
-  ; A hand-typed "D:\Apps\" would otherwise append into "D:\Apps\\Throne".
+  ; A hand-typed "D:\Apps\" would otherwise append into "D:\Apps\\Throned".
   StrCpy $0 $INSTDIR "" -1
   ${If} $0 == '\'
     StrCpy $INSTDIR $INSTDIR -1
@@ -183,7 +189,7 @@ Function DirectoryLeave
     Pop $0
     ${If} $0 != "Admin"
       ; Write the chosen path safely to the registry for the elevated process to grab
-      WriteRegStr HKCU "Software\Throne" "TempSetupPath" "$INSTDIR"
+      WriteRegStr HKCU "Software\Throned" "TempSetupPath" "$INSTDIR"
 
       ; Trigger UAC and silently launch the elevated installer
       ExecShell "runas" "$EXEPATH" "/ELEVATED"
@@ -235,35 +241,40 @@ Section "Install"
   SetOutPath "$INSTDIR"
   SetOverwrite on
 
-  !insertmacro AbortOnRunningApp "$INSTDIR\Throne.exe"
+  !insertmacro AbortOnRunningApp "$INSTDIR\Throned.exe"
 
 !ifdef THRONED_X64_ONLY
   ${IfNot} ${IsNativeAMD64}
     Abort "This installer supports Windows x64 only."
   ${EndIf}
-  File /oname=libcronet.dll "deployment\windows-amd64\libcronet.dll"
-  File /oname=ThroneCore.exe "deployment\windows-amd64\ThroneCore.exe"
-  File /oname=Throne.exe "deployment\windows-amd64\Throne.exe"
-  File /oname=updater.exe "deployment\windows-amd64\updater.exe"
+  File /oname=libcronet.dll "${THRONED_X64_DIR}\libcronet.dll"
+  File /oname=ThronedCore.exe "${THRONED_X64_DIR}\ThronedCore.exe"
+  File /oname=Throned.exe "${THRONED_X64_DIR}\Throned.exe"
+  File /oname=Throne.exe "${THRONED_X64_DIR}\Throne.exe"
+  File /oname=updater.exe "${THRONED_X64_DIR}\updater.exe"
 !else
   ${If} ${IsNativeAMD64}
     ${If} ${AtLeastWaaS} 1809
-      File /oname=libcronet.dll "deployment\windows-amd64\libcronet.dll"
-      File /oname=ThroneCore.exe "deployment\windows-amd64\ThroneCore.exe"
-      File /oname=Throne.exe "deployment\windows-amd64\Throne.exe"
-      File /oname=updater.exe "deployment\windows-amd64\updater.exe"
+      File /oname=libcronet.dll "${THRONED_X64_DIR}\libcronet.dll"
+      File /oname=ThronedCore.exe "${THRONED_X64_DIR}\ThronedCore.exe"
+      File /oname=Throned.exe "${THRONED_X64_DIR}\Throned.exe"
+      File /oname=Throne.exe "${THRONED_X64_DIR}\Throne.exe"
+      File /oname=updater.exe "${THRONED_X64_DIR}\updater.exe"
     ${Else}
-      File /oname=ThroneCore.exe "deployment\windowslegacy-amd64\ThroneCore.exe"
+      File /oname=ThronedCore.exe "deployment\windowslegacy-amd64\ThronedCore.exe"
+      File /oname=Throned.exe "deployment\windowslegacy-amd64\Throned.exe"
       File /oname=Throne.exe "deployment\windowslegacy-amd64\Throne.exe"
       File /oname=updater.exe "deployment\windowslegacy-amd64\updater.exe"
     ${EndIf}
   ${ElseIf} ${IsNativeARM64}
     File /oname=libcronet.dll "deployment\windows-arm64\libcronet.dll"
-    File /oname=ThroneCore.exe "deployment\windows-arm64\ThroneCore.exe"
+    File /oname=ThronedCore.exe "deployment\windows-arm64\ThronedCore.exe"
+    File /oname=Throned.exe "deployment\windows-arm64\Throned.exe"
     File /oname=Throne.exe "deployment\windows-arm64\Throne.exe"
     File /oname=updater.exe "deployment\windows-arm64\updater.exe"
   ${ElseIf} ${IsNativeIA32}
-    File /oname=ThroneCore.exe "deployment\windowslegacy-386\ThroneCore.exe"
+    File /oname=ThronedCore.exe "deployment\windowslegacy-386\ThronedCore.exe"
+    File /oname=Throned.exe "deployment\windowslegacy-386\Throned.exe"
     File /oname=Throne.exe "deployment\windowslegacy-386\Throne.exe"
     File /oname=updater.exe "deployment\windowslegacy-386\updater.exe"
   ${Else}
@@ -271,15 +282,16 @@ Section "Install"
   ${EndIf}
 !endif
 
-  CreateShortcut "$DESKTOP\Throne.lnk" "$INSTDIR\Throne.exe"
-  CreateShortcut "$SMPROGRAMS\Throne.lnk" "$INSTDIR\Throne.exe" "" "$INSTDIR\Throne.exe" 0
+  CreateShortcut "$DESKTOP\Throned.lnk" "$INSTDIR\Throned.exe"
+  CreateShortcut "$SMPROGRAMS\Throned.lnk" "$INSTDIR\Throned.exe" "" "$INSTDIR\Throned.exe" 0
 
-  WriteRegStr SHCTX "Software\Throne" "InstallPath" "$INSTDIR"
-  WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throne" "DisplayName" "Throne"
-  WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throne" "UninstallString" "$INSTDIR\uninstall.exe"
-  WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throne" "InstallLocation" "$INSTDIR"
-  WriteRegDWORD SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throne" "NoModify" 1
-  WriteRegDWORD SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throne" "NoRepair" 1
+  WriteRegStr SHCTX "Software\Throned" "InstallPath" "$INSTDIR"
+  WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "DisplayName" "Throned"
+  WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "DisplayVersion" "${APP_VERSION}"
+  WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "UninstallString" "$INSTDIR\uninstall.exe"
+  WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "InstallLocation" "$INSTDIR"
+  WriteRegDWORD SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "NoModify" 1
+  WriteRegDWORD SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "NoRepair" 1
   WriteUninstaller "uninstall.exe"
 SectionEnd
 
@@ -301,7 +313,7 @@ Function un.onInit
   ${EndIf}
 
   ; Read the Admin registry to see if THIS specific folder belongs to an Admin installation
-  ReadRegStr $0 HKLM "Software\Throne" "InstallPath"
+  ReadRegStr $0 HKLM "Software\Throned" "InstallPath"
 
   ${If} $0 == $UninstPath
     ; --- IT IS AN ALL USERS INSTALL ---
@@ -309,7 +321,7 @@ Function un.onInit
     UserInfo::GetAccountType
     Pop $1
     ${If} $1 != "Admin"
-       MessageBox MB_YESNO|MB_ICONEXCLAMATION "Uninstalling Throne for all users requires Administrator privileges.$\n$\nDo you want to elevate?" IDNO Stay
+       MessageBox MB_YESNO|MB_ICONEXCLAMATION "Uninstalling Throned for all users requires Administrator privileges.$\n$\nDo you want to elevate?" IDNO Stay
        ; Elevate via UAC and explicitly pass the real folder path in quotes!
        ExecShell "runas" "$EXEPATH" '/UINSTDIR="$UninstPath"'
        Quit
@@ -329,12 +341,12 @@ FunctionEnd
 ; USER DATA PAGE
 ; =====================================
 Function un.DataPageCreate
-  !insertmacro MUI_HEADER_TEXT "Remove Settings" "Choose what to do with your Throne data."
+  !insertmacro MUI_HEADER_TEXT "Remove Settings" "Choose what to do with your Throned data."
 
   nsDialogs::Create 1018
   Pop $0
 
-  ${NSD_CreateLabel} 0 0 100% 24u "Throne keeps its profiles, settings and logs in the installation folder, or under your user profile when that folder is not writable."
+  ${NSD_CreateLabel} 0 0 100% 24u "Throned keeps its profiles, settings and logs in the installation folder, or under your user profile when that folder is not writable."
   Pop $0
 
   ${NSD_CreateCheckbox} 10u 30u 100% 12u "Delete my profiles, settings and logs"
@@ -343,7 +355,7 @@ Function un.DataPageCreate
     SendMessage $CheckDeleteData ${BM_SETCHECK} ${BST_CHECKED} 0
   ${EndIf}
 
-  ${NSD_CreateLabel} 10u 48u 100% 20u "Clear this if you plan to reinstall Throne later and want to keep them."
+  ${NSD_CreateLabel} 10u 48u 100% 20u "Clear this if you plan to reinstall Throned later and want to keep them."
   Pop $0
 
   nsDialogs::Show
@@ -359,14 +371,15 @@ Function un.DataPageLeave
 FunctionEnd
 
 Section "Uninstall"
-  !insertmacro AbortOnRunningApp "$INSTDIR\Throne.exe"
+  !insertmacro AbortOnRunningApp "$INSTDIR\Throned.exe"
 
-  Delete "$SMPROGRAMS\Throne.lnk"
-  Delete "$DESKTOP\Throne.lnk"
-  RMDir "$SMPROGRAMS\Throne"
+  Delete "$SMPROGRAMS\Throned.lnk"
+  Delete "$DESKTOP\Throned.lnk"
+  RMDir "$SMPROGRAMS\Throned"
 
   Delete "$INSTDIR\libcronet.dll"
-  Delete "$INSTDIR\ThroneCore.exe"
+  Delete "$INSTDIR\ThronedCore.exe"
+  Delete "$INSTDIR\Throned.exe"
   Delete "$INSTDIR\Throne.exe"
   Delete "$INSTDIR\updater.exe"
   Delete "$INSTDIR\updater.old"
@@ -380,8 +393,8 @@ Section "Uninstall"
   RMDir "$INSTDIR"
 
   ; Clean up registry!
-  DeleteRegKey SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throne"
-  DeleteRegKey SHCTX "Software\Throne"
+  DeleteRegKey SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned"
+  DeleteRegKey SHCTX "Software\Throned"
 
   ; Last, because SHCTX follows the shell var context and an all-users uninstall
   ; would otherwise resolve $APPDATA to ProgramData.
