@@ -15,16 +15,19 @@ QPixmap Icon::GetTrayIcon(TrayIconStatus status) {
             pixmap_read = QPixmap(QString("icons/") + "Off" + ".png");
         }
         if (pixmap_read.isNull()) {
-            pixmap_read = QPixmap(QString(":/Throne/") + "Off" + ".png");
+            pixmap_read = QPixmap(QString(":/Throned/") + "Off" + ".png");
         }
         if (!pixmap_read.isNull()) pixmap = pixmap_read;
     } else if (status == RUNNING)
     {
         if (Configs::dataManager->settingsRepo->use_custom_icons) {
-            pixmap_read = QPixmap(QString("icons/") + "Throne" + ".png");
+            pixmap_read = QPixmap(QString("icons/") + "Throned" + ".png");
+            if (pixmap_read.isNull()) {
+                pixmap_read = QPixmap(QString("icons/") + "Throne" + ".png");
+            }
         }
         if (pixmap_read.isNull()) {
-            pixmap_read = QPixmap(QString(":/Throne/") + "Throne" + ".png");
+            pixmap_read = QPixmap(QString(":/Throned/") + "Throned" + ".png");
         }
         if (!pixmap_read.isNull()) pixmap = pixmap_read;
     } else if (status == SYSTEM_PROXY_DNS)
@@ -33,7 +36,7 @@ QPixmap Icon::GetTrayIcon(TrayIconStatus status) {
             pixmap_read = QPixmap(QString("icons/") + "Proxy-Dns" + ".png");
         }
         if (pixmap_read.isNull()) {
-            pixmap_read = QPixmap(QString(":/Throne/") + "Proxy-Dns" + ".png");
+            pixmap_read = QPixmap(QString(":/Throned/") + "Proxy-Dns" + ".png");
         }
         if (!pixmap_read.isNull()) pixmap = pixmap_read;
     } else if (status == SYSTEM_PROXY)
@@ -42,7 +45,7 @@ QPixmap Icon::GetTrayIcon(TrayIconStatus status) {
             pixmap_read = QPixmap(QString("icons/") + "Proxy" + ".png");
         }
         if (pixmap_read.isNull()) {
-            pixmap_read = QPixmap(QString(":/Throne/") + "Proxy" + ".png");
+            pixmap_read = QPixmap(QString(":/Throned/") + "Proxy" + ".png");
         }
         if (!pixmap_read.isNull()) pixmap = pixmap_read;
     } else if (status == DNS)
@@ -51,7 +54,7 @@ QPixmap Icon::GetTrayIcon(TrayIconStatus status) {
             pixmap_read = QPixmap(QString("icons/") + "Dns" + ".png");
         }
         if (pixmap_read.isNull()) {
-            pixmap_read = QPixmap(QString(":/Throne/") + "Dns" + ".png");
+            pixmap_read = QPixmap(QString(":/Throned/") + "Dns" + ".png");
         }
         if (!pixmap_read.isNull()) pixmap = pixmap_read;
     } else if (status == VPN)
@@ -60,7 +63,7 @@ QPixmap Icon::GetTrayIcon(TrayIconStatus status) {
             pixmap_read = QPixmap(QString("icons/") + "Tun" + ".png");
         }
         if (pixmap_read.isNull()) {
-            pixmap_read = QPixmap(QString(":/Throne/") + "Tun" + ".png");
+            pixmap_read = QPixmap(QString(":/Throned/") + "Tun" + ".png");
         }
         if (!pixmap_read.isNull()) pixmap = pixmap_read;
     } else
@@ -70,7 +73,7 @@ QPixmap Icon::GetTrayIcon(TrayIconStatus status) {
             pixmap_read = QPixmap(QString("icons/") + "Off" + ".png");
         }
         if (pixmap_read.isNull()) {
-            pixmap_read = QPixmap(QString(":/Throne/") + "Off" + ".png");
+            pixmap_read = QPixmap(QString(":/Throned/") + "Off" + ".png");
         }
         if (!pixmap_read.isNull()) pixmap = pixmap_read;
     }

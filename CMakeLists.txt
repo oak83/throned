@@ -297,7 +297,7 @@ set(PROJECT_SOURCES
         src/ui/setting/RawRouteItem.cpp
         include/ui/setting/RawRouteItem.h
 
-        res/Throne.qrc
+        res/Throned.qrc
         ${QV2RAY_RC}
         res/darkstyle.qrc
         res/theme/feiyangqingyun/qss.qrc
@@ -448,13 +448,13 @@ set_property(TARGET Throned PROPERTY AUTORCC ON)
 
 # Target Source macOS
 
-set(MACOSX_ICON ${CMAKE_SOURCE_DIR}/res/Throne.icns)
+set(MACOSX_ICON ${CMAKE_SOURCE_DIR}/res/Throned.icns)
 if (APPLE)
     target_sources(Throned PRIVATE ${MACOSX_ICON})
 endif ()
 
 set_target_properties(Throned PROPERTIES
-        MACOSX_BUNDLE_ICON_FILE "Throne.icns"
+        MACOSX_BUNDLE_ICON_FILE "Throned.icns"
         RESOURCE ${MACOSX_ICON}
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/res/MacOSXBundleInfo.plist
         MACOSX_BUNDLE_GUI_IDENTIFIER app.throned.desktop

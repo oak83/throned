@@ -15,7 +15,7 @@ else ()
 endif ()
 generate_product_version(
         QV2RAY_RC
-        ICON "${CMAKE_SOURCE_DIR}/res/Throne.ico"
+        ICON "${CMAKE_SOURCE_DIR}/res/Throned.ico"
         NAME "Throned"
         BUNDLE "Throned"
         COMPANY_NAME "Throned"

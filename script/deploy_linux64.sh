@@ -7,8 +7,8 @@ mkdir -p $DEST
 #### copy binary ####
 cp $GITHUB_WORKSPACE/build/Throned $DEST
 
-#### copy Throne.png ####
-cp $GITHUB_WORKSPACE/res/public/Throne.png $DEST/Throned.png
+#### copy Throned.png ####
+cp $GITHUB_WORKSPACE/res/public/Throned.png $DEST/Throned.png
 
 source "$(dirname "$0")/extract_core_artifact.sh"
 

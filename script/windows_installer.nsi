@@ -25,7 +25,7 @@ SetCompressorDictSize 64
 
 !define APP_DIR_NAME "Throned"
 
-!define MUI_ICON "res\Throne.ico"
+!define MUI_ICON "res\Throned.ico"
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEPAGE_TITLE "Welcome to Throned Installer"
 !define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of Throned."
@@ -73,7 +73,7 @@ UninstPage custom un.DataPageCreate un.DataPageLeave
 !insertmacro MUI_LANGUAGE "English"
 
 UninstallText "This will uninstall Throned. Do you wish to continue?"
-UninstallIcon "res\ThroneDel.ico"
+UninstallIcon "res\ThronedDel.ico"
 
 ; =====================================
 ; INIT & SEAMLESS RESTART LOGIC
