@@ -11,44 +11,89 @@ on:
   push:
     branches:
       - dev
-      - "agent/**"
     tags:
       - "[0-9]*.[0-9]*.[0-9]*"
+
+concurrency:
+  group: throned-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 permissions:
   contents: read
 
 jobs:
-  core:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows
-            runner: ubuntu-22.04
-            artifact: windows-amd64
-          - os: linux
-            runner: ubuntu-22.04
-            artifact: linux-amd64
-    runs-on: ${{ matrix.runner }}
+  core-windows:
+    runs-on: ubuntu-22.04
     env:
-      DEST: ${{ github.workspace }}/deployment/${{ matrix.artifact }}
+      DEST: ${{ github.workspace }}/deployment/windows-amd64
     steps:
-      - uses: actions/checkout@v4.3.1
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/cache@v6.1.0
+        id: core-cache
+        with:
+          path: artifacts.tgz
+          key: throned-core-windows-amd64-go-1.26.5-${{ hashFiles('script/build_go.sh', 'core/**') }}
       - uses: actions/setup-go@v6.5.0
+        if: steps.core-cache.outputs.cache-hit != 'true'
         with:
           go-version: "1.26.5"
           cache-dependency-path: core/server/go.sum
       - uses: arduino/setup-protoc@v3
+        if: steps.core-cache.outputs.cache-hit != 'true'
         with:
           version: "31.1"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install protobuf generators
+        if: steps.core-cache.outputs.cache-hit != 'true'
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+      - name: Build ThroneCore
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        run: GOOS=windows GOARCH=amd64 ./script/build_go.sh
+      - name: Pack core artifact
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        run: tar czf artifacts.tgz deployment
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: throned-core-windows-amd64
+          path: artifacts.tgz
+          compression-level: 0
+
+  core-linux:
+    runs-on: ubuntu-22.04
+    env:
+      DEST: ${{ github.workspace }}/deployment/linux-amd64
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/cache@v6.1.0
+        id: core-cache
+        with:
+          path: artifacts.tgz
+          key: throned-core-linux-amd64-go-1.26.5-${{ hashFiles('script/build_go.sh', 'core/**') }}
+      - uses: actions/setup-go@v6.5.0
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        with:
+          go-version: "1.26.5"
+          cache-dependency-path: core/server/go.sum
+      - uses: arduino/setup-protoc@v3
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        with:
+          version: "31.1"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install protobuf generators
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+      - uses: actions/cache@v6.1.0
+        id: cronet-cache
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        with:
+          path: ~/cronet-go
+          key: cronet-go-linux-amd64-9ed95366-v1
       - name: Prepare Chromium toolchain
-        if: matrix.os == 'linux'
+        if: steps.core-cache.outputs.cache-hit != 'true' && steps.cronet-cache.outputs.cache-hit != 'true'
         run: |
           set -xeuo pipefail
           git init "$HOME/cronet-go"
@@ -58,49 +103,70 @@ jobs:
           git -C "$HOME/cronet-go" submodule update --init --recursive --depth=1
           cd "$HOME/cronet-go"
           go run ./cmd/build-naive --target=linux/amd64 download-toolchain
+      - name: Load Chromium environment
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        run: |
+          set -xeuo pipefail
+          cd "$HOME/cronet-go"
           go run ./cmd/build-naive --target=linux/amd64 env >> "$GITHUB_ENV"
       - name: Build ThroneCore
-        run: GOOS=${{ matrix.os }} GOARCH=amd64 ./script/build_go.sh
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        run: GOOS=linux GOARCH=amd64 ./script/build_go.sh
       - name: Pack core artifact
+        if: steps.core-cache.outputs.cache-hit != 'true'
         run: tar czf artifacts.tgz deployment
       - uses: actions/upload-artifact@v7.0.1
         with:
-          name: throned-core-${{ matrix.artifact }}
+          name: throned-core-linux-amd64
           path: artifacts.tgz
           compression-level: 0
 
   windows:
-    needs: core
+    needs: core-windows
     runs-on: windows-latest
     env:
       INPUT_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version || 'dev' }}
       DEST: ${{ github.workspace }}/deployment/windows-amd64
       GITHUB_WORKSPACE: ${{ github.workspace }}
+      LAUNCHER_ARGS: -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
     steps:
-      - uses: actions/checkout@v4.3.1
+      - uses: actions/checkout@v7.0.1
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+      - uses: hendrikmuhs/ccache-action@v1.2.23
+        with:
+          key: windows-amd64-qt-6.11.1
+          variant: sccache
+          max-size: 500M
       - uses: actions/download-artifact@v8.0.1
         with:
           name: throned-core-windows-amd64
           path: download-artifact
+      - uses: actions/cache@v6.1.0
+        id: windows-deps
+        with:
+          path: |
+            qt.7z
+            openssl.7z
+          key: throned-windows-deps-qt-6.11.1-x64
       - name: Download Qt and OpenSSL
+        if: steps.windows-deps.outputs.cache-hit != 'true'
         shell: bash
         run: |
           curl -fLso qt.7z https://github.com/throneproj/buildqt/releases/download/Qt_6.11.1/Qt_6.11.1_x64.7z
           curl -fLso openssl.7z https://github.com/throneproj/env_windows_legacy/releases/download/latest/openssl_x64.7z
-          7z x qt.7z
-          7z x openssl.7z
       - name: Build portable application
         shell: bash
         run: |
+          7z x qt.7z
+          7z x openssl.7z
           export CMAKE_PREFIX_PATH="$PWD/Qt/lib/cmake"
           export OPENSSL_ROOT_DIR="$PWD/openssl"
           mkdir build
           cd build
           curl -fLso srslist.h https://raw.githubusercontent.com/throneproj/routeprofiles/rule-set/srslist.h
-          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo $LAUNCHER_ARGS ..
           ninja
           cd ..
           ./script/deploy_windows.sh
@@ -110,15 +176,21 @@ jobs:
           path: deployment/windows-amd64
 
   linux:
-    needs: core
+    needs: core-linux
     runs-on: ubuntu-22.04
     env:
       INPUT_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version || 'dev' }}
       DEST: ${{ github.workspace }}/deployment/linux-amd64
       GITHUB_WORKSPACE: ${{ github.workspace }}
       ARCH: x86_64
+      LAUNCHER_ARGS: -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
     steps:
-      - uses: actions/checkout@v4.3.1
+      - uses: actions/checkout@v7.0.1
+      - uses: hendrikmuhs/ccache-action@v1.2.23
+        with:
+          key: linux-amd64-qt-6.11.1
+          variant: ccache
+          max-size: 500M
       - uses: actions/download-artifact@v8.0.1
         with:
           name: throned-core-linux-amd64
@@ -134,7 +206,7 @@ jobs:
           mkdir build
           cd build
           curl -fLso srslist.h https://raw.githubusercontent.com/throneproj/routeprofiles/rule-set/srslist.h
-          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++" ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++" $LAUNCHER_ARGS ..
           ninja
           cd ..
           ./script/deploy_linux64.sh
@@ -152,31 +224,41 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7.0.1
       - uses: actions/download-artifact@v8.0.1
         with:
           name: throned-${{ github.sha }}-windows-amd64
-          path: artifacts/windows
+          path: deployment/windows-amd64
       - uses: actions/download-artifact@v8.0.1
         with:
           name: throned-${{ github.sha }}-linux-amd64
-          path: artifacts/linux
+          path: deployment/linux-amd64
       - name: Pack release files
         run: |
           mkdir -p package/windows/Throne package/linux/Throne
-          cp -a artifacts/windows/. package/windows/Throne/
-          cp -a artifacts/linux/. package/linux/Throne/
+          cp -a deployment/windows-amd64/. package/windows/Throne/
+          cp -a deployment/linux-amd64/. package/linux/Throne/
           rm -f package/windows/Throne/Throne.pdb
           rm -f package/linux/Throne/Throne.debug
           cd package/windows
           zip -9 -r "../../Throne-${GITHUB_REF_NAME}-windows64.zip" Throne
           cd ../linux
           zip -9 -r "../../Throne-${GITHUB_REF_NAME}-linux-amd64.zip" Throne
+      - name: Build Windows installer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nsis
+          makensis -NOCD \
+            -DTHRONED_X64_ONLY \
+            -DOUTPUT_FILE="Throne-${GITHUB_REF_NAME}-windows64-installer.exe" \
+            script/windows_installer.nsi
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
             "Throne-${GITHUB_REF_NAME}-windows64.zip" \
+            "Throne-${GITHUB_REF_NAME}-windows64-installer.exe" \
             "Throne-${GITHUB_REF_NAME}-linux-amd64.zip" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \

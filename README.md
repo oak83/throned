@@ -6,14 +6,14 @@ The fork exists to ship focused networking fixes quickly while staying close eno
 
 ## Why Throned?
 
-The first Throned release addresses an intermittent Windows TUN self-loop. After a network-interface change, traffic to sing-tun's internal DNS peer could fall through to `direct`, get captured by the same TUN again, and repeat indefinitely. Typical symptoms included:
+Throned addresses an intermittent Windows TUN self-loop. After a network-interface change, an internal sing-tun system-stack connection could fall through to `direct`, get captured by the same TUN again, and repeat indefinitely. Typical symptoms included:
 
 - Discord or in-game voice chat suddenly stopping;
-- repeated `ThroneCore.exe -> 172.19.0.2:53` log entries;
+- repeated `ThroneCore.exe -> 172.19.0.2:<port>` log entries;
 - increased CPU or memory use;
 - temporarily recovering after restarting TUN mode.
 
-Throned updates sing-tun with the upstream interface-monitor fix and adds an early DNS guard calculated from the configured TUN subnet, so custom TUN ranges are protected too.
+Throned updates sing-tun with the upstream interface-monitor fix and adds an early peer guard calculated from the configured TUN subnet, so custom TUN ranges are protected too. DNS requests to the peer remain hijacked normally; other recaptured peer traffic is dropped before sniffing, user rules, or a direct outbound can loop it again.
 
 ## Downloads
 
@@ -21,6 +21,7 @@ Stable builds are published on the [Releases](https://github.com/troshkindm/thro
 
 | Platform | Package | Status |
 | --- | --- | --- |
+| Windows x64 | Installer EXE | Recommended |
 | Windows x64 | Portable ZIP | Supported |
 | Linux x64 | Portable ZIP | Supported |
 | Windows ARM64 / legacy Windows | Not currently published | Planned |
@@ -37,7 +38,7 @@ Throned uses ordinary numeric [Semantic Versioning](https://semver.org/):
 - backward-compatible features: `1.1.0`;
 - incompatible changes: `2.0.0`.
 
-Each release note states which Throne version or commit it is based on. A release is published only after the Windows x64 and Linux x64 portable builds complete successfully. Development builds remain available as GitHub Actions artifacts.
+Each release note states which Throne version or commit it is based on. A release is published only after the Windows x64 installer and the Windows/Linux x64 portable builds complete successfully. Development builds remain available as GitHub Actions artifacts.
 
 ## Building
 

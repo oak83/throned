@@ -1,5 +1,8 @@
 Name "Throne"
-OutFile "ThroneSetup.exe"
+!ifndef OUTPUT_FILE
+  !define OUTPUT_FILE "ThroneSetup.exe"
+!endif
+OutFile "${OUTPUT_FILE}"
 
 ; 1. NEVER ask for UAC on launch
 RequestExecutionLevel user 
@@ -234,6 +237,15 @@ Section "Install"
 
   !insertmacro AbortOnRunningApp "$INSTDIR\Throne.exe"
 
+!ifdef THRONED_X64_ONLY
+  ${IfNot} ${IsNativeAMD64}
+    Abort "This installer supports Windows x64 only."
+  ${EndIf}
+  File /oname=libcronet.dll "deployment\windows-amd64\libcronet.dll"
+  File /oname=ThroneCore.exe "deployment\windows-amd64\ThroneCore.exe"
+  File /oname=Throne.exe "deployment\windows-amd64\Throne.exe"
+  File /oname=updater.exe "deployment\windows-amd64\updater.exe"
+!else
   ${If} ${IsNativeAMD64}
     ${If} ${AtLeastWaaS} 1809
       File /oname=libcronet.dll "deployment\windows-amd64\libcronet.dll"
@@ -257,6 +269,7 @@ Section "Install"
   ${Else}
     Abort "Unsupported CPU architecture!"
   ${EndIf}
+!endif
 
   CreateShortcut "$DESKTOP\Throne.lnk" "$INSTDIR\Throne.exe"
   CreateShortcut "$SMPROGRAMS\Throne.lnk" "$INSTDIR\Throne.exe" "" "$INSTDIR\Throne.exe" 0

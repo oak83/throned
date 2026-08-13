@@ -206,10 +206,10 @@ namespace Configs {
                                         : a.first.isInSubnet(b.first, b.second);
         }
 
-        // sing-tun exposes its internal DNS peer at the address immediately after
-        // the configured IPv4 TUN address (172.19.0.1/24 -> 172.19.0.2/32). Keep
-        // the calculation here so custom TUN ranges receive the same protection.
-        QString tunDNSHostCIDR(const QString &tunCIDR) {
+        // sing-tun exposes its internal system-stack peer at the address immediately
+        // after the configured IPv4 TUN address (172.19.0.1/24 -> 172.19.0.2/32).
+        // Keep the calculation here so custom TUN ranges receive the same protection.
+        QString tunPeerHostCIDR(const QString &tunCIDR) {
             const auto parsed = QHostAddress::parseSubnet(tunCIDR);
             if (parsed.second < 0 || parsed.first.protocol() != QAbstractSocket::IPv4Protocol) return {};
 
@@ -1850,6 +1850,7 @@ namespace Configs {
 
             struct InjectedRules {
                 QJsonObject tunDNSHijack;
+                QJsonObject tunPeerReject;
                 QJsonObject sniff;
                 QJsonObject resolve;
                 QJsonObject dnsHijack;
@@ -1858,18 +1859,25 @@ namespace Configs {
             } injected;
 
             // A network-interface update can briefly leave Windows with an incomplete
-            // TUN route table (#1513). In that state a query to sing-tun's own DNS peer
-            // may otherwise fall through to direct and be captured by the TUN again.
-            // Match the endpoint explicitly before sniffing and user rules, without
-            // hard-coding Throne's default 172.19.0.0/24 range.
+            // TUN route table (#1513). In that state a direct socket can be captured by
+            // the TUN again and appear at sing-tun's system-stack peer on a dynamically
+            // allocated port (observed on :5351 and :10117). Preserve real DNS on :53,
+            // then reject every other re-entry before it can fall through to direct.
+            // The peer is derived instead of hard-coding Throne's default TUN range.
             if (settings.spmode_vpn && !ctx.forTest) {
-                const auto tunDNS = tunDNSHostCIDR(settings.vpn_tun_ipv4_cidr);
-                if (!tunDNS.isEmpty()) {
+                const auto tunPeer = tunPeerHostCIDR(settings.vpn_tun_ipv4_cidr);
+                if (!tunPeer.isEmpty()) {
                     injected.tunDNSHijack = QJsonObject{
                         {"inbound", QJsonArray{tags::tunIn}},
-                        {"ip_cidr", QJsonArray{tunDNS}},
+                        {"ip_cidr", QJsonArray{tunPeer}},
                         {"port", QJsonArray{53}},
                         {"action", "hijack-dns"},
+                    };
+                    injected.tunPeerReject = QJsonObject{
+                        {"inbound", QJsonArray{tags::tunIn}},
+                        {"ip_cidr", QJsonArray{tunPeer}},
+                        {"action", "reject"},
+                        {"method", "drop"},
                     };
                 }
             }
@@ -1944,6 +1952,7 @@ namespace Configs {
             if (!extraCoreDirect.isEmpty()) routeRules.append(extraCoreDirect);
             auto appendIfSet = [&routeRules](const QJsonObject& r) { if (!r.isEmpty()) routeRules.append(r); };
             appendIfSet(injected.tunDNSHijack);
+            appendIfSet(injected.tunPeerReject);
             appendIfSet(injected.sniff);
             appendIfSet(injected.resolve);
             appendIfSet(injected.dnsHijack);
