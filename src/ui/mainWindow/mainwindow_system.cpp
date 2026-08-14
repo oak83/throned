@@ -283,7 +283,7 @@ void MainWindow::set_spmode_vpn(bool enable, bool save) {
     if (enable) {
         bool requestPermission = !Configs::IsAdmin();
         if (requestPermission) {
-            if (!get_elevated_permissions()) {
+            if (!get_elevated_permissions(ExitReason::RestartWithTun)) {
                 refresh_status();
                 return;
             }

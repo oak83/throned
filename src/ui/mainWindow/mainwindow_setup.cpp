@@ -1220,8 +1220,8 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         MW_dialog_message(MwMessage::UpdateSettings, {});
     });
     //
-    connect(ui->checkBox_VPN, &QCheckBox::clicked, this, [=,this](bool checked) { set_spmode_vpn(checked); });
-    connect(ui->checkBox_SystemProxy, &QCheckBox::clicked, this, [=,this](bool checked) { set_spmode_system_proxy(checked); });
+    connect(ui->checkBox_VPN, &QCheckBox::toggled, this, [=,this](bool checked) { set_spmode_vpn(checked); });
+    connect(ui->checkBox_SystemProxy, &QCheckBox::toggled, this, [=,this](bool checked) { set_spmode_system_proxy(checked); });
     connect(ui->menu_spmode, &QMenu::aboutToShow, this, [=,this]() {
         ui->menu_spmode_disabled->setChecked(!(Configs::dataManager->settingsRepo->spmode_system_proxy || Configs::dataManager->settingsRepo->spmode_vpn));
         ui->menu_spmode_system_proxy->setChecked(Configs::dataManager->settingsRepo->spmode_system_proxy);
