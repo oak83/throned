@@ -274,6 +274,8 @@ jobs:
           cd package/windows
           zip -9 -r "../../Throned-${GITHUB_REF_NAME}-windows64.zip" Throned
           cd ../..
+          sudo apt-get update
+          sudo apt-get install -y rpm
           for arch in amd64 arm64; do
             (cd deployment && bash ../script/pack_debian.sh "$GITHUB_REF_NAME" "$arch")
             mv deployment/Throned.deb "Throned-${GITHUB_REF_NAME}-debian-${arch}.deb"
@@ -281,6 +283,10 @@ jobs:
             (cd deployment && bash ../script/pack_debian.sh "$GITHUB_REF_NAME" "$arch" systemqt)
             mv deployment/Throned.deb "Throned-${GITHUB_REF_NAME}-debian-${arch}-system-qt.deb"
             rm -rf deployment/Throned
+            (cd deployment && bash ../script/pack_rpm.sh "$GITHUB_REF_NAME" "$arch")
+            mv deployment/Throned.rpm "Throned-${GITHUB_REF_NAME}-${arch}.rpm"
+            (cd deployment && bash ../script/pack_rpm.sh "$GITHUB_REF_NAME" "$arch" systemqt)
+            mv deployment/Throned.rpm "Throned-${GITHUB_REF_NAME}-${arch}-system-qt.rpm"
             mkdir -p "package/linux-${arch}/Throned"
             cp -a "deployment/linux-${arch}/." "package/linux-${arch}/Throned/"
             rm -f "package/linux-${arch}/Throned/Throned.debug"
@@ -316,6 +322,10 @@ jobs:
             "Throned-${GITHUB_REF_NAME}-debian-amd64-system-qt.deb"
             "Throned-${GITHUB_REF_NAME}-debian-arm64.deb"
             "Throned-${GITHUB_REF_NAME}-debian-arm64-system-qt.deb"
+            "Throned-${GITHUB_REF_NAME}-amd64.rpm"
+            "Throned-${GITHUB_REF_NAME}-amd64-system-qt.rpm"
+            "Throned-${GITHUB_REF_NAME}-arm64.rpm"
+            "Throned-${GITHUB_REF_NAME}-arm64-system-qt.rpm"
           )
           if [[ "$GITHUB_REF_NAME" == "1.1.0" ]]; then
             assets=(

@@ -204,6 +204,8 @@ Stable builds are published on the
 | Linux x64 / ARM64 | Portable ZIP | Supported |
 | Debian/Ubuntu x64 / ARM64 | Bundled-Qt DEB | Recommended |
 | Debian/Ubuntu x64 / ARM64 | System-Qt DEB | Smaller package; uses distro Qt |
+| Fedora/openSUSE x64 / ARM64 | Bundled-Qt RPM | Recommended |
+| Fedora/openSUSE x64 / ARM64 | System-Qt RPM | Smaller package; uses distro Qt |
 | Windows ARM64 / legacy Windows | Not currently published | Planned |
 | macOS | Build from source | Upstream-compatible, not CI-tested here |
 
