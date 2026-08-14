@@ -275,7 +275,8 @@ jobs:
           zip -9 -r "../../Throned-${GITHUB_REF_NAME}-windows64.zip" Throned
           cd ../..
           sudo apt-get update
-          sudo apt-get install -y rpm
+          sudo apt-get install -y rpm ruby-dev build-essential
+          sudo gem install -n /usr/local/bin --no-document fpm
           for arch in amd64 arm64; do
             (cd deployment && bash ../script/pack_debian.sh "$GITHUB_REF_NAME" "$arch")
             mv deployment/Throned.deb "Throned-${GITHUB_REF_NAME}-debian-${arch}.deb"

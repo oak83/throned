@@ -1,8 +1,8 @@
 #!/bin/bash
-set -e
+set -ex
 
-# Wraps an already-deployed portable build into an RPM, the same way
-# pack_debian.sh does for Debian. Arguments mirror it exactly:
+# Wraps an already-deployed portable build into an RPM using fpm.
+# Arguments mirror pack_debian.sh:
 #   pack_rpm.sh <version> <arch> [systemqt]
 # where <arch> is the Throned name (amd64 / arm64), not the RPM one.
 
@@ -16,17 +16,15 @@ case "$ARCH" in
     *) echo "unknown architecture: $ARCH" >&2; exit 1 ;;
 esac
 
-SUFFIX=$([[ $SYSTEM_QT == "systemqt" ]] && echo "-system-qt")
+SUFFIX=""
+if [[ "$SYSTEM_QT" == "systemqt" ]]; then
+    SUFFIX="-system-qt"
+fi
 SOURCE="linux-$ARCH$SUFFIX"
 [[ -d "$SOURCE" ]] || { echo "missing deployment directory: $SOURCE" >&2; exit 1; }
 
-BUILD_ROOT="$PWD/rpmbuild"
-rm -rf "$BUILD_ROOT"
-mkdir -p "$BUILD_ROOT"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-
-# Stage the payload exactly as it will be installed: /opt/Throned plus a desktop
-# entry and an icon the desktop database can find.
-STAGE="$BUILD_ROOT/stage"
+STAGE="$PWD/rpm-stage-$ARCH$SUFFIX"
+rm -rf "$STAGE"
 mkdir -p "$STAGE/opt" "$STAGE/usr/share/applications" "$STAGE/usr/share/pixmaps"
 cp -r "$SOURCE" "$STAGE/opt/Throned"
 rm -f "$STAGE/opt/Throned/Throned.debug"
@@ -43,50 +41,39 @@ Type=Application
 Categories=Network;Application;
 EOF
 
-# Fedora and openSUSE name the Qt packages differently from Debian, so the
-# system-Qt build depends on the Fedora names and lets rpm resolve the rest.
-if [[ $SYSTEM_QT == "systemqt" ]]; then
-    REQUIRES="Requires:       qt6-qtbase-gui, qt6-qtsvg, qt6-qtwayland, xcb-util-cursor, google-noto-emoji-color-fonts"
-else
-    REQUIRES=""
+POST_INSTALL="$PWD/rpm-postinst.sh"
+cat >"$POST_INSTALL" <<-EOF
+#!/bin/sh
+update-desktop-database &>/dev/null || :
+EOF
+chmod +x "$POST_INSTALL"
+
+DEP_ARGS=("-d" "desktop-file-utils")
+if [[ "$SYSTEM_QT" == "systemqt" ]]; then
+    DEP_ARGS+=("-d" "qt6-qtbase-gui" "-d" "qt6-qtsvg" "-d" "qt6-qtwayland" "-d" "xcb-util-cursor" "-d" "google-noto-emoji-color-fonts")
 fi
 
-cat >"$BUILD_ROOT/SPECS/throned.spec" <<-EOF
-Name:           throned
-Version:        $VERSION
-Release:        1
-Summary:        Qt based cross-platform GUI proxy configuration manager (backend: sing-box)
-License:        GPL-3.0-or-later
-URL:            https://github.com/troshkindm/throned
-BuildArch:      $RPM_ARCH
-$REQUIRES
-Requires:       desktop-file-utils
-# The payload is a self-contained deployment; rpm's own dependency scan would
-# otherwise demand every library the bundled Qt happens to link against.
-AutoReqProv:    no
+fpm -s dir -t rpm \
+    --verbose \
+    -n throned \
+    -v "$VERSION" \
+    -a "$RPM_ARCH" \
+    --license "GPL-3.0-or-later" \
+    --url "https://github.com/troshkindm/throned" \
+    --description "Qt based cross-platform GUI proxy configuration manager (backend: sing-box)" \
+    --no-rpm-autoreqprov \
+    --rpm-rpmbuild-define "_build_id_links none" \
+    --rpm-rpmbuild-define "__strip /bin/true" \
+    --rpm-rpmbuild-define "__brp_strip %{nil}" \
+    --rpm-rpmbuild-define "__brp_strip_comment_note %{nil}" \
+    --rpm-rpmbuild-define "__brp_strip_static_archive %{nil}" \
+    --rpm-rpmbuild-define "__brp_check_rpaths %{nil}" \
+    "${DEP_ARGS[@]}" \
+    --after-install "$POST_INSTALL" \
+    --after-remove "$POST_INSTALL" \
+    --force \
+    -p ./Throned.rpm \
+    -C "$STAGE" \
+    opt usr
 
-%description
-Throned is a Qt desktop proxy client powered by sing-box and Xray. This package
-installs a self-contained build under /opt/Throned.
-
-%install
-mkdir -p %{buildroot}
-cp -a $STAGE/. %{buildroot}/
-
-%post
-update-desktop-database &>/dev/null || :
-
-%postun
-update-desktop-database &>/dev/null || :
-
-%files
-/opt/Throned
-/usr/share/applications/Throned.desktop
-/usr/share/pixmaps/Throned.png
-
-%changelog
-EOF
-
-rpmbuild --define "_topdir $BUILD_ROOT" -bb "$BUILD_ROOT/SPECS/throned.spec"
-mv "$BUILD_ROOT/RPMS/$RPM_ARCH"/*.rpm ./Throned.rpm
-rm -rf "$BUILD_ROOT"
+rm -rf "$STAGE" "$POST_INSTALL"
