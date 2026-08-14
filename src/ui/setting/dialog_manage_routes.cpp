@@ -178,13 +178,17 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
         button->setObjectName(QStringLiteral("routeSecondaryButton"));
         button->setCursor(Qt::PointingHandCursor);
         button->setMinimumHeight(36);
+        // Designer had these stretch to equal widths, which pushed them edge to
+        // edge and made the row read as one bar. Size them to their labels and
+        // let the row's stretch take the slack instead.
+        button->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
     }
     ui->new_route->setObjectName(QStringLiteral("routeSaveButton"));
     ui->new_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Add, Qt::white, 17));
     ui->edit_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Settings, navIconColor, 17));
     ui->clone_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::File, navIconColor, 17));
     ui->import_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Folder, navIconColor, 17));
-    ui->export_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::File, navIconColor, 17));
+    ui->export_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::ArrowUp, navIconColor, 17));
     ui->update_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Reload, navIconColor, 17));
     ui->delete_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Block, QColor(QStringLiteral("#FF5C67")), 17));
 
@@ -237,7 +241,7 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
     profilesCardLayout->addWidget(ui->route_profiles);
 
     auto *secondaryActions = new QHBoxLayout;
-    secondaryActions->setSpacing(7);
+    secondaryActions->setSpacing(8);
     secondaryActions->addWidget(ui->clone_route);
     secondaryActions->addWidget(ui->import_route);
     secondaryActions->addWidget(ui->export_route);

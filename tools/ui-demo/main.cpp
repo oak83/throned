@@ -68,7 +68,7 @@ namespace MaterialPath {
 constexpr auto Desktop = "M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z";
 constexpr auto Settings = "M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46a.5.5 0 0 0-.61-.22l-2.49 1a7.6 7.6 0 0 0-1.69-.98l-.38-2.65A.5.5 0 0 0 14 2h-4a.5.5 0 0 0-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1a.5.5 0 0 0-.61.22l-2 3.46a.5.5 0 0 0 .12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65a.5.5 0 0 0-.12.64l2 3.46c.12.21.38.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.58 1.69-.98l2.49 1c.23.08.49-.01.61-.22l2-3.46a.5.5 0 0 0-.12-.64l-2.11-1.65zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z";
 constexpr auto Groups = "M4 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm16 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 14c-1 0-1.93.21-2.78.58A2.02 2.02 0 0 0 0 16.43V18h4.5v-1.61c0-.83.23-1.61.63-2.29A7.2 7.2 0 0 0 4 14zm16 0c-.39 0-.76.04-1.13.1.4.68.63 1.46.63 2.29V18H24v-1.57c0-.81-.48-1.53-1.22-1.85A7 7 0 0 0 20 14zm-3.76-.35A10.7 10.7 0 0 0 12 12.75c-1.63 0-3.07.39-4.24.9A3 3 0 0 0 6 16.39V18h12v-1.61a3 3 0 0 0-1.76-2.74z";
-constexpr auto Routes = "M17 16.41V7.59L15.59 9 14.17 7.59 18 3.76l3.83 3.83L20.41 9 19 7.59v8.82L20.41 15l1.42 1.41L18 20.24l-3.83-3.83L15.59 15 17 16.41zM7 7.59v8.82L8.41 15l1.42 1.41L6 20.24l-3.83-3.83L3.59 15 5 16.41V7.59L3.59 9 2.17 7.59 6 3.76l3.83 3.83L8.41 9 7 7.59z";
+constexpr auto Routes = "M9.78 11.16l-1.42 1.42a7.28 7.28 0 0 1-1.79-2.94l1.94-.49c.32.89.77 1.5 1.27 2.01zM11 6L7 2 3 6h3.02c.02.81.08 1.54.19 2.17l1.94-.49C8.08 7.2 8.03 6.63 8.02 6H11zm10 0l-4-4-4 4h2.99c-.1 3.68-1.28 4.75-2.54 5.88-.5.44-1.01.92-1.45 1.55-.34-.49-.73-.88-1.13-1.24L9.46 13.6c.86.75 1.53 1.4 1.53 3.4v5h2v-5c0-1.46.68-2.1 1.79-3.1 1.35-1.22 3.02-2.74 3.15-6.9H21z";
 constexpr auto Tools = "M22.7 19 13.6 9.9a6.5 6.5 0 0 0-1.5-6.9L8.3 6.8 5.2 3.7 9 0a6.5 6.5 0 0 0-6.9 1.5 6.5 6.5 0 0 0 8 10.1l9.1 9.1a2.5 2.5 0 0 0 3.5-3.5z";
 constexpr auto Filter = "M5.04 4h13.91c.83 0 1.3.95.79 1.61L14 13v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-6L4.25 5.61C3.74 4.95 4.21 4 5.04 4z";
 constexpr auto Search = "M9.5 3a6.5 6.5 0 1 0 4.1 11.55L19.05 20 21 18.05l-5.45-5.45A6.5 6.5 0 0 0 9.5 3zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z";
@@ -544,7 +544,15 @@ static QFrame *makeGroupTabs(bool ru)
     search->setPlaceholderText(trText(ru, "Search servers…", "Поиск серверов…"));
     search->setClearButtonEnabled(true);
     search->setFixedWidth(245);
-    search->addAction(materialIcon(MaterialPath::Search, Palette::Subtle, 16), QLineEdit::LeadingPosition);
+    // Matches the production nudge: Qt centres the action on the frame, which
+    // reads as too high next to the placeholder text.
+    QPixmap searchGlyph(18, 18);
+    searchGlyph.fill(Qt::transparent);
+    {
+        QPainter painter(&searchGlyph);
+        painter.drawPixmap(0, 1, materialIcon(MaterialPath::Search, Palette::Subtle, 17).pixmap(17, 17));
+    }
+    search->addAction(QIcon(searchGlyph), QLineEdit::LeadingPosition);
     layout->addWidget(search);
     return row;
 }
@@ -1428,7 +1436,7 @@ QPushButton#primaryButton:hover { background: #3191ff; }
 QPushButton#stopButton { background: #26181d; border: 2px solid #ff4d56; border-radius: 20px; color: #ff4d56; font-size: 15px; padding: 0; }
 QToolButton[kind="icon"] { background: transparent; border: 1px solid transparent; border-radius: 5px; color: #B7BDC5; font-size: 15px; padding: 4px; }
 QToolButton[kind="icon"][danger="true"]:hover { background: #c42b35; color: white; }
-QLineEdit, QComboBox { background: #171B21; border: 1px solid #2F3136; border-radius: 5px; padding: 7px 9px; selection-background-color: #237AE9; }
+QLineEdit, QComboBox { background: #171B21; border: 1px solid #2F3136; border-radius: 5px; padding: 7px 9px 7px 5px; selection-background-color: #237AE9; }
 QLineEdit:focus, QComboBox:focus { border-color: #2f91ff; }
 QComboBox::drop-down { border: none; width: 28px; }
 QTableWidget#profilesTable { background: #171B21; alternate-background-color: #1A1E24; border: none; border-radius: 6px; gridline-color: #2F3136; selection-background-color: #143C48; selection-color: #ffffff; }

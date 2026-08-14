@@ -330,22 +330,22 @@ namespace {
         };
 
         if (cmd == "status") {
-            lines << QStringLiteral("Proxy:    %1").arg(data.value("running").toBool()
+            lines << QStringLiteral("proxy:      %1").arg(data.value("running").toBool()
                 ? QStringLiteral("running - %1").arg(data.value("running_profile_name").toString())
                 : QStringLiteral("stopped"));
-            lines << QStringLiteral("Inbound:  mixed on port %1").arg(data.value("mixed_port").toInt());
-            lines << QStringLiteral("TUN:      %1").arg(FormatValue(data.value("tun_enabled")));
-            lines << QStringLiteral("Sys prox: %1").arg(FormatValue(data.value("system_proxy")));
+            lines << QStringLiteral("inbound:    mixed on port %1").arg(data.value("mixed_port").toInt());
+            lines << QStringLiteral("tun:        %1").arg(FormatValue(data.value("tun_enabled")));
+            lines << QStringLiteral("system:     %1").arg(FormatValue(data.value("system_proxy")));
             const QJsonObject routing = data.value("routing").toObject();
             if (!routing.isEmpty()) {
-                lines << QStringLiteral("Routing:  %1 - default %2, rules %3")
+                lines << QStringLiteral("routing:    %1 - default %2, rules %3")
                     .arg(routing.value("name").toString(), routing.value("default_outbound").toString(),
                          routing.value("rules_enabled").toBool() ? QStringLiteral("on") : QStringLiteral("off"));
             }
             return lines.join('\n');
         }
         if (cmd == "routing.list") {
-            lines << QStringLiteral("Routing profiles:");
+            lines << QStringLiteral("routing profiles:");
             for (const QJsonValue &value : data.value("profiles").toArray()) lines << profileLine(value.toObject());
             return lines.join('\n');
         }
@@ -357,7 +357,7 @@ namespace {
             return lines.join('\n');
         }
         if (cmd == "profiles.list") {
-            lines << QStringLiteral("Servers:");
+            lines << QStringLiteral("servers:");
             for (const QJsonValue &value : data.value("profiles").toArray()) {
                 const QJsonObject p = value.toObject();
                 lines << QStringLiteral("  [%1] %2  (%3)").arg(p.value("id").toInt())
@@ -365,7 +365,7 @@ namespace {
             }
             return lines.join('\n');
         }
-        if (data.isEmpty()) return QStringLiteral("Done.");
+        if (data.isEmpty()) return QStringLiteral("done");
         for (auto it = data.begin(); it != data.end(); ++it)
             lines << QStringLiteral("%1: %2").arg(it.key(), FormatValue(it.value()));
         return lines.join('\n');
@@ -455,14 +455,14 @@ briefly interrupts traffic.
         socket.connectToServer(serverName);
         if (!socket.waitForConnected(1000)) {
             report(QStringLiteral(R"({"ok":false,"error":"Throned is not running in this directory"})"),
-                   QStringLiteral("Throned is not running here. Start it first, or run this from its folder."));
+                   QStringLiteral("throned is not running here; start it first, or run this from its folder"));
             return 3;
         }
         socket.write(QJsonDocument(request).toJson(QJsonDocument::Compact) + '\n');
         socket.flush();
         if (!socket.waitForReadyRead(5000)) {
             report(QStringLiteral(R"({"ok":false,"error":"no answer from Throned"})"),
-                   QStringLiteral("Throned did not answer. It may be an older build without the control interface."));
+                   QStringLiteral("throned did not answer; it may be an older build without the control interface"));
             return 4;
         }
         QByteArray reply = socket.readAll();
@@ -477,7 +477,7 @@ briefly interrupts traffic.
         } else if (ok) {
             PrintLine(FormatReply(request.value("cmd").toString(), answer.value("data").toObject()));
         } else {
-            PrintLine(QStringLiteral("Error: %1").arg(answer.value("error").toString()));
+            PrintLine(QStringLiteral("error: %1").arg(answer.value("error").toString()));
         }
         return ok ? 0 : 1;
     }

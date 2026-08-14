@@ -23,6 +23,7 @@
 #include "include/ui/widget/StartStopButton.hpp"
 #include "include/ui/widget/MaterialIcon.h"
 #include "include/ui/widget/ThronedTitleBar.h"
+#include <QPainter>
 #include "include/ui/widget/ThronedToggle.h"
 #include "include/ui/widget/ThronedWindowResizer.h"
 #include "include/control/ThronedControl.h"
@@ -433,7 +434,7 @@ QToolButton#tableFilterButton {
 QToolButton#tableFilterButton:hover { background: #292D33; border-color: #4A4F57; }
 QToolButton#tableFilterButton:checked { background: #182530; border-color: #237AE9; }
 QLineEdit#serverSearch {
-    background: #171B21; border: 1px solid #2F3136; border-radius: 6px; padding: 6px 9px;
+    background: #171B21; border: 1px solid #2F3136; border-radius: 6px; padding: 6px 9px 6px 5px;
 }
 QLineEdit#serverSearch:hover { border-color: #4A535E; }
 QLineEdit#serverSearch:focus { border-color: #2F91FF; }
@@ -690,7 +691,15 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         const auto colors = themeManager->Colors();
         btnFilter->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Filter,
                                               btnFilter->isChecked() ? colors.accent : colors.textMuted, 17));
-        searchAction->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Search, colors.textSubtle, 16));
+        // Qt centres a line-edit action on the frame, which puts the glyph above
+        // the text's optical centre. Drawing it one pixel down inside a slightly
+        // larger square lands it on the same line as the placeholder.
+        QPixmap glyph(18, 18);
+        glyph.fill(Qt::transparent);
+        QPainter painter(&glyph);
+        painter.drawPixmap(0, 1, MaterialIcon::pixmap(MaterialIcon::Glyph::Search, colors.textSubtle, 17));
+        painter.end();
+        searchAction->setIcon(QIcon(glyph));
     };
     retintTableTools();
     connect(btnFilter, &QToolButton::toggled, this, retintTableTools);
