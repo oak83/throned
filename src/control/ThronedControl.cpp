@@ -8,6 +8,7 @@
 #include "include/database/entities/RouteProfile.h"
 
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QStringList>
 
 namespace ThronedControl {
@@ -53,6 +54,14 @@ bool actionFromName(const QString &name, Configs::simpleAction *out) {
 std::shared_ptr<Configs::RouteProfile> activeProfile() {
     return Configs::dataManager->routesRepo->GetRouteProfile(
         Configs::dataManager->settingsRepo->current_route_id);
+}
+
+// Commands that read or rewrite a whole profile accept an explicit id, so a
+// caller can work on one it is not currently routing through.
+std::shared_ptr<Configs::RouteProfile> targetProfile(const QJsonObject &request) {
+    const QJsonValue id = request.value(QStringLiteral("id"));
+    if (id.isDouble()) return Configs::dataManager->routesRepo->GetRouteProfile(id.toInt());
+    return activeProfile();
 }
 
 QJsonObject describeProfile(const std::shared_ptr<Configs::RouteProfile> &profile) {
@@ -155,6 +164,19 @@ const QList<Command> &commandTable() {
          {{"action", "string", true, "proxy, direct, block", "which list to edit"},
           {"domains", "string[]", true, "", "accepts the bare form or the stored one"}},
          "action, domains (the resulting list)"},
+        {"routing.export", "The whole profile as a lossless document: every rule with every field, in order.",
+         {{"id", "int", false, "", "routing profile id; the active one by default"}},
+         "profile - feed it back to routing.import unchanged, or edited"},
+        {"routing.rules", "The ordered rule list as the advanced editor shows it. The first rule that matches wins.",
+         {{"id", "int", false, "", "routing profile id; the active one by default"}},
+         "id, name, default_outbound, rules[] (or route for a raw profile)"},
+        {"routing.import", "Replace everything a profile routes. The profile keeps its id, so whatever "
+                           "points at it keeps working.",
+         {{"profile", "object", false, "", "a document from routing.export, edited as you like"},
+          {"input", "string", false, "", "the same thing as a throne://route link or base64"},
+          {"id", "int", false, "", "routing profile id; the active one by default"},
+          {"rename", "bool", false, "true, false", "also take the name from the document; off by default"}},
+         "id, name, rules (count), default_outbound, warnings when anything was adjusted"},
         {"routing.add_apps", "Route applications by their process.",
          {{"action", "string", true, "proxy, direct, block", "which list to edit"},
           {"apps", "string[]", true, "",
@@ -311,6 +333,64 @@ QJsonObject Execute(const QJsonObject &request) {
             return fail(QStringLiteral("\"enabled\" must be true or false"));
         profile->applyProfileRules = request.value(QStringLiteral("enabled")).toBool();
         return saveAndApply(profile, QJsonObject{{"rules_enabled", profile->applyProfileRules}});
+    }
+
+    if (cmd == QStringLiteral("routing.export")) {
+        const auto profile = targetProfile(request);
+        if (!profile) return fail(QStringLiteral("no such routing profile"));
+        return ok(QJsonObject{{"profile", profile->ToShareObject()}});
+    }
+
+    if (cmd == QStringLiteral("routing.rules")) {
+        const auto profile = targetProfile(request);
+        if (!profile) return fail(QStringLiteral("no such routing profile"));
+        if (profile->isRaw)
+            return ok(QJsonObject{{"raw", true}, {"route", QString2QJsonObject(profile->rawRoute)}});
+        return ok(QJsonObject{
+            {"id", profile->id},
+            {"name", profile->name},
+            {"default_outbound", outboundName(profile->defaultOutboundID)},
+            {"rules", profile->get_route_rules(true)},
+        });
+    }
+
+    if (cmd == QStringLiteral("routing.import")) {
+        const auto profile = targetProfile(request);
+        if (!profile) return fail(QStringLiteral("no such routing profile"));
+
+        QString document;
+        if (request.value(QStringLiteral("profile")).isObject())
+            document = QString::fromUtf8(
+                QJsonDocument(request.value(QStringLiteral("profile")).toObject()).toJson(QJsonDocument::Compact));
+        else if (request.value(QStringLiteral("input")).isString())
+            document = request.value(QStringLiteral("input")).toString();
+        else
+            return fail(QStringLiteral("give \"profile\" as an object, or \"input\" as a route link or base64"));
+
+        QString fatal, warnings;
+        bool wasOldArray = false;
+        const auto parsed = Configs::RouteProfile::FromShareInput(document, &fatal, &warnings, &wasOldArray);
+        if (!parsed) return fail(fatal.isEmpty() ? QStringLiteral("could not read the routing document") : fatal);
+        if (parsed->isRaw != profile->isRaw)
+            return fail(QStringLiteral("a raw document cannot replace a structured profile, or the other way round"));
+
+        // The profile keeps its identity: an import replaces what it routes, not
+        // which profile the rest of the app is pointing at.
+        profile->Rules = parsed->Rules;
+        profile->rawRoute = parsed->rawRoute;
+        profile->preventModifications = parsed->preventModifications;
+        if (!wasOldArray) profile->defaultOutboundID = parsed->defaultOutboundID;
+        if (request.value(QStringLiteral("rename")).toBool() && !parsed->name.trimmed().isEmpty())
+            profile->name = parsed->name;
+
+        QJsonObject data{
+            {"id", profile->id},
+            {"name", profile->name},
+            {"rules", static_cast<int>(profile->Rules.size())},
+            {"default_outbound", outboundName(profile->defaultOutboundID)},
+        };
+        if (!warnings.trimmed().isEmpty()) data["warnings"] = warnings.trimmed();
+        return saveAndApply(profile, data);
     }
 
     if (cmd == QStringLiteral("routing.add_apps") || cmd == QStringLiteral("routing.remove_apps")) {

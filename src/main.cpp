@@ -273,11 +273,45 @@ namespace {
                 return true;
             }
             if (verb == "rules") {
-                if (args.isEmpty() || (args.first() != "on" && args.first() != "off")) {
-                    *error = QStringLiteral("'route rules' needs on or off");
+                // "on"/"off" switches the profile's rules; anything else asks to
+                // see them, optionally for a profile other than the active one.
+                if (!args.isEmpty() && (args.first() == "on" || args.first() == "off")) {
+                    *request = {{"cmd", "routing.set_rules_enabled"}, {"enabled", args.first() == "on"}};
+                    return true;
+                }
+                QJsonObject built{{"cmd", "routing.rules"}};
+                if (!args.isEmpty()) built["id"] = args.first().toInt();
+                *request = built;
+                return true;
+            }
+            if (verb == "export") {
+                QJsonObject built{{"cmd", "routing.export"}};
+                if (!args.isEmpty()) built["id"] = args.first().toInt();
+                *request = built;
+                return true;
+            }
+            if (verb == "import") {
+                if (args.isEmpty()) {
+                    *error = QStringLiteral("'route import' needs a file, a route link, or - to read stdin");
                     return false;
                 }
-                *request = {{"cmd", "routing.set_rules_enabled"}, {"enabled", args.first() == "on"}};
+                QString payload = args.first();
+                if (payload == QStringLiteral("-")) {
+                    QFile input;
+                    if (!input.open(stdin, QIODevice::ReadOnly)) {
+                        *error = QStringLiteral("could not read stdin");
+                        return false;
+                    }
+                    payload = QString::fromUtf8(input.readAll());
+                } else if (QFileInfo::exists(payload)) {
+                    QFile file(payload);
+                    if (!file.open(QIODevice::ReadOnly)) {
+                        *error = QStringLiteral("could not read %1").arg(payload);
+                        return false;
+                    }
+                    payload = QString::fromUtf8(file.readAll());
+                }
+                *request = {{"cmd", "routing.import"}, {"input", payload}};
                 return true;
             }
             if (verb == "app" || verb == "apps") {
@@ -416,12 +450,16 @@ Commands
                                block or warp
   route rules <on|off>         apply the profile's own rules, or send everything
                                to the default above
+  route rules [id]              show the ordered rule list; first match wins
   route add <domain>...        route domains, e.g.
                                route add example.com --via proxy
   route remove <domain>...     drop them again
   route app add <exe>...        route an application, e.g.
                                route app add discord.exe --via proxy
   route app remove <exe>...     stop routing it
+
+  route export [id] --json      the whole profile as a document
+  route import <file|link|->    replace what a profile routes
 
   Add --via proxy|direct|block to choose the list; proxy is the default.
   A bare domain covers its subdomains. Prefixes like ruleset: or processName:
