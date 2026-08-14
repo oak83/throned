@@ -216,6 +216,14 @@ namespace Configs {
         }
     }
 
+    bool IsLocalProxyTrafficRule(const std::shared_ptr<RouteRule>& rule) {
+        if (!rule || rule->name != LocalProxyRuleName || rule->action != "route" || rule->outboundID != proxyID)
+            return false;
+        QStringList inbound = rule->inbound;
+        inbound.sort();
+        return inbound == QStringList({"mixed-in", "socks-in"});
+    }
+
     RouteProfile::RouteProfile(const RouteProfile& other) {
         id = other.id;
         name = QString(other.name);
@@ -223,6 +231,7 @@ namespace Configs {
             Rules.push_back(std::make_shared<RouteRule>(*item));
         }
         defaultOutboundID = other.defaultOutboundID;
+        applyProfileRules = other.applyProfileRules;
         isRaw = other.isRaw;
         rawRoute = other.rawRoute;
         preventModifications = other.preventModifications;
@@ -480,6 +489,9 @@ namespace Configs {
         };
         for (const auto &item: Rules) {
             if (item->type != custom && item->isEmpty()) continue;
+            // Generating with the profile's rules switched off: only the
+            // local-proxy quick option survives. The view always shows everything.
+            if (!forView && !applyProfileRules && !IsLocalProxyTrafficRule(item)) continue;
             auto outboundTag = QString();
             if (outboundMap.contains(item->outboundID)) outboundTag = outboundMap[item->outboundID];
             auto rule_json = item->get_rule_json(forView, outboundTag);

@@ -114,6 +114,11 @@ namespace Configs {
         int speed_test_timeout_ms = 5000;
         QString simple_dl_url = "http://cachefly.cachefly.net/1mb.test";
         bool allow_beta_update = false;
+        // Background release check, sign-encoded like sub_auto_update (negative =
+        // disabled, magnitude = minutes). Default: daily. A due check only reports
+        // a newer release; downloading and installing still needs the user.
+        int app_auto_update = 1440;
+        qint64 app_auto_update_last = 0;
         bool show_system_dns = false;
         bool use_custom_icons = false;
         bool skip_delete_confirmation = false;

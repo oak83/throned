@@ -3,6 +3,10 @@
 
 #include <QApplication>
 #include <QCryptographicHash>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QTimer>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
@@ -35,8 +39,10 @@
 #include "include/api/RPC.h"
 #include "include/ui/setting/RouteProfileSimpleEditor.h"
 #include "include/ui/setting/ThemeManager.hpp"
+#include "include/control/ThronedControl.h"
 
 #ifdef Q_OS_WIN
+#include <windows.h>
 #include "include/sys/windows/MiniDump.h"
 #include "include/sys/windows/eventHandler.h"
 #include "include/sys/windows/WinVersion.h"
@@ -197,6 +203,283 @@ namespace {
         }
         LOG_WARN(QString("%1 is not writable, using %2").arg(installConfig, userConfig));
         return true;
+    }
+
+    // Throned is a GUI-subsystem binary on Windows, so it owns no console. When
+    // it was started from one, borrow the parent's so the JSON reply lands where
+    // the caller is looking instead of nowhere.
+    void AttachToParentConsole() {
+#ifdef Q_OS_WIN
+        // Only borrow a console when the caller left us without a usable stdout.
+        // If they redirected it into a pipe or a file, that handle is already
+        // valid and attaching would send the answer to a terminal instead.
+        const HANDLE existing = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (existing == nullptr || existing == INVALID_HANDLE_VALUE) AttachConsole(ATTACH_PARENT_PROCESS);
+#endif
+    }
+
+    void PrintLine(const QString &text) {
+        const QByteArray bytes = text.toUtf8() + '\n';
+#ifdef Q_OS_WIN
+        // The CRT's stdout is not wired up in a GUI-subsystem binary, so write to
+        // the OS handle, which works for a console and a redirection alike.
+        const HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (out != nullptr && out != INVALID_HANDLE_VALUE) {
+            DWORD written = 0;
+            WriteFile(out, bytes.constData(), static_cast<DWORD>(bytes.size()), &written, nullptr);
+            return;
+        }
+#endif
+        fwrite(bytes.constData(), 1, bytes.size(), stdout);
+        fflush(stdout);
+    }
+
+    // Turns a typed-out command line into the JSON the running instance expects.
+    // Returns false when the words do not name a command, so the caller can say
+    // so instead of sending something the instance would reject.
+    bool ParseHumanCommand(const QStringList &words, QJsonObject *request, QString *error) {
+        if (words.isEmpty()) return false;
+        const QString head = words.first();
+        const QStringList rest = words.mid(1);
+
+        const auto needsArgument = [&](const QString &what) {
+            *error = QStringLiteral("'%1' needs %2").arg(head, what);
+            return false;
+        };
+
+        if (head == "status") { *request = {{"cmd", "status"}}; return true; }
+        if (head == "servers" || head == "profiles") { *request = {{"cmd", "profiles.list"}}; return true; }
+        if (head == "stop") { *request = {{"cmd", "profile.stop"}}; return true; }
+        if (head == "start") {
+            if (rest.isEmpty()) return needsArgument(QStringLiteral("a server id, as shown by 'servers'"));
+            *request = {{"cmd", "profile.start"}, {"id", rest.first().toInt()}};
+            return true;
+        }
+        if (head == "routes") { *request = {{"cmd", "routing.list"}}; return true; }
+        if (head == "route") {
+            if (rest.isEmpty()) { *request = {{"cmd", "routing.get"}}; return true; }
+            const QString verb = rest.first();
+            const QStringList args = rest.mid(1);
+            if (verb == "use") {
+                if (args.isEmpty()) { *error = QStringLiteral("'route use' needs a profile id"); return false; }
+                *request = {{"cmd", "routing.select"}, {"id", args.first().toInt()}};
+                return true;
+            }
+            if (verb == "default") {
+                if (args.isEmpty()) { *error = QStringLiteral("'route default' needs direct, proxy, block or warp"); return false; }
+                *request = {{"cmd", "routing.set_default"}, {"outbound", args.first()}};
+                return true;
+            }
+            if (verb == "rules") {
+                if (args.isEmpty() || (args.first() != "on" && args.first() != "off")) {
+                    *error = QStringLiteral("'route rules' needs on or off");
+                    return false;
+                }
+                *request = {{"cmd", "routing.set_rules_enabled"}, {"enabled", args.first() == "on"}};
+                return true;
+            }
+            if (verb == "add" || verb == "remove") {
+                QString via = QStringLiteral("proxy");
+                QJsonArray entries;
+                for (int i = 0; i < args.size(); ++i) {
+                    if (args.at(i) == "--via" || args.at(i) == "-v") {
+                        if (i + 1 >= args.size()) { *error = QStringLiteral("--via needs proxy, direct or block"); return false; }
+                        via = args.at(++i);
+                        continue;
+                    }
+                    entries.append(args.at(i));
+                }
+                if (entries.isEmpty()) { *error = QStringLiteral("'route %1' needs at least one domain").arg(verb); return false; }
+                *request = {
+                    {"cmd", verb == "add" ? "routing.add_domains" : "routing.remove_domains"},
+                    {"action", via},
+                    {"domains", entries},
+                };
+                return true;
+            }
+            *error = QStringLiteral("unknown 'route' subcommand '%1'").arg(verb);
+            return false;
+        }
+        *error = QStringLiteral("unknown command '%1'").arg(head);
+        return false;
+    }
+
+    QString FormatValue(const QJsonValue &value) {
+        if (value.isBool()) return value.toBool() ? QStringLiteral("yes") : QStringLiteral("no");
+        if (value.isDouble()) return QString::number(value.toDouble());
+        if (value.isArray()) {
+            QStringList parts;
+            for (const QJsonValue &item : value.toArray()) parts << item.toString();
+            return parts.isEmpty() ? QStringLiteral("(none)") : parts.join(QStringLiteral(", "));
+        }
+        return value.toString();
+    }
+
+    // Renders a reply as lines a person can read. Anything without a tailored
+    // shape falls back to "key: value", so a new command still prints sensibly.
+    QString FormatReply(const QString &cmd, const QJsonObject &data) {
+        QStringList lines;
+        const auto profileLine = [](const QJsonObject &p) {
+            QString line = QStringLiteral("  [%1] %2").arg(p.value("id").toInt()).arg(p.value("name").toString());
+            if (p.value("active").toBool()) line += QStringLiteral("  (active)");
+            line += QStringLiteral("\n        default: %1, rules: %2")
+                .arg(p.value("default_outbound").toString(),
+                     p.value("rules_enabled").toBool() ? QStringLiteral("on") : QStringLiteral("off"));
+            if (p.value("raw").toBool()) line += QStringLiteral(", raw");
+            return line;
+        };
+
+        if (cmd == "status") {
+            lines << QStringLiteral("Proxy:    %1").arg(data.value("running").toBool()
+                ? QStringLiteral("running - %1").arg(data.value("running_profile_name").toString())
+                : QStringLiteral("stopped"));
+            lines << QStringLiteral("Inbound:  mixed on port %1").arg(data.value("mixed_port").toInt());
+            lines << QStringLiteral("TUN:      %1").arg(FormatValue(data.value("tun_enabled")));
+            lines << QStringLiteral("Sys prox: %1").arg(FormatValue(data.value("system_proxy")));
+            const QJsonObject routing = data.value("routing").toObject();
+            if (!routing.isEmpty()) {
+                lines << QStringLiteral("Routing:  %1 - default %2, rules %3")
+                    .arg(routing.value("name").toString(), routing.value("default_outbound").toString(),
+                         routing.value("rules_enabled").toBool() ? QStringLiteral("on") : QStringLiteral("off"));
+            }
+            return lines.join('\n');
+        }
+        if (cmd == "routing.list") {
+            lines << QStringLiteral("Routing profiles:");
+            for (const QJsonValue &value : data.value("profiles").toArray()) lines << profileLine(value.toObject());
+            return lines.join('\n');
+        }
+        if (cmd == "routing.get") {
+            lines << profileLine(data);
+            lines << QStringLiteral("  through proxy: %1").arg(FormatValue(data.value("proxy_domains")));
+            lines << QStringLiteral("  direct:        %1").arg(FormatValue(data.value("direct_domains")));
+            lines << QStringLiteral("  blocked:       %1").arg(FormatValue(data.value("blocked_domains")));
+            return lines.join('\n');
+        }
+        if (cmd == "profiles.list") {
+            lines << QStringLiteral("Servers:");
+            for (const QJsonValue &value : data.value("profiles").toArray()) {
+                const QJsonObject p = value.toObject();
+                lines << QStringLiteral("  [%1] %2  (%3)").arg(p.value("id").toInt())
+                    .arg(p.value("name").toString(), p.value("type").toString());
+            }
+            return lines.join('\n');
+        }
+        if (data.isEmpty()) return QStringLiteral("Done.");
+        for (auto it = data.begin(); it != data.end(); ++it)
+            lines << QStringLiteral("%1: %2").arg(it.key(), FormatValue(it.value()));
+        return lines.join('\n');
+    }
+
+    QString HumanHelpText() {
+        return QStringLiteral(R"(Throned command line
+
+  Throned --cli <command>
+
+Commands
+
+  status                       what is running, where, and through which route
+  servers                      list proxy profiles with their ids
+  start <id>                   start a proxy profile
+  stop                         stop the running profile
+
+  routes                       list routing profiles
+  route                        show the active routing profile and its lists
+  route use <id>               make a routing profile active
+  route default <where>        traffic that matched no rule: direct, proxy,
+                               block or warp
+  route rules <on|off>         apply the profile's own rules, or send everything
+                               to the default above
+  route add <domain>...        route domains, e.g.
+                               route add example.com --via proxy
+  route remove <domain>...     drop them again
+
+  Add --via proxy|direct|block to choose the list; proxy is the default.
+  A bare domain covers its subdomains. Prefixes like ruleset: or processName:
+  are passed through untouched.
+
+Options
+
+  --json                       print the raw JSON reply instead of text
+  --cli '{"cmd":"..."}'        send a raw command; see --cli '{"cmd":"help"}'
+                               for the full machine-facing reference
+
+Routing changes are saved at once and restart the running profile, which
+briefly interrupts traffic.
+)");
+    }
+
+    int RunControlClient(const QString &serverName, QStringList words) {
+        AttachToParentConsole();
+
+        const bool rawJsonOut = words.removeAll(QStringLiteral("--json")) > 0;
+        if (words.isEmpty()) words << QStringLiteral("help");
+
+        QJsonObject request;
+        // One argument that looks like an object is a raw command; anything else
+        // is read as words a person typed.
+        const bool rawJsonIn = words.size() == 1 && words.first().trimmed().startsWith('{');
+        if (rawJsonIn) {
+            QJsonParseError parseError;
+            const QJsonDocument parsed = QJsonDocument::fromJson(words.first().toUtf8(), &parseError);
+            if (parseError.error != QJsonParseError::NoError || !parsed.isObject()) {
+                PrintLine(QStringLiteral(R"({"ok":false,"error":"invalid JSON: %1"})").arg(parseError.errorString()));
+                return 2;
+            }
+            request = parsed.object();
+        } else if (words.first() == QStringLiteral("help") || words.first() == QStringLiteral("--help")) {
+            // Help is answered locally so the reference is readable without a
+            // running instance, which is how anyone discovers the rest.
+            PrintLine(rawJsonOut ? ThronedControl::HelpText() : HumanHelpText());
+            return 0;
+        } else {
+            QString error;
+            if (!ParseHumanCommand(words, &request, &error)) {
+                PrintLine(error + QStringLiteral("\nRun: Throned --cli help"));
+                return 2;
+            }
+        }
+
+        if (request.value("cmd").toString() == QStringLiteral("help")) {
+            PrintLine(ThronedControl::HelpText());
+            return 0;
+        }
+        // Raw JSON in means raw JSON out, so a scripted caller always gets back
+        // the same shape it sent, whether or not it passed --json.
+        const bool machineOutput = rawJsonOut || rawJsonIn;
+        const auto report = [machineOutput](const QString &json, const QString &text) {
+            PrintLine(machineOutput ? json : text);
+        };
+
+        QLocalSocket socket;
+        socket.connectToServer(serverName);
+        if (!socket.waitForConnected(1000)) {
+            report(QStringLiteral(R"({"ok":false,"error":"Throned is not running in this directory"})"),
+                   QStringLiteral("Throned is not running here. Start it first, or run this from its folder."));
+            return 3;
+        }
+        socket.write(QJsonDocument(request).toJson(QJsonDocument::Compact) + '\n');
+        socket.flush();
+        if (!socket.waitForReadyRead(5000)) {
+            report(QStringLiteral(R"({"ok":false,"error":"no answer from Throned"})"),
+                   QStringLiteral("Throned did not answer. It may be an older build without the control interface."));
+            return 4;
+        }
+        QByteArray reply = socket.readAll();
+        while (!reply.contains('\n') && socket.waitForReadyRead(1000)) reply += socket.readAll();
+        socket.disconnectFromServer();
+
+        const QString line = QString::fromUtf8(reply).trimmed();
+        const QJsonObject answer = QJsonDocument::fromJson(line.toUtf8()).object();
+        const bool ok = answer.value("ok").toBool();
+        if (machineOutput) {
+            PrintLine(line);
+        } else if (ok) {
+            PrintLine(FormatReply(request.value("cmd").toString(), answer.value("data").toObject()));
+        } else {
+            PrintLine(QStringLiteral("Error: %1").arg(answer.value("error").toString()));
+        }
+        return ok ? 0 : 1;
     }
 
     int RunRouteEditorPreview(QApplication &app) {
@@ -472,6 +755,14 @@ int main(int argc, char* argv[]) {
     hashBytes.replace('+', '0').replace('/', '1');
     auto serverName = LOCAL_SERVER_PREFIX + QString::fromUtf8(hashBytes);
     qDebug() << "server name: " << serverName;
+
+    // Control mode: talk to the running instance, print its answer, exit. It
+    // never starts a window of its own, so a failure has to be reported as JSON
+    // on stdout rather than in a dialog nobody would see.
+    if (const int cliAt = a.arguments().indexOf(QStringLiteral("--cli")); cliAt >= 0) {
+        return RunControlClient(serverName, a.arguments().mid(cliAt + 1));
+    }
+
     QLocalSocket socket;
     socket.connectToServer(serverName);
     if (socket.waitForConnected(250))
@@ -503,7 +794,9 @@ int main(int argc, char* argv[]) {
 
     // QLocalServer
     QLocalServer server(qApp);
-    server.setSocketOptions(QLocalServer::WorldAccessOption);
+    // The socket now accepts commands that rewrite routing, so it is restricted
+    // to this user instead of every process on the machine.
+    server.setSocketOptions(QLocalServer::UserAccessOption);
     if (!server.listen(serverName)) {
         qWarning() << "Failed to start QLocalServer! Error:" << server.errorString();
         Logging::Shutdown();
@@ -516,7 +809,27 @@ int main(int argc, char* argv[]) {
         // url per line. Only whole lines are handled as they arrive; the tail, which
         // carries no trailing newline, is flushed once the peer is done.
         auto pending = std::make_shared<QByteArray>();
-        auto handleLine = [](const QString &line) {
+        // A control client is not a user asking for the window; only a second
+        // launch or a forwarded deeplink should bring it to the front.
+        auto isControlClient = std::make_shared<bool>(false);
+        auto handleLine = [s, isControlClient](const QString &line) {
+            // A control command is a JSON object and expects an answer; the older
+            // deeplink/file payload is fire-and-forget and stays as it was.
+            if (line.startsWith('{')) {
+                *isControlClient = true;
+                QJsonParseError parseError;
+                const QJsonDocument doc = QJsonDocument::fromJson(line.toUtf8(), &parseError);
+                QJsonObject reply;
+                if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+                    reply = QJsonObject{{"ok", false},
+                                        {"error", QStringLiteral("invalid JSON: %1").arg(parseError.errorString())}};
+                } else {
+                    reply = ThronedControl::Execute(doc.object());
+                }
+                s->write(QJsonDocument(reply).toJson(QJsonDocument::Compact) + '\n');
+                s->flush();
+                return;
+            }
             if (line.startsWith("throne://")) {
                 Deeplink_Submit(line);
             } else if (line.startsWith("file://")) {
@@ -540,8 +853,10 @@ int main(int argc, char* argv[]) {
         QObject::connect(s, &QLocalSocket::disconnected, s, [readPayload] { readPayload(true); });
         QObject::connect(s, &QLocalSocket::disconnected, s, &QLocalSocket::deleteLater);
         readPayload(false); // in case the payload already arrived
-        // raise main window
-        MW_dialog_message(MwMessage::Raise, {});
+        // Raise on the next turn, once the first line has told us who the peer is.
+        QTimer::singleShot(0, qApp, [isControlClient] {
+            if (!*isControlClient) MW_dialog_message(MwMessage::Raise, {});
+        });
     });
     QObject::connect(qApp, &QApplication::aboutToQuit, [&]
     {

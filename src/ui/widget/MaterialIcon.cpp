@@ -20,6 +20,8 @@ const char *pathFor(MaterialIcon::Glyph glyph) {
         return "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM4 12c0-1.85.63-3.55 1.69-4.9L16.9 18.31A7.96 7.96 0 0 1 4 12zm14.31 4.9L7.1 5.69A7.96 7.96 0 0 1 18.31 16.9z";
     case Glyph::Bolt:
         return "M11 21h-1l1-7H7.5c-.88 0-.33-.75-.31-.78C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.4 0 .62.19.4.66C12.97 17.53 11 21 11 21z";
+    case Glyph::Check:
+        return "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z";
     case Glyph::ChevronDown:
         return "M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6-1.41-1.41z";
     case Glyph::ChevronRight:

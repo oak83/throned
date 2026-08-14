@@ -86,6 +86,7 @@ namespace Configs {
             {"traffic_stats_retention_days", &traffic_stats_retention_days},
             {"sub_auto_update",        &sub_auto_update},
             {"route_auto_update",      &route_auto_update},
+            {"app_auto_update",        &app_auto_update},
             {"vpn_mtu",                &vpn_mtu},
             {"ntp_server_port",        &ntp_server_port},
             {"dns_server_listen_port", &dns_server_listen_port},
@@ -266,6 +267,8 @@ namespace Configs {
             QString::number(sub_auto_update_last).toStdString());
         keyValues.emplace_back("route_auto_update_last",
             QString::number(route_auto_update_last).toStdString());
+        keyValues.emplace_back("app_auto_update_last",
+            QString::number(app_auto_update_last).toStdString());
 
         db.execBatchSettingsReplace(keyValues);
     }

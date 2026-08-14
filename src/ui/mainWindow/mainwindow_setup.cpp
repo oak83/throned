@@ -25,6 +25,7 @@
 #include "include/ui/widget/ThronedTitleBar.h"
 #include "include/ui/widget/ThronedToggle.h"
 #include "include/ui/widget/ThronedWindowResizer.h"
+#include "include/control/ThronedControl.h"
 
 #include "include/configs/generate.h"
 #include "include/database/GroupsRepo.h"
@@ -325,6 +326,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         label->setObjectName(QStringLiteral("statusValue"));
         statusLayout->addWidget(label, glyph == MaterialIcon::Glyph::Desktop ? 3 : 2);
     }
+
+    // Routing segment: a summary of the active profile that opens the quick menu.
+    auto *routingIcon = new QLabel(statusCard);
+    mutedIcons.append({routingIcon, MaterialIcon::Glyph::Routes});
+    statusLayout->addWidget(routingIcon);
+    auto *routingStatus = new QLabel(statusCard);
+    routingStatus->setObjectName(QStringLiteral("routingStatus"));
+    routingStatus->setCursor(Qt::PointingHandCursor);
+    routingStatus->setToolTip(tr("Routing profile and default traffic"));
+    routingStatus->installEventFilter(this);
+    statusLayout->addWidget(routingStatus, 2);
     auto *selectionCard = new QFrame(redesignedCentral);
     selectionCard->setObjectName(QStringLiteral("selectionCard"));
     auto *selectionLayout = new QHBoxLayout(selectionCard);
@@ -366,6 +378,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     };
     retintIcons();
     connect(themeManager, &ThemeManager::themeChanged, this, retintIcons);
+    refreshRoutingStatus();
 
     setWindowFlag(Qt::FramelessWindowHint, true);
     new ThronedWindowResizer(this);
@@ -468,6 +481,10 @@ QTextBrowser#masterLogBrowser { padding: 8px 10px; font-family: "Cascadia Mono",
 QFrame#statusCard QLabel#statusValue {
     background: transparent; border: none; padding: 3px 0;
 }
+QFrame#statusCard QLabel#routingStatus {
+    color: #DDE2E7; background: transparent; border: none; padding: 3px 0;
+}
+QFrame#statusCard QLabel#routingStatus:hover { color: #F1F3F5; }
 QFrame#selectionCard QLabel#selectionText { color: #F1F3F5; font-weight: 600; }
 QFrame#selectionCard QPushButton#selectionAction {
     background: #222529; border: 1px solid #2F3136; border-radius: 5px; padding: 6px 10px;
@@ -1528,7 +1545,39 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
             },
             [] { UI_update_all_remote_routes(true); },
         });
+        runner->Add({
+            tr("updates"),
+            // Release checks are cheap and rate-limited by GitHub, so they are not
+            // held to the 30-minute floor the subscription sweeps use.
+            [] {
+                const int v = Configs::dataManager->settingsRepo->app_auto_update;
+                return v > 0 ? v : 0;
+            },
+            [] { return Configs::dataManager->settingsRepo->app_auto_update_last; },
+            [](qint64 t) {
+                Configs::dataManager->settingsRepo->app_auto_update_last = t;
+                Configs::dataManager->settingsRepo->Save();
+            },
+            [this] { runOnNewThread([this] { CheckUpdate(true); }); },
+        });
     }
+
+    // The control surface reaches the config layer on its own; these are the
+    // few operations only the window can perform.
+    ThronedControl::hooks.startProfile = [this](int id) { profile_start(id); };
+    ThronedControl::hooks.stopProfile = [this] { profile_stop(false, false, true); };
+    ThronedControl::hooks.runningProfileId = [this] { return running ? running->id : -1; };
+    ThronedControl::hooks.applyRoutingChange = [this] {
+        refreshRoutingStatus();
+        if (Configs::dataManager->settingsRepo->started_id >= 0)
+            profile_start(Configs::dataManager->settingsRepo->started_id);
+    };
+
+    connect(tray, &QSystemTrayIcon::messageClicked, this, [this] {
+        if (!pendingUpdatePrompt) return;
+        const auto prompt = std::exchange(pendingUpdatePrompt, {});
+        prompt();
+    });
 
     if (!Configs::dataManager->settingsRepo->flag_tray) show();
 

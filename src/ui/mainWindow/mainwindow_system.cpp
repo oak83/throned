@@ -388,7 +388,7 @@ bool isNewer(QString assetName) {
 
 } // namespace
 
-void MainWindow::CheckUpdate() {
+void MainWindow::CheckUpdate(bool silent) {
     QString search;
 #ifdef Q_OS_WIN
 #  ifdef Q_PROCESSOR_ARM_64
@@ -419,7 +419,7 @@ void MainWindow::CheckUpdate() {
 #  endif
 #endif
     if (search.isEmpty()) {
-        runOnUiThread([=,this] {
+        if (!silent) runOnUiThread([=,this] {
             MessageBoxWarning(QObject::tr("Update"), QObject::tr("Not official support platform"));
         });
         return;
@@ -427,7 +427,7 @@ void MainWindow::CheckUpdate() {
 
     auto resp = NetworkRequestHelper::HttpGet("https://api.github.com/repos/troshkindm/throned/releases");
     if (!resp.error.isEmpty()) {
-        runOnUiThread([=,this] {
+        if (!silent) runOnUiThread([=,this] {
             MessageBoxWarning(QObject::tr("Update"), QObject::tr("Requesting update error: %1").arg(resp.error + "\n" + resp.data));
         });
         return;
@@ -456,13 +456,13 @@ void MainWindow::CheckUpdate() {
     }
 
     if (release_download_url.isEmpty() || !isNewer(assets_name)) {
-        runOnUiThread([=,this] {
+        if (!silent) runOnUiThread([=,this] {
             MessageBoxInfo(QObject::tr("Update"), QObject::tr("No update"));
         });
         return;
     }
 
-    runOnUiThread([=,this] {
+    const auto showUpdatePrompt = [=,this] {
         auto allow_updater = !Configs::dataManager->settingsRepo->flag_use_appdata;
         QMessageBox box(QMessageBox::Question, QObject::tr("Update") + note_pre_release,
                         QObject::tr("Update found: %1\nRelease note:\n%2").arg(assets_name, release_note));
@@ -509,5 +509,18 @@ void MainWindow::CheckUpdate() {
         } else if (btn2 == box.clickedButton()) {
             QDesktopServices::openUrl(QUrl(release_url));
         }
+    };
+
+    runOnUiThread([=,this] {
+        if (!silent) {
+            showUpdatePrompt();
+            return;
+        }
+        // The background check must not steal focus, so it only leaves a tray
+        // notification. Nothing is downloaded until the user opens the prompt.
+        pendingUpdatePrompt = showUpdatePrompt;
+        tray->showMessage(QObject::tr("Throned update available"),
+                          QObject::tr("%1 is ready to download. Click to see the release notes.").arg(assets_name),
+                          QSystemTrayIcon::Information, 10000);
     });
 }

@@ -176,6 +176,10 @@ set(PROJECT_SOURCES
         src/ui/widget/StartStopButton.cpp
         include/ui/widget/TrayProfileSelector.hpp
         src/ui/widget/TrayProfileSelector.cpp
+        include/control/ThronedControl.h
+        src/control/ThronedControl.cpp
+        include/ui/widget/RoutingQuickMenu.hpp
+        src/ui/widget/RoutingQuickMenu.cpp
         include/ui/utils/DataViewHtmlGenerator.h
         src/ui/utils/DataViewHtmlGenerator.cpp
         include/ui/utils/ProfilesTableModel.h

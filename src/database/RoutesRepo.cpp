@@ -24,6 +24,7 @@ namespace Configs {
                 remote_url TEXT NOT NULL DEFAULT '',
                 auto_update INTEGER NOT NULL DEFAULT 0,
                 remote_last_update INTEGER NOT NULL DEFAULT 0,
+                apply_profile_rules INTEGER NOT NULL DEFAULT 1,
                 created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                 updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
             )
@@ -42,6 +43,10 @@ namespace Configs {
             db.exec("ALTER TABLE route_profiles ADD COLUMN auto_update INTEGER NOT NULL DEFAULT 0");
         if (!routeProfilesColumnExists("remote_last_update"))
             db.exec("ALTER TABLE route_profiles ADD COLUMN remote_last_update INTEGER NOT NULL DEFAULT 0");
+        // Profiles written before this column existed applied their rules, so it
+        // defaults to 1 instead of to a zeroed boolean.
+        if (!routeProfilesColumnExists("apply_profile_rules"))
+            db.exec("ALTER TABLE route_profiles ADD COLUMN apply_profile_rules INTEGER NOT NULL DEFAULT 1");
         
         // Create route_rules table
         db.exec(R"(
@@ -198,6 +203,7 @@ namespace Configs {
         json["id"] = routeProfile->id;
         json["name"] = routeProfile->name;
         json["defaultOutboundID"] = routeProfile->defaultOutboundID;
+        json["applyProfileRules"] = routeProfile->applyProfileRules;
         json["isRaw"] = routeProfile->isRaw;
         json["rawRoute"] = routeProfile->rawRoute;
         json["preventModifications"] = routeProfile->preventModifications;
@@ -221,6 +227,9 @@ namespace Configs {
         routeProfile->id = json["id"].toInt();
         routeProfile->name = json["name"].toString();
         routeProfile->defaultOutboundID = json["defaultOutboundID"].toInt();
+        // Profiles written before this flag existed applied their rules, so the
+        // missing key has to read as true rather than as a default-constructed false.
+        routeProfile->applyProfileRules = json["applyProfileRules"].toBool(true);
         routeProfile->isRaw = json["isRaw"].toBool();
         routeProfile->rawRoute = json["rawRoute"].toString();
         routeProfile->preventModifications = json["preventModifications"].toBool();
@@ -257,14 +266,15 @@ namespace Configs {
     void RoutesRepo::saveToDatabaseInTx(const RouteProfile* routeProfile, int id) const {
         db.execThrow(R"(
             INSERT INTO route_profiles (id, name, default_outbound_id, is_raw, raw_route, prevent_modifications,
-                is_remote, remote_url, auto_update, remote_last_update)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                is_remote, remote_url, auto_update, remote_last_update, apply_profile_rules)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name, default_outbound_id = excluded.default_outbound_id,
                 is_raw = excluded.is_raw, raw_route = excluded.raw_route,
                 prevent_modifications = excluded.prevent_modifications,
                 is_remote = excluded.is_remote, remote_url = excluded.remote_url,
                 auto_update = excluded.auto_update, remote_last_update = excluded.remote_last_update,
+                apply_profile_rules = excluded.apply_profile_rules,
                 updated_at = strftime('%s', 'now')
         )",
             id,
@@ -276,7 +286,8 @@ namespace Configs {
             routeProfile->isRemote ? 1 : 0,
             routeProfile->remoteURL.toStdString(),
             routeProfile->autoUpdate ? 1 : 0,
-            static_cast<long long>(routeProfile->remoteLastUpdate)
+            static_cast<long long>(routeProfile->remoteLastUpdate),
+            routeProfile->applyProfileRules ? 1 : 0
         );
 
         db.execThrow("DELETE FROM route_rules WHERE route_profile_id = ?", id);
@@ -431,6 +442,7 @@ namespace Configs {
         json["remoteURL"] = QString::fromStdString(stmt.getColumn(7).getText());
         json["autoUpdate"] = stmt.getColumn(8).getInt() != 0;
         json["remoteLastUpdate"] = static_cast<double>(stmt.getColumn(9).getInt64());
+        json["applyProfileRules"] = stmt.getColumn(10).getInt() != 0;
         json["rules"] = QJsonArray();
         return routeProfileFromJson(json);
     }
@@ -466,7 +478,7 @@ namespace Configs {
     std::shared_ptr<RouteProfile> RoutesRepo::loadFromDatabase(int id) const {
         auto profileQuery = db.query(R"(
             SELECT id, name, default_outbound_id, is_raw, raw_route, prevent_modifications,
-                   is_remote, remote_url, auto_update, remote_last_update
+                   is_remote, remote_url, auto_update, remote_last_update, apply_profile_rules
             FROM route_profiles WHERE id = ?
         )", id);
         if (!profileQuery || !profileQuery->executeStep()) {
@@ -577,7 +589,7 @@ namespace Configs {
         QList<int> idsInOrder;
         QSet<int> cachedProfiles;
 
-        auto profileQuery = db.query("SELECT id, name, default_outbound_id, is_raw, raw_route, prevent_modifications, is_remote, remote_url, auto_update, remote_last_update FROM route_profiles ORDER BY id");
+        auto profileQuery = db.query("SELECT id, name, default_outbound_id, is_raw, raw_route, prevent_modifications, is_remote, remote_url, auto_update, remote_last_update, apply_profile_rules FROM route_profiles ORDER BY id");
         if (!profileQuery) return routeProfiles;
 
         QMutexLocker locker(&mutex);

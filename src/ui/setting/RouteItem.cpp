@@ -42,7 +42,6 @@
 
 namespace {
 
-constexpr auto LocalProxyRuleName = "throned-local-proxy-traffic";
 constexpr auto RouteBlue = "#237AE9";
 constexpr auto RouteGreen = "#2EBC75";
 constexpr auto RouteRed = "#FF4D56";
@@ -96,14 +95,6 @@ private:
     QColor tone_;
     int count_ = 0;
 };
-
-bool isLocalProxyTrafficRule(const std::shared_ptr<Configs::RouteRule>& rule) {
-    if (!rule || rule->name != LocalProxyRuleName || rule->action != "route" || rule->outboundID != Configs::proxyID)
-        return false;
-    QStringList inbound = rule->inbound;
-    inbound.sort();
-    return inbound == QStringList({"mixed-in", "socks-in"});
-}
 
 QString compactJsonValue(const QJsonValue &value) {
     if (value.isString()) return value.toString();
@@ -297,11 +288,11 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     QStringList advancedRuleNames;
     bool localProxyTraffic = false;
     for (const auto& rule : chain->Rules) {
-        if (rule->type == Configs::custom && !isLocalProxyTrafficRule(rule)) {
+        if (rule->type == Configs::custom && !Configs::IsLocalProxyTrafficRule(rule)) {
             ++advancedRules;
             advancedRuleNames.append(rule->name);
         }
-        if (isLocalProxyTrafficRule(rule)) localProxyTraffic = true;
+        if (Configs::IsLocalProxyTrafficRule(rule)) localProxyTraffic = true;
     }
     simpleEditor->setAdvancedRules(advancedRuleNames);
     simpleEditor->setLocalProxyTrafficEnabled(localProxyTraffic);
@@ -314,10 +305,10 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
         }
     });
     connect(simpleEditor, &RouteProfileSimpleEditor::localProxyTrafficChanged, this, [this](bool enabled) {
-        const auto it = std::find_if(chain->Rules.begin(), chain->Rules.end(), isLocalProxyTrafficRule);
+        const auto it = std::find_if(chain->Rules.begin(), chain->Rules.end(), Configs::IsLocalProxyTrafficRule);
         if (enabled && it == chain->Rules.end()) {
             auto rule = std::make_shared<Configs::RouteRule>();
-            rule->name = LocalProxyRuleName;
+            rule->name = Configs::LocalProxyRuleName;
             rule->action = "route";
             rule->outboundID = Configs::proxyID;
             rule->inbound = {"mixed-in", "socks-in"};
@@ -1062,8 +1053,8 @@ void RouteItem::syncRouteProfileToSimpleEditors() {
     QStringList advancedRuleNames;
     bool localProxyTraffic = false;
     for (const auto& rule : chain->Rules) {
-        if (rule->type == Configs::custom && !isLocalProxyTrafficRule(rule)) advancedRuleNames.append(rule->name);
-        if (isLocalProxyTrafficRule(rule)) localProxyTraffic = true;
+        if (rule->type == Configs::custom && !Configs::IsLocalProxyTrafficRule(rule)) advancedRuleNames.append(rule->name);
+        if (Configs::IsLocalProxyTrafficRule(rule)) localProxyTraffic = true;
     }
     simpleEditor->setAdvancedRules(advancedRuleNames);
     simpleEditor->setLocalProxyTrafficEnabled(localProxyTraffic);

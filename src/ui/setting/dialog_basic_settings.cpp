@@ -214,6 +214,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     D_LOAD_STRING(sub_custom_hwid_params)
     D_LOAD_INT_ENABLE(sub_auto_update, sub_auto_update_enable)
     D_LOAD_INT_ENABLE(route_auto_update, route_auto_update_enable)
+    D_LOAD_INT_ENABLE(app_auto_update, app_auto_update_enable)
     auto details = GetDeviceDetails();
 	ui->sub_send_hwid->setToolTip(
         ui->sub_send_hwid->toolTip()
@@ -572,6 +573,9 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
             addControlRow(layout, tr("Subscription interval (minutes)"), ui->sub_auto_update);
             addToggleRow(layout, tr("Update routing profiles automatically"), ui->route_auto_update_enable);
             addControlRow(layout, tr("Routing interval (minutes)"), ui->route_auto_update);
+            addToggleRow(layout, tr("Check for Throned updates automatically"), ui->app_auto_update_enable);
+            addControlRow(layout, tr("Update check interval (minutes)"), ui->app_auto_update,
+                          tr("A found release is announced in the tray; nothing installs on its own."));
             pageLayout->addWidget(updates);
 
             auto *behavior = makeSection(tr("Update behavior"), tr("Choose how imported profiles and device metadata are handled."));
@@ -818,6 +822,7 @@ QDialog#basicSettingsDialog QWidget#settingsLegacyPage QCheckBox::indicator {
 }
 QDialog#basicSettingsDialog QWidget#settingsLegacyPage QCheckBox::indicator:checked {
     background: #237AE9; border-color: #4193F4;
+    image: url(:/icon/material/check.svg);
 }
 QDialog#basicSettingsDialog QWidget#settingsLegacyPage QPushButton {
     color: #F1F3F5; background: #222529; border: 1px solid #2F3136;
@@ -946,6 +951,7 @@ void DialogBasicSettings::accept() {
     D_SAVE_STRING(sub_custom_hwid_params)
     D_SAVE_INT_ENABLE(sub_auto_update, sub_auto_update_enable)
     D_SAVE_INT_ENABLE(route_auto_update, route_auto_update_enable)
+    D_SAVE_INT_ENABLE(app_auto_update, app_auto_update_enable)
 
     // Core
     Configs::dataManager->settingsRepo->disable_traffic_stats = ui->disable_stats->isChecked();

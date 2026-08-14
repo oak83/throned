@@ -17,6 +17,16 @@ namespace Configs {
         return {"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "224.0.0.0/4"};
     }
 
+    // The "route local proxy traffic through proxy" quick option is stored as an
+    // ordinary rule carrying this marker name, so it survives sharing and raw
+    // editing like any other rule.
+    inline constexpr auto LocalProxyRuleName = "throned-local-proxy-traffic";
+
+    // True for that quick option's rule. It is the one profile rule that keeps
+    // applying when a profile's own rules are switched off, because it decides
+    // where the client's own local inbounds go rather than matching user traffic.
+    bool IsLocalProxyTrafficRule(const std::shared_ptr<RouteRule>& rule);
+
     enum simpleAction{bypass, block, proxy, warpBypass};
     inline QString simpleActionToString(simpleAction action)
     {
@@ -33,6 +43,12 @@ namespace Configs {
         QString name = "";
         QList<std::shared_ptr<RouteRule>> Rules;
         int defaultOutboundID = proxyID;
+
+        // When false the profile's own rules are skipped while generating the
+        // config, so everything falls through to defaultOutboundID. Throned's
+        // injected plumbing (tun hijack, sniffing, peer guard, bridges) and the
+        // local-proxy quick option are unaffected. Raw profiles ignore this.
+        bool applyProfileRules = true;
 
         // Raw profiles carry a full sing-box `route` JSON object (as text) instead of
         // structured Rules. When preventModifications is set we use it verbatim (after

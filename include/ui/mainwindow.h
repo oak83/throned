@@ -49,6 +49,7 @@ namespace Configs_sys {
 }
 
 class TrayProfileSelector;
+class RoutingQuickMenu;
 class TestRunner;
 
 namespace Qv2ray::ui { class SyntaxHighlighter; }
@@ -226,6 +227,10 @@ private:
     // (native NSMenu) and so can't reliably expand a dynamic list. Recreated on each open.
     QPointer<TrayProfileSelector> traySelector;
     void openTraySelector(bool routing);
+    QPointer<RoutingQuickMenu> routingQuickMenu;
+    void openRoutingQuickMenu(const QPoint &globalPos);
+    // Refresh the routing segment of the status bar from the active profile.
+    void refreshRoutingStatus();
     QShortcut *shortcut_esc = new QShortcut(QKeySequence::Cancel, this);
     //
     // Shared by the test sweeps and the batch profile scans (remove-invalid).
@@ -473,7 +478,12 @@ private:
 
     bool set_system_dns(bool set, bool save_set = true);
 
-    void CheckUpdate();
+    // `silent` suppresses the "no update", error and unsupported-platform boxes and
+    // reports a found release through the tray instead of a modal, so the periodic
+    // background check never interrupts what the user is doing.
+    void CheckUpdate(bool silent = false);
+    // Set when a silent check found a release; run when the tray notification is clicked.
+    std::function<void()> pendingUpdatePrompt;
 
     void setupConnectionList();
 
