@@ -111,8 +111,19 @@ depend on a routing profile's `final` outbound being set to `proxy`.
   deletes, regroups, or silently reorders rules.
 - An application picker backed by installed applications, running processes, and
   manual executable selection.
+- Process rules ask the core to resolve the owning process on their own. They
+  used to work only while traffic statistics happened to be enabled, and turning
+  those off made every process rule stop matching without saying so.
 - Unknown imported fields stay as opaque JSON in their original position and get
   a visible `Preserved JSON` marker.
+
+### Routing quick menu
+
+The routing segment of the status bar opens a small panel over the window: it
+shows the active profile, switches between sending unmatched traffic direct or
+through the proxy, and turns the profile's own rules off entirely when you want
+everything to follow that default. Throned's internal rules — TUN DNS hijack,
+sniffing, the peer guard, the local-proxy option — keep applying either way.
 
 ### Main window workflow
 
@@ -120,6 +131,56 @@ depend on a routing profile's `final` outbound being set to `proxy`.
   outbound-IP resolution operate on the preserved selection.
 - Logs wrap at the window edge with a hanging timestamp/level gutter, a level
   filter, and auto-scroll.
+
+### Update checks
+
+Throned can look for a new release on a schedule and announce it in the tray
+instead of interrupting with a dialog. Nothing downloads or installs on its own:
+clicking the notification opens the same prompt the manual check shows. The
+interval lives in *Settings → Subscription* and can be switched off.
+
+### Control interface
+
+A running Throned can be driven from the command line, by a person or by a
+program. It is a thin client: the command travels to the open window over a
+local socket, runs against the same database the interface uses, and the answer
+comes back on stdout.
+
+```sh
+throned --cli status
+throned --cli route add example.com --via proxy
+throned --cli route app add discord.exe --via direct
+throned --cli route rules            # the ordered rule list; first match wins
+```
+
+Every command is also addressable as JSON, and replies are always
+`{"ok":true,"data":{…}}` or `{"ok":false,"error":"…"}`, so a failure stays
+parseable:
+
+```sh
+throned --cli '{"cmd":"routing.set_default","outbound":"proxy"}'
+throned --cli '{"cmd":"logs","lines":50,"contains":"reject"}'
+```
+
+For automated use, `routing.export` hands over the whole profile as a lossless
+document — every rule with every field, in evaluation order — and
+`routing.import` takes an edited one back. `{"cmd":"schema"}` describes the
+command surface *and* the rule format, both generated from the code that
+dispatches and parses them, so the reference cannot quietly drift from what the
+app accepts.
+
+Routing edits normally restart the core so they take effect. Pass
+`"apply": false` to batch several of them and finish with `routing.apply`, which
+interrupts traffic once instead of once per edit.
+
+The socket is restricted to the current user. Anything able to reach it can
+change where traffic goes, so it is not a public interface.
+
+`throned --cli help` prints the whole reference.
+
+> The examples are lowercase because Windows resolves executable names without
+> regard to case. The Linux binary is named `Throned`, and there the case
+> matters.
 
 ### Naming and migration
 
