@@ -25,6 +25,7 @@
 #include "include/ui/setting/RawRouteItem.h"
 #include "include/ui/setting/RouteProfileSimpleEditor.h"
 #include "include/ui/setting/ThemeManager.hpp"
+#include "include/ui/widget/FlowLayout.h"
 #include "include/ui/widget/MaterialIcon.h"
 #include "include/ui/widget/ThronedTitleBar.h"
 #include "include/ui/widget/ThronedWindowResizer.h"
@@ -241,15 +242,19 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
     ui->route_profiles->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     profilesCardLayout->addWidget(ui->route_profiles);
 
-    auto *secondaryActions = new QHBoxLayout;
-    secondaryActions->setSpacing(10);
-    secondaryActions->addWidget(ui->clone_route);
-    secondaryActions->addWidget(ui->import_route);
-    secondaryActions->addWidget(ui->export_route);
-    secondaryActions->addWidget(ui->update_route);
-    secondaryActions->addStretch(1);
-    secondaryActions->addWidget(ui->delete_route);
-    profilesCardLayout->addLayout(secondaryActions);
+    // Five captioned buttons do not fit this card at the dialog's minimum width.
+    // A flow layout wraps the row instead of stretching the buttons edge to edge
+    // when there is room and clipping their captions when there is not.
+    auto *secondaryActions = new QWidget(profilesCard);
+    secondaryActions->setObjectName(QStringLiteral("routeTransparent"));
+    auto *secondaryFlow = new FlowLayout(secondaryActions, 10, 8);
+    secondaryFlow->setContentsMargins(0, 0, 0, 0);
+    secondaryFlow->addWidget(ui->clone_route);
+    secondaryFlow->addWidget(ui->import_route);
+    secondaryFlow->addWidget(ui->export_route);
+    secondaryFlow->addWidget(ui->update_route);
+    secondaryFlow->addWidget(ui->delete_route);
+    profilesCardLayout->addWidget(secondaryActions);
     profilesLayout->addWidget(profilesCard);
 
     auto *profileHint = new QFrame(ui->tab_2);

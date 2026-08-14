@@ -329,15 +329,24 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     }
 
     // Routing segment: a summary of the active profile that opens the quick menu.
-    auto *routingIcon = new QLabel(statusCard);
+    // Icon and text live in one clickable frame, so the whole block is the hit
+    // target instead of just the glyph of text inside it.
+    auto *routingButton = new QFrame(statusCard);
+    routingButton->setObjectName(QStringLiteral("routingStatusButton"));
+    routingButton->setCursor(Qt::PointingHandCursor);
+    routingButton->setToolTip(tr("Routing profile and default traffic"));
+    routingButton->setAttribute(Qt::WA_Hover, true);
+    routingButton->installEventFilter(this);
+    auto *routingButtonLayout = new QHBoxLayout(routingButton);
+    routingButtonLayout->setContentsMargins(8, 4, 10, 4);
+    routingButtonLayout->setSpacing(9);
+    auto *routingIcon = new QLabel(routingButton);
     mutedIcons.append({routingIcon, MaterialIcon::Glyph::Routes});
-    statusLayout->addWidget(routingIcon);
-    auto *routingStatus = new QLabel(statusCard);
+    routingButtonLayout->addWidget(routingIcon);
+    auto *routingStatus = new QLabel(routingButton);
     routingStatus->setObjectName(QStringLiteral("routingStatus"));
-    routingStatus->setCursor(Qt::PointingHandCursor);
-    routingStatus->setToolTip(tr("Routing profile and default traffic"));
-    routingStatus->installEventFilter(this);
-    statusLayout->addWidget(routingStatus, 2);
+    routingButtonLayout->addWidget(routingStatus, 1);
+    statusLayout->addWidget(routingButton, 2);
     auto *selectionCard = new QFrame(redesignedCentral);
     selectionCard->setObjectName(QStringLiteral("selectionCard"));
     auto *selectionLayout = new QHBoxLayout(selectionCard);
@@ -482,10 +491,11 @@ QTextBrowser#masterLogBrowser { padding: 8px 10px; font-family: "Cascadia Mono",
 QFrame#statusCard QLabel#statusValue {
     background: transparent; border: none; padding: 3px 0;
 }
-QFrame#statusCard QLabel#routingStatus {
-    color: #DDE2E7; background: transparent; border: none; padding: 3px 0;
+QFrame#statusCard QFrame#routingStatusButton {
+    background: transparent; border: 1px solid transparent; border-radius: 7px;
 }
-QFrame#statusCard QLabel#routingStatus:hover { color: #F1F3F5; }
+QFrame#statusCard QFrame#routingStatusButton:hover { background: #222529; border-color: #2F3136; }
+QFrame#statusCard QLabel#routingStatus { color: #DDE2E7; background: transparent; border: none; }
 QFrame#selectionCard QLabel#selectionText { color: #F1F3F5; font-weight: 600; }
 QFrame#selectionCard QPushButton#selectionAction {
     background: #222529; border: 1px solid #2F3136; border-radius: 5px; padding: 6px 10px;
@@ -1576,6 +1586,9 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     ThronedControl::hooks.startProfile = [this](int id) { profile_start(id); };
     ThronedControl::hooks.stopProfile = [this] { profile_stop(false, false, true); };
     ThronedControl::hooks.runningProfileId = [this] { return running ? running->id : -1; };
+    ThronedControl::hooks.setTun = [this](bool enabled) { set_spmode_vpn(enabled); };
+    ThronedControl::hooks.setSystemProxy = [this](bool enabled) { set_spmode_system_proxy(enabled); };
+    ThronedControl::hooks.isElevated = [] { return Configs::IsAdmin(); };
     ThronedControl::hooks.applyRoutingChange = [this] {
         refreshRoutingStatus();
         if (Configs::dataManager->settingsRepo->started_id >= 0)

@@ -89,6 +89,67 @@ QStringList requestedStrings(const QJsonObject &request, const QString &key) {
     return values;
 }
 
+// One description of every command, used to dispatch documentation and to build
+// the JSON schema. Keeping it beside the handlers is what stops the reference
+// from quietly describing a surface that no longer exists.
+struct Argument {
+    const char *name;
+    const char *type;     // "int", "bool", "string", "string[]"
+    bool required;
+    const char *accepts;  // allowed values, empty when free-form
+    const char *summary;
+};
+
+struct Command {
+    const char *name;
+    const char *summary;
+    QList<Argument> arguments;
+    const char *returns;
+};
+
+const QList<Command> &commandTable() {
+    static const QList<Command> table{
+        {"help", "This reference as text.", {}, "text"},
+        {"schema", "This reference as JSON.", {}, "commands"},
+        {"status", "What is running, where, and through which route.", {},
+         "running, running_profile_id, running_profile_name, mixed_port, tun_enabled, system_proxy, routing"},
+        {"profiles.list", "Every proxy profile.", {}, "profiles[]: id, name, type, group_id"},
+        {"profile.start", "Start a proxy profile.",
+         {{"id", "int", true, "", "profile id from profiles.list"}}, "started"},
+        {"profile.stop", "Stop the running profile.", {}, ""},
+        {"tun.set", "Turn TUN mode on or off.",
+         {{"enabled", "bool", true, "true, false", ""}},
+         "tun_enabled. Refuses to turn TUN on when the app is not elevated, because that "
+         "path restarts it behind a UAC prompt."},
+        {"system_proxy.set", "Turn the system proxy on or off.",
+         {{"enabled", "bool", true, "true, false", ""}}, "system_proxy"},
+        {"routing.list", "Every routing profile; \"active\" marks the selected one.", {},
+         "profiles[]: id, name, default_outbound, rules_enabled, raw, remote, active"},
+        {"routing.get", "The active routing profile and its domain lists.", {},
+         "id, name, default_outbound, rules_enabled, proxy_domains, direct_domains, blocked_domains"},
+        {"routing.select", "Make a routing profile active.",
+         {{"id", "int", true, "", "profile id from routing.list"}}, "active"},
+        {"routing.set_default", "Where traffic goes when no rule matched.",
+         {{"outbound", "string", true, "direct, proxy, block, warp", ""}}, "default_outbound"},
+        {"routing.set_rules_enabled",
+         "Apply the profile's own rules, or send everything to the default outbound. "
+         "Throned's internal rules and the local-proxy quick option keep applying either way.",
+         {{"enabled", "bool", true, "true, false", ""}}, "rules_enabled"},
+        {"routing.add_domains", "Add entries to one of the three routing lists.",
+         {{"action", "string", true, "proxy, direct, block", "which list to edit"},
+          {"domains", "string[]", true, "",
+           "a bare host becomes a suffix match covering subdomains; the typed prefixes "
+           "domain:, suffix:, keyword:, regex:, ruleset:, ip:, processName: and processPath: "
+           "are kept as given"}},
+         "action, domains (the resulting list)"},
+        {"routing.remove_domains", "Remove entries from one of the three routing lists.",
+         {{"action", "string", true, "proxy, direct, block", "which list to edit"},
+          {"domains", "string[]", true, "", "accepts the bare form or the stored one"}},
+         "action, domains (the resulting list)"},
+    };
+    return table;
+}
+
 QJsonObject saveAndApply(const std::shared_ptr<Configs::RouteProfile> &profile, const QJsonObject &data) {
     Configs::dataManager->routesRepo->Save(profile);
     if (hooks.applyRoutingChange) hooks.applyRoutingChange();
@@ -103,6 +164,29 @@ QJsonObject Execute(const QJsonObject &request) {
     if (!Configs::dataManager) return fail(QStringLiteral("data layer is not ready"));
 
     if (cmd == QStringLiteral("help")) return ok(QJsonObject{{"text", HelpText()}});
+    if (cmd == QStringLiteral("schema")) return ok(Schema());
+
+    if (cmd == QStringLiteral("tun.set")) {
+        if (!hooks.setTun) return fail(QStringLiteral("the window is not ready yet"));
+        if (!request.value(QStringLiteral("enabled")).isBool())
+            return fail(QStringLiteral("\"enabled\" must be true or false"));
+        const bool enabled = request.value(QStringLiteral("enabled")).toBool();
+        // Enabling TUN unelevated makes the app relaunch itself through a UAC
+        // prompt, so the answer to this command would never arrive. Say so.
+        if (enabled && hooks.isElevated && !hooks.isElevated())
+            return fail(QStringLiteral("TUN needs elevated rights; turn it on from the window, "
+                                       "which can ask for them"));
+        hooks.setTun(enabled);
+        return ok(QJsonObject{{"tun_enabled", Configs::dataManager->settingsRepo->spmode_vpn}});
+    }
+
+    if (cmd == QStringLiteral("system_proxy.set")) {
+        if (!hooks.setSystemProxy) return fail(QStringLiteral("the window is not ready yet"));
+        if (!request.value(QStringLiteral("enabled")).isBool())
+            return fail(QStringLiteral("\"enabled\" must be true or false"));
+        hooks.setSystemProxy(request.value(QStringLiteral("enabled")).toBool());
+        return ok(QJsonObject{{"system_proxy", Configs::dataManager->settingsRepo->spmode_system_proxy}});
+    }
 
     if (cmd == QStringLiteral("status")) {
         const auto profile = activeProfile();
@@ -245,77 +329,87 @@ QJsonObject Execute(const QJsonObject &request) {
 }
 
 QString HelpText() {
-    return QStringLiteral(R"(Throned control interface
+    QStringList lines;
+    lines << QStringLiteral("throned control interface")
+          << QString()
+          << QStringLiteral("Send one JSON object per invocation to the running instance; one JSON")
+          << QStringLiteral("object comes back. Every reply is either")
+          << QString()
+          << QStringLiteral(R"(  {"ok": true,  "data": { ... }})")
+          << QStringLiteral(R"(  {"ok": false, "error": "why it failed"})")
+          << QString()
+          << QStringLiteral("so a failure is always parseable rather than free-form text.")
+          << QString()
+          << QStringLiteral("Usage:")
+          << QStringLiteral(R"(  throned --cli '{"cmd":"status"}')")
+          << QStringLiteral(R"(  throned --cli '{"cmd":"schema"}'   the same reference as JSON)")
+          << QString()
+          << QStringLiteral("Commands")
+          << QString();
 
-Send one JSON object per invocation to the running instance; one JSON object
-comes back. Every reply is either
+    for (const Command &command : commandTable()) {
+        QString head = QStringLiteral(R"(  {"cmd":"%1")").arg(QString::fromLatin1(command.name));
+        for (const Argument &argument : command.arguments) {
+            head += QStringLiteral(",\"%1\":<%2>").arg(QString::fromLatin1(argument.name),
+                                                       QString::fromLatin1(argument.type));
+        }
+        lines << head + QStringLiteral("}");
+        lines << QStringLiteral("      ") + QString::fromLatin1(command.summary);
+        for (const Argument &argument : command.arguments) {
+            QString detail = QStringLiteral("        %1 (%2%3)")
+                .arg(QString::fromLatin1(argument.name), QString::fromLatin1(argument.type),
+                     argument.required ? QStringLiteral(", required") : QString());
+            if (*argument.accepts) detail += QStringLiteral(" - one of: %1").arg(QString::fromLatin1(argument.accepts));
+            if (*argument.summary) detail += QStringLiteral(" - %1").arg(QString::fromLatin1(argument.summary));
+            lines << detail;
+        }
+        if (*command.returns) lines << QStringLiteral("      returns: ") + QString::fromLatin1(command.returns);
+        lines << QString();
+    }
 
-  {"ok": true,  "data": { ... }}
-  {"ok": false, "error": "why it failed"}
+    lines << QStringLiteral("Notes")
+          << QString()
+          << QStringLiteral("  A routing change is saved at once and restarts the running profile so it")
+          << QStringLiteral("  takes effect, which briefly interrupts traffic.")
+          << QString()
+          << QStringLiteral("  Commands that edit routing refuse to touch raw profiles, because those")
+          << QStringLiteral("  carry a verbatim sing-box route object with no domain lists to merge into.");
+    return lines.join('\n') + '\n';
+}
 
-so a failure is always parseable rather than free-form text.
-
-Usage:
-  throned --cli '{"cmd":"status"}'
-
-Commands
-
-  {"cmd":"help"}
-      This text, as data.text.
-
-  {"cmd":"status"}
-      running, running_profile_id, running_profile_name, mixed_port,
-      tun_enabled, system_proxy, and the active routing profile.
-
-  {"cmd":"profiles.list"}
-      Every proxy profile: id, name, type, group_id.
-
-  {"cmd":"profile.start","id":12}
-  {"cmd":"profile.stop"}
-      Start a proxy profile by id, or stop the running one.
-
-  {"cmd":"routing.list"}
-      Every routing profile, with "active" marking the selected one.
-
-  {"cmd":"routing.get"}
-      The active routing profile, plus its proxy/direct/blocked domain lists.
-
-  {"cmd":"routing.select","id":3}
-      Make a routing profile active.
-
-  {"cmd":"routing.set_default","outbound":"proxy"}
-      Where traffic goes when no rule matched: direct, proxy, block or warp.
-
-  {"cmd":"routing.set_rules_enabled","enabled":false}
-      Turn the profile's own rules off, leaving everything to the default
-      outbound. Throned's internal rules keep applying either way.
-
-  {"cmd":"routing.add_domains","action":"proxy","domains":["example.com"]}
-  {"cmd":"routing.remove_domains","action":"proxy","domains":["example.com"]}
-      Edit one of the three domain lists. A bare entry is stored as a suffix
-      match, so "example.com" also covers its subdomains. To be explicit, give
-      the same typed prefix the routing editor uses:
-
-        domain:      exact domain
-        suffix:      domain and its subdomains
-        keyword:     substring of the domain
-        regex:       regular expression
-        ruleset:     a geosite/geoip rule set, e.g. ruleset:geosite-telegram
-        ip:          IP or CIDR
-        processName: executable name, e.g. processName:discord.exe
-        processPath: full path to an executable
-
-      Duplicates are ignored when adding. Removal accepts either the bare form
-      or the stored one.
-
-Notes
-
-  A routing change is saved immediately and the running profile is restarted so
-  it takes effect, which briefly interrupts traffic.
-
-  Commands that edit routing refuse to touch raw profiles, because those carry a
-  verbatim sing-box route object that has no domain lists to merge into.
-)");
+QJsonObject Schema() {
+    QJsonArray commands;
+    for (const Command &command : commandTable()) {
+        QJsonArray arguments;
+        for (const Argument &argument : command.arguments) {
+            QJsonObject described{
+                {"name", QString::fromLatin1(argument.name)},
+                {"type", QString::fromLatin1(argument.type)},
+                {"required", argument.required},
+            };
+            if (*argument.accepts) {
+                QJsonArray accepted;
+                for (const QString &value : QString::fromLatin1(argument.accepts).split(QStringLiteral(", ")))
+                    accepted.append(value);
+                described["accepts"] = accepted;
+            }
+            if (*argument.summary) described["summary"] = QString::fromLatin1(argument.summary);
+            arguments.append(described);
+        }
+        QJsonObject described{
+            {"name", QString::fromLatin1(command.name)},
+            {"summary", QString::fromLatin1(command.summary)},
+            {"arguments", arguments},
+        };
+        if (*command.returns) described["returns"] = QString::fromLatin1(command.returns);
+        commands.append(described);
+    }
+    return QJsonObject{
+        {"interface", QStringLiteral("throned-control")},
+        {"version", 1},
+        {"reply", QStringLiteral(R"({"ok":true,"data":{...}} or {"ok":false,"error":"..."})")},
+        {"commands", commands},
+    };
 }
 
 } // namespace ThronedControl

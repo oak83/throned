@@ -264,9 +264,9 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
             on_tabWidget_customContextMenuRequested(mouseEvent->position().toPoint());
             return true;
         } else if (mouseEvent->button() == Qt::LeftButton) {
-            if (auto *label = qobject_cast<QLabel *>(obj);
-                label && label->objectName() == QStringLiteral("routingStatus")) {
-                openRoutingQuickMenu(label->mapToGlobal(QPoint(label->width() / 2, 0)));
+            if (auto *segment = qobject_cast<QFrame *>(obj);
+                segment && segment->objectName() == QStringLiteral("routingStatusButton")) {
+                openRoutingQuickMenu(segment->mapToGlobal(QPoint(segment->width() / 2, 0)));
                 return true;
             }
         }
