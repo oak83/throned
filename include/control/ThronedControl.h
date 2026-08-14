@@ -41,8 +41,13 @@ QJsonObject Execute(const QJsonObject &request);
 QString HelpText();
 
 // The same table as JSON: every command, its arguments, their types and which
-// values are accepted. Meant for a program that wants to discover the surface
-// instead of parsing prose.
+// values are accepted, plus the shape of a routing rule. Meant for a program
+// that wants to discover the surface instead of parsing prose.
 QJsonObject Schema();
+
+// What a rule inside a routing document may contain: every matcher field, its
+// type and its accepted values. Read out of the rule model itself, so it
+// describes what the app really parses rather than what someone wrote down.
+QJsonObject RuleSchema();
 
 } // namespace ThronedControl

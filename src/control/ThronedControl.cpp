@@ -6,6 +6,7 @@
 #include "include/database/SettingsRepo.h"
 #include "include/database/entities/Profile.h"
 #include "include/database/entities/RouteProfile.h"
+#include "include/database/entities/RouteRule.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -499,7 +500,21 @@ QString HelpText() {
         lines << QString();
     }
 
-    lines << QStringLiteral("Notes")
+    lines << QStringLiteral("Routing document")
+          << QString()
+          << QStringLiteral("  routing.export returns, and routing.import accepts, this shape:")
+          << QString()
+          << QStringLiteral(R"(    {"kind":"throne-route-profile","v":1,"name":"...",)")
+          << QStringLiteral(R"(     "default_outbound":"proxy","rules":[ ... ]})")
+          << QString()
+          << QStringLiteral("  Rules are evaluated in array order and the first match wins. A rule is")
+          << QStringLiteral("  matcher fields plus \"action\"; \"route\" also takes \"outbound\". Every")
+          << QStringLiteral("  matcher field and its accepted values are listed under routing_document")
+          << QStringLiteral("  in the JSON schema, read straight out of the rule model:")
+          << QString()
+          << QStringLiteral(R"(    throned --cli '{"cmd":"schema"}')")
+          << QString()
+          << QStringLiteral("Notes")
           << QString()
           << QStringLiteral("  A routing change is saved at once and restarts the running profile so it")
           << QStringLiteral("  takes effect, which briefly interrupts traffic.")
@@ -507,6 +522,35 @@ QString HelpText() {
           << QStringLiteral("  Commands that edit routing refuse to touch raw profiles, because those")
           << QStringLiteral("  carry a verbatim sing-box route object with no domain lists to merge into.");
     return lines.join('\n') + '\n';
+}
+
+QJsonObject RuleSchema() {
+    QJsonArray fields;
+    for (const QString &field : Configs::RouteRule::get_attributes()) {
+        const Configs::inputType type = Configs::RouteRule::get_input_type(field);
+        QJsonObject described{
+            {"name", field},
+            {"type", type == Configs::trufalse ? QStringLiteral("bool")
+                   : type == Configs::select   ? QStringLiteral("string")
+                                               : QStringLiteral("string[]")},
+        };
+        QStringList accepted = Configs::RouteRule::get_values_for_field(field);
+        accepted.removeAll(QString());
+        if (!accepted.isEmpty()) described["accepts"] = QJsonArray::fromStringList(accepted);
+        fields.append(described);
+    }
+    return QJsonObject{
+        {"document", QStringLiteral(
+            R"({"kind":"throne-route-profile","v":1,"name":"...","default_outbound":"proxy|direct|block|warp","rules":[...]})")},
+        {"order", QStringLiteral("Rules are evaluated in array order and the first match wins.")},
+        {"rule", QStringLiteral(
+            R"(A rule is an object of matcher fields plus "action". "route" also takes )"
+            R"("outbound". "name" is a free label, "type" marks which editor owns the rule )"
+            R"(and may be left as "custom" for anything hand-written.)")},
+        {"outbound", QStringLiteral(
+            "proxy, direct, block or warp-bypass, or the name of a server profile.")},
+        {"fields", fields},
+    };
 }
 
 QJsonObject Schema() {
@@ -540,6 +584,7 @@ QJsonObject Schema() {
         {"interface", QStringLiteral("throned-control")},
         {"version", 1},
         {"reply", QStringLiteral(R"({"ok":true,"data":{...}} or {"ok":false,"error":"..."})")},
+        {"routing_document", RuleSchema()},
         {"commands", commands},
     };
 }
