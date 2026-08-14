@@ -27,11 +27,11 @@ std::shared_ptr<Configs::RouteProfile> activeProfile() {
 
 QString outboundLabel(int outboundID) {
     switch (outboundID) {
-    case Configs::directID: return QObject::tr("Direct");
-    case Configs::proxyID: return QObject::tr("Proxy");
-    case Configs::blockID: return QObject::tr("Block");
-    case Configs::warpBypassID: return QObject::tr("WARP bypass");
-    default: return QObject::tr("Custom");
+    case Configs::directID: return RoutingQuickMenu::tr("Direct");
+    case Configs::proxyID: return RoutingQuickMenu::tr("Proxy");
+    case Configs::blockID: return RoutingQuickMenu::tr("Block");
+    case Configs::warpBypassID: return RoutingQuickMenu::tr("WARP bypass");
+    default: return RoutingQuickMenu::tr("Custom");
     }
 }
 
@@ -39,9 +39,9 @@ QString outboundLabel(int outboundID) {
 
 QString RoutingQuickMenu::statusSummary() {
     const auto profile = activeProfile();
-    if (!profile) return QObject::tr("No routing profile");
+    if (!profile) return RoutingQuickMenu::tr("No routing profile");
     QString summary = profile->name + QStringLiteral(" · ") + outboundLabel(profile->defaultOutboundID);
-    if (!profile->isRaw && !profile->applyProfileRules) summary += QObject::tr(" · rules off");
+    if (!profile->isRaw && !profile->applyProfileRules) summary += RoutingQuickMenu::tr(" · rules off");
     return summary;
 }
 

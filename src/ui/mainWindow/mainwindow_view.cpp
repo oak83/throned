@@ -101,7 +101,10 @@ void MainWindow::refresh_status(const QString &traffic_update) {
             ui->label_speed->setText("");
         }
         else if (traffic_update_cache == "") {
-            ui->label_speed->setText(QObject::tr("Proxy: %1\nDirect: %2").arg("", ""));
+            // Same shape as the populated state so the status bar does not
+            // reflow, but with a placeholder instead of a dangling colon.
+            ui->label_speed->setText(QObject::tr("Proxy %1   ·   Direct %2")
+                                         .arg(QStringLiteral("—"), QStringLiteral("—")));
         } else {
             ui->label_speed->setText(traffic_update_cache);
         }

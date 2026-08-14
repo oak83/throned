@@ -309,23 +309,41 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // rather than another bordered card stacked inside the content area.
     auto *statusCard = new QFrame(redesignedCentral);
     statusCard->setObjectName(QStringLiteral("statusCard"));
-    statusCard->setFixedHeight(68);
+    statusCard->setFixedHeight(56);
     auto *statusLayout = new QHBoxLayout(statusCard);
-    statusLayout->setContentsMargins(15, 7, 13, 7);
-    statusLayout->setSpacing(12);
-    const QList<QPair<QLabel *, MaterialIcon::Glyph>> statusItems{
-        {ui->label_running, MaterialIcon::Glyph::Public},
-        {ui->label_inbound, MaterialIcon::Glyph::Desktop},
-        {ui->label_speed, MaterialIcon::Glyph::SwapVertical},
+    statusLayout->setContentsMargins(15, 6, 13, 6);
+    statusLayout->setSpacing(18);
+    // Каждая ячейка: подпись сверху, значение снизу. Cells used to differ in
+    // shape - one of them was two lines - and the strip was sized by whichever
+    // was tallest, leaving the rest floating. A caption/value grid gives the bar
+    // a rhythm without wrapping anything in a box.
+    struct StatusItem { QLabel *value; MaterialIcon::Glyph glyph; QString caption; int stretch; };
+    const QList<StatusItem> statusItems{
+        {ui->label_running, MaterialIcon::Glyph::Public, tr("Connection"), 2},
+        {ui->label_inbound, MaterialIcon::Glyph::Desktop, tr("Inbound"), 3},
+        {ui->label_speed, MaterialIcon::Glyph::SwapVertical, tr("Traffic"), 3},
     };
     QList<QPair<QLabel *, MaterialIcon::Glyph>> mutedIcons;
-    for (const auto &[label, glyph] : statusItems) {
-        auto *icon = new QLabel(statusCard);
+    for (const auto &[value, glyph, caption, stretch] : statusItems) {
+        auto *cell = new QWidget(statusCard);
+        cell->setObjectName(QStringLiteral("statusCell"));
+        auto *cellLayout = new QHBoxLayout(cell);
+        cellLayout->setContentsMargins(0, 0, 0, 0);
+        cellLayout->setSpacing(9);
+        auto *icon = new QLabel(cell);
         mutedIcons.append({icon, glyph});
-        statusLayout->addWidget(icon);
-        label->setParent(statusCard);
-        label->setObjectName(QStringLiteral("statusValue"));
-        statusLayout->addWidget(label, glyph == MaterialIcon::Glyph::Desktop ? 3 : 2);
+        cellLayout->addWidget(icon, 0, Qt::AlignVCenter);
+        auto *text = new QVBoxLayout;
+        text->setContentsMargins(0, 0, 0, 0);
+        text->setSpacing(1);
+        auto *captionLabel = new QLabel(caption, cell);
+        captionLabel->setObjectName(QStringLiteral("statusCaption"));
+        text->addWidget(captionLabel);
+        value->setParent(cell);
+        value->setObjectName(QStringLiteral("statusValue"));
+        text->addWidget(value);
+        cellLayout->addLayout(text, 1);
+        statusLayout->addWidget(cell, stretch);
     }
 
     // Routing segment: a summary of the active profile that opens the quick menu.
@@ -338,15 +356,22 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     routingButton->setAttribute(Qt::WA_Hover, true);
     routingButton->installEventFilter(this);
     auto *routingButtonLayout = new QHBoxLayout(routingButton);
-    routingButtonLayout->setContentsMargins(8, 4, 10, 4);
+    routingButtonLayout->setContentsMargins(8, 3, 10, 3);
     routingButtonLayout->setSpacing(9);
     auto *routingIcon = new QLabel(routingButton);
     mutedIcons.append({routingIcon, MaterialIcon::Glyph::Routes});
-    routingButtonLayout->addWidget(routingIcon);
+    routingButtonLayout->addWidget(routingIcon, 0, Qt::AlignVCenter);
+    auto *routingText = new QVBoxLayout;
+    routingText->setContentsMargins(0, 0, 0, 0);
+    routingText->setSpacing(1);
+    auto *routingCaption = new QLabel(tr("Routing"), routingButton);
+    routingCaption->setObjectName(QStringLiteral("statusCaption"));
+    routingText->addWidget(routingCaption);
     auto *routingStatus = new QLabel(routingButton);
     routingStatus->setObjectName(QStringLiteral("routingStatus"));
-    routingButtonLayout->addWidget(routingStatus, 1);
-    statusLayout->addWidget(routingButton, 2);
+    routingText->addWidget(routingStatus);
+    routingButtonLayout->addLayout(routingText, 1);
+    statusLayout->addWidget(routingButton, 3);
     auto *selectionCard = new QFrame(redesignedCentral);
     selectionCard->setObjectName(QStringLiteral("selectionCard"));
     auto *selectionLayout = new QHBoxLayout(selectionCard);
@@ -488,8 +513,12 @@ QTableView::item:selected, QTableWidget::item:selected {
 }
 QSplitter::handle { background: transparent; height: 8px; }
 QTextBrowser#masterLogBrowser { padding: 8px 10px; font-family: "Cascadia Mono", "Consolas", monospace; font-size: 13px; }
+QWidget#statusCell { background: transparent; }
+QFrame#statusCard QLabel#statusCaption {
+    color: #747C86; background: transparent; border: none; font-size: 11px;
+}
 QFrame#statusCard QLabel#statusValue {
-    background: transparent; border: none; padding: 3px 0;
+    color: #F1F3F5; background: transparent; border: none;
 }
 QFrame#statusCard QFrame#routingStatusButton {
     background: transparent; border: 1px solid transparent; border-radius: 7px;

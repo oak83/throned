@@ -123,6 +123,13 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
         }
         return {};
     }
+    if (role == Qt::TextAlignmentRole) {
+        // Numbers line up on their right edge so latencies and traffic totals
+        // can be compared down the column instead of being read one by one.
+        if (index.column() == ColTestResult || index.column() == ColTraffic)
+            return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter);
+        return static_cast<int>(Qt::AlignLeft | Qt::AlignVCenter);
+    }
     if (role == Qt::ForegroundRole) {
         if (index.column() == ColTestResult) {
             QColor latencyColor = profile->DisplayLatencyColor();
@@ -135,6 +142,12 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
 }
 
 QVariant ProfilesTableModel::headerData(int section, Qt::Orientation orientation, int role) const {
+    if (role == Qt::TextAlignmentRole && orientation == Qt::Horizontal) {
+        // A header centred over left-aligned text reads as a third alignment;
+        // each one now sits over its own column's edge.
+        const bool numeric = section == ColTestResult || section == ColTraffic;
+        return static_cast<int>((numeric ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter);
+    }
     if (role != Qt::DisplayRole) return {};
     if (orientation == Qt::Horizontal) {
         switch (section) {

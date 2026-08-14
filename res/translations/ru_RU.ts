@@ -5674,4 +5674,67 @@ Your local edits are overwritten on each update.</source>
         <translation>Страница %1/%2</translation>
     </message>
 </context>
+<context>
+    <name>RoutingQuickMenu</name>
+    <message>
+        <source>Direct</source>
+        <translation>Напрямую</translation>
+    </message>
+    <message>
+        <source>Proxy</source>
+        <translation>Прокси</translation>
+    </message>
+    <message>
+        <source>Block</source>
+        <translation>Блокировать</translation>
+    </message>
+    <message>
+        <source>WARP bypass</source>
+        <translation>WARP в обход</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Свой</translation>
+    </message>
+    <message>
+        <source>No routing profile</source>
+        <translation>Профиль не выбран</translation>
+    </message>
+    <message>
+        <source> · rules off</source>
+        <translation> · правила выкл.</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>Нет</translation>
+    </message>
+    <message>
+        <source>Routing profile</source>
+        <translation>Профиль маршрутизации</translation>
+    </message>
+    <message>
+        <source>Default traffic</source>
+        <translation>Трафик по умолчанию</translation>
+    </message>
+    <message>
+        <source>Through proxy</source>
+        <translation>Через прокси</translation>
+    </message>
+    <message>
+        <source>Apply profile rules</source>
+        <translation>Применять правила профиля</translation>
+    </message>
+    <message>
+        <source>Open routing profile</source>
+        <translation>Открыть профиль маршрутизации</translation>
+    </message>
+    <message>
+        <source>Manage profiles…</source>
+        <translation>Управление профилями…</translation>
+    </message>
+    <message>
+        <source>Routing profile and default traffic</source>
+        <translation>Профиль маршрутизации и трафик по умолчанию</translation>
+    </message>
+</context>
 </TS>
