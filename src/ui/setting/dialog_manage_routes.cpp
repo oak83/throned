@@ -9,6 +9,7 @@
 #include <QMessageBox>
 #include <QShortcut>
 #include <QTimer>
+#include <QTabBar>
 #include <QToolTip>
 #include <QDialog>
 #include <QTextEdit>
@@ -22,6 +23,19 @@
 #include <srslist.h>
 #include "include/database/RoutesRepo.h"
 #include "include/ui/setting/RawRouteItem.h"
+#include "include/ui/setting/RouteProfileSimpleEditor.h"
+#include "include/ui/setting/ThemeManager.hpp"
+#include "include/ui/widget/MaterialIcon.h"
+#include "include/ui/widget/ThronedTitleBar.h"
+#include "include/ui/widget/ThronedWindowResizer.h"
+
+#include <QButtonGroup>
+#include <QFrame>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QMap>
+#include <QScrollArea>
+#include <QVBoxLayout>
 
 void DialogManageRoutes::reloadProfileItems() {
     if (chainList.empty()) {
@@ -40,6 +54,7 @@ void DialogManageRoutes::reloadProfileItems() {
         ui->route_profiles->addItem(item->name);
         if (item == currentRoute) {
             ui->route_prof->setCurrentIndex(i);
+            ui->route_profiles->setCurrentRow(i);
             selectedChainGone=false;
         }
         i++;
@@ -47,6 +62,7 @@ void DialogManageRoutes::reloadProfileItems() {
     if (selectedChainGone) {
         currentRoute=chainList[0];
         ui->route_prof->setCurrentIndex(0);
+        ui->route_profiles->setCurrentRow(0);
     }
     blocker.unblock();
 }
@@ -69,6 +85,257 @@ bool DialogManageRoutes::validate_dns_rules(const QString &rawString) {
 
 DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(new Ui::DialogManageRoutes) {
     ui->setupUi(this);
+    setObjectName(QStringLiteral("routeProfileEditor"));
+    setWindowTitle(tr("Routing settings"));
+    setWindowFlag(Qt::FramelessWindowHint, true);
+    new ThronedWindowResizer(this);
+    setMinimumSize(900, 620);
+    resize(1000, 700);
+    ui->tabWidget->setStyleSheet({});
+    ui->tabWidget->tabBar()->setUsesScrollButtons(false);
+    ui->tabWidget->tabBar()->hide();
+    ui->tabWidget->setIconSize(QSize(18, 18));
+    const QColor navIconColor(QStringLiteral("#AEB7C2"));
+    ui->tabWidget->setTabIcon(0, MaterialIcon::icon(MaterialIcon::Glyph::Settings, navIconColor, 18));
+    ui->tabWidget->setTabIcon(1, MaterialIcon::icon(MaterialIcon::Glyph::Shield, navIconColor, 18));
+    ui->tabWidget->setTabIcon(2, MaterialIcon::icon(MaterialIcon::Glyph::SwapVertical, navIconColor, 18));
+    ui->tabWidget->setTabIcon(3, MaterialIcon::icon(MaterialIcon::Glyph::Public, navIconColor, 18));
+    ui->tabWidget->setTabIcon(4, MaterialIcon::icon(MaterialIcon::Glyph::Routes, navIconColor, 18));
+    ui->tabWidget->setTabText(4, tr("Profiles"));
+    ui->tabWidget->setCurrentIndex(4);
+
+    // SettingsPreview uses a real horizontal page stack with a separate left
+    // navigation rail.  Reusing the QTabBar as a west rail while forcing a
+    // north shape made Qt calculate a zero-sized page on Windows.
+    auto *root = ui->verticalLayout;
+    while (QLayoutItem *item = root->takeAt(0)) delete item;
+    root->setContentsMargins(1, 1, 1, 1);
+    root->setSpacing(0);
+    root->addWidget(new ThronedTitleBar(tr("Routing settings"), this));
+
+    auto *body = new QWidget(this);
+    body->setObjectName(QStringLiteral("routeSettingsBody"));
+    auto *bodyLayout = new QVBoxLayout(body);
+    bodyLayout->setContentsMargins(12, 10, 12, 10);
+    bodyLayout->setSpacing(10);
+    auto *work = new QHBoxLayout;
+    work->setSpacing(12);
+    auto *sidebar = new QFrame(body);
+    sidebar->setObjectName(QStringLiteral("routeSettingsSidebar"));
+    sidebar->setFixedWidth(220);
+    auto *sidebarLayout = new QVBoxLayout(sidebar);
+    sidebarLayout->setContentsMargins(10, 12, 10, 10);
+    sidebarLayout->setSpacing(6);
+    auto *sidebarTitle = new QLabel(tr("Routing settings"), sidebar);
+    sidebarTitle->setObjectName(QStringLiteral("routeSettingsTitle"));
+    sidebarLayout->addWidget(sidebarTitle);
+    sidebarLayout->addSpacing(4);
+
+    auto *navGroup = new QButtonGroup(this);
+    navGroup->setExclusive(true);
+    const QMap<int, MaterialIcon::Glyph> navGlyphs{
+        {0, MaterialIcon::Glyph::Settings}, {1, MaterialIcon::Glyph::Shield},
+        {2, MaterialIcon::Glyph::SwapVertical}, {3, MaterialIcon::Glyph::Public},
+        {4, MaterialIcon::Glyph::Routes},
+    };
+    const QList<int> navOrder{4, 0, 1, 2, 3};
+    for (const int pageIndex : navOrder) {
+        auto *button = new QPushButton(ui->tabWidget->tabText(pageIndex), sidebar);
+        button->setObjectName(QStringLiteral("routeSettingsNav"));
+        button->setCheckable(true);
+        button->setIcon(MaterialIcon::icon(navGlyphs.value(pageIndex), navIconColor, 18));
+        button->setIconSize(QSize(18, 18));
+        button->setCursor(Qt::PointingHandCursor);
+        navGroup->addButton(button, pageIndex);
+        sidebarLayout->addWidget(button);
+    }
+    sidebarLayout->addStretch(1);
+    navGroup->button(ui->tabWidget->currentIndex())->setChecked(true);
+    connect(navGroup, &QButtonGroup::idClicked, ui->tabWidget, &QTabWidget::setCurrentIndex);
+    connect(ui->tabWidget, &QTabWidget::currentChanged, this, [navGroup](int index) {
+        if (auto *button = navGroup->button(index)) button->setChecked(true);
+    });
+
+    work->addWidget(sidebar);
+    ui->tabWidget->setParent(body);
+    ui->tabWidget->setObjectName(QStringLiteral("routeSettingsPages"));
+    work->addWidget(ui->tabWidget, 1);
+    bodyLayout->addLayout(work, 1);
+    ui->buttonBox->setParent(body);
+    bodyLayout->addWidget(ui->buttonBox, 0, Qt::AlignRight);
+    root->addWidget(body, 1);
+    ui->verticalLayout_3->setAlignment(Qt::AlignTop);
+    ui->verticalLayout_7->setAlignment(Qt::AlignTop);
+    ui->verticalLayout_8->setAlignment(Qt::AlignTop);
+    ui->verticalLayout_4->setAlignment(Qt::AlignTop);
+    ui->gridLayout_2->setHorizontalSpacing(14);
+    ui->gridLayout_2->setVerticalSpacing(10);
+    ui->gridLayout_2->setColumnStretch(0, 0);
+    ui->gridLayout_2->setColumnStretch(1, 1);
+    ui->route_profiles->setAlternatingRowColors(false);
+    for (QPushButton *button : {ui->new_route, ui->clone_route, ui->export_route, ui->import_route,
+                                ui->edit_route, ui->delete_route, ui->update_route}) {
+        button->setObjectName(QStringLiteral("routeSecondaryButton"));
+        button->setCursor(Qt::PointingHandCursor);
+        button->setMinimumHeight(36);
+    }
+    ui->new_route->setObjectName(QStringLiteral("routeSaveButton"));
+    ui->new_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Add, Qt::white, 17));
+    ui->edit_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Settings, navIconColor, 17));
+    ui->clone_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::File, navIconColor, 17));
+    ui->import_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Folder, navIconColor, 17));
+    ui->export_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::File, navIconColor, 17));
+    ui->update_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Reload, navIconColor, 17));
+    ui->delete_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Block, QColor(QStringLiteral("#FF5C67")), 17));
+
+    // The Designer profile page was a single expanding list followed by seven
+    // equal-width buttons.  At the real window size this produced a huge empty
+    // area and clipped every action.  Rebuild that page with the same compact
+    // settings components used by tools/ui-demo/SettingsPreview while keeping
+    // the original controls (and therefore all existing signal connections).
+    ui->route_profiles->setParent(ui->tab_2);
+    for (QPushButton *button : {ui->new_route, ui->clone_route, ui->export_route, ui->import_route,
+                                ui->edit_route, ui->delete_route, ui->update_route}) {
+        button->setParent(ui->tab_2);
+    }
+    delete ui->route_profiles_box;
+    delete ui->tab_2->layout();
+
+    auto *profilesLayout = new QVBoxLayout(ui->tab_2);
+    profilesLayout->setContentsMargins(14, 10, 14, 12);
+    profilesLayout->setSpacing(10);
+    auto *profilesTitle = new QLabel(tr("Routing profiles"), ui->tab_2);
+    profilesTitle->setObjectName(QStringLiteral("routeSettingsHero"));
+    profilesLayout->addWidget(profilesTitle);
+    auto *profilesSubtitle = new QLabel(
+        tr("Choose the active profile, edit its rules, or import a reusable configuration."), ui->tab_2);
+    profilesSubtitle->setObjectName(QStringLiteral("routeSettingsMuted"));
+    profilesSubtitle->setWordWrap(true);
+    profilesLayout->addWidget(profilesSubtitle);
+
+    auto *profilesCard = new QFrame(ui->tab_2);
+    profilesCard->setObjectName(QStringLiteral("routeProfilesCard"));
+    auto *profilesCardLayout = new QVBoxLayout(profilesCard);
+    profilesCardLayout->setContentsMargins(12, 12, 12, 12);
+    profilesCardLayout->setSpacing(10);
+    auto *profilesCardHeading = new QHBoxLayout;
+    auto *profilesCardIcon = new QLabel(profilesCard);
+    profilesCardIcon->setPixmap(MaterialIcon::pixmap(MaterialIcon::Glyph::Routes, QColor(QStringLiteral("#35C2F1")), 20));
+    profilesCardHeading->addWidget(profilesCardIcon);
+    auto *profilesCardTitle = new QLabel(tr("Available profiles"), profilesCard);
+    profilesCardTitle->setObjectName(QStringLiteral("routeSettingsSectionTitle"));
+    profilesCardHeading->addWidget(profilesCardTitle);
+    profilesCardHeading->addStretch(1);
+    profilesCardHeading->addWidget(ui->new_route);
+    profilesCardHeading->addWidget(ui->edit_route);
+    profilesCardLayout->addLayout(profilesCardHeading);
+
+    ui->route_profiles->setObjectName(QStringLiteral("routeProfilesList"));
+    ui->route_profiles->setMinimumHeight(150);
+    ui->route_profiles->setMaximumHeight(240);
+    ui->route_profiles->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    profilesCardLayout->addWidget(ui->route_profiles);
+
+    auto *secondaryActions = new QHBoxLayout;
+    secondaryActions->setSpacing(7);
+    secondaryActions->addWidget(ui->clone_route);
+    secondaryActions->addWidget(ui->import_route);
+    secondaryActions->addWidget(ui->export_route);
+    secondaryActions->addWidget(ui->update_route);
+    secondaryActions->addStretch(1);
+    secondaryActions->addWidget(ui->delete_route);
+    profilesCardLayout->addLayout(secondaryActions);
+    profilesLayout->addWidget(profilesCard);
+
+    auto *profileHint = new QFrame(ui->tab_2);
+    profileHint->setObjectName(QStringLiteral("routeProfilesHint"));
+    auto *hintLayout = new QHBoxLayout(profileHint);
+    hintLayout->setContentsMargins(12, 10, 12, 10);
+    auto *hintIcon = new QLabel(profileHint);
+    hintIcon->setPixmap(MaterialIcon::pixmap(MaterialIcon::Glyph::Shield, QColor(QStringLiteral("#237AE9")), 18));
+    hintLayout->addWidget(hintIcon);
+    auto *hintText = new QLabel(
+        tr("The selected profile becomes active after you save routing settings."), profileHint);
+    hintText->setObjectName(QStringLiteral("routeSettingsMuted"));
+    hintText->setWordWrap(true);
+    hintLayout->addWidget(hintText, 1);
+    profilesLayout->addWidget(profileHint);
+    profilesLayout->addStretch(1);
+    if (auto *save = ui->buttonBox->button(QDialogButtonBox::Ok)) {
+        save->setObjectName(QStringLiteral("routeSaveButton"));
+        save->setText(tr("Save settings"));
+    }
+    if (auto *cancel = ui->buttonBox->button(QDialogButtonBox::Cancel))
+        cancel->setObjectName(QStringLiteral("routeSecondaryButton"));
+    const QString routeSettingsStyleTemplate = RouteProfileSimpleEditor::dialogStyleSheet() + QStringLiteral(R"(
+QDialog#routeProfileEditor QWidget#routeSettingsBody { background: #1B1E23; }
+QDialog#routeProfileEditor QFrame#routeSettingsSidebar {
+    background: #171B21; border: 1px solid #2F3136; border-radius: 7px;
+}
+QDialog#routeProfileEditor QLabel#routeSettingsTitle {
+    color: #F1F3F5; font-size: 14px; font-weight: 700; padding: 0 3px 4px 3px;
+}
+QDialog#routeProfileEditor QLabel#routeSettingsHero {
+    color: #F1F3F5; font-size: 18px; font-weight: 700;
+}
+QDialog#routeProfileEditor QLabel#routeSettingsSectionTitle {
+    color: #F1F3F5; font-size: 15px; font-weight: 700;
+}
+QDialog#routeProfileEditor QLabel#routeSettingsMuted { color: #AEB7C2; }
+QDialog#routeProfileEditor QFrame#routeProfilesCard,
+QDialog#routeProfileEditor QFrame#routeProfilesHint {
+    background: #171B21; border: 1px solid #2F3136; border-radius: 7px;
+}
+QDialog#routeProfileEditor QListWidget#routeProfilesList {
+    background: #14181E; border: 1px solid #2F3136; border-radius: 6px;
+    outline: none; padding: 5px;
+}
+QDialog#routeProfileEditor QPushButton#routeSettingsNav {
+    color: #DDE2E7; background: transparent; border: 1px solid transparent;
+    border-radius: 6px; padding: 9px 11px; text-align: left;
+}
+QDialog#routeProfileEditor QPushButton#routeSettingsNav:hover:!checked {
+    background: #222529; border-color: #2F3136;
+}
+QDialog#routeProfileEditor QPushButton#routeSettingsNav:checked {
+    color: white; background: #193452; border-color: #237AE9;
+}
+QDialog#routeProfileEditor QTabWidget#routeSettingsPages::pane {
+    background: transparent; border: none;
+}
+QDialog#routeProfileEditor QTabWidget#routeSettingsPages > QWidget > QWidget {
+    background: transparent;
+}
+QDialog#routeProfileEditor QTabWidget::pane {
+    background: #171B21; border: 1px solid #2F3136; border-radius: 7px;
+}
+QDialog#routeProfileEditor QTabBar::tab {
+    color: #AEB7C2; background: #171B21; border: 1px solid transparent;
+    border-radius: 6px; margin: 0 7px 5px 0; padding: 10px 14px;
+    min-width: 142px; min-height: 22px;
+}
+QDialog#routeProfileEditor QTabBar::tab:selected {
+    color: white; background: #193E69; border-color: #237AE9;
+}
+QDialog#routeProfileEditor QTabBar::tab:hover:!selected {
+    color: #E5E8EB; background: #22272E; border-color: #2F3136;
+}
+QDialog#routeProfileEditor QGroupBox {
+    color: #F1F3F5; background: #171B21; border: 1px solid #2F3136;
+    border-radius: 7px; margin-top: 14px; padding: 12px;
+}
+QDialog#routeProfileEditor QGroupBox::title {
+    subcontrol-origin: margin; left: 12px; padding: 0 5px; color: #DDE2E7; font-weight: 600;
+}
+QDialog#routeProfileEditor QListWidget#routeProfilesList::item {
+    border-radius: 5px; padding: 8px 10px; margin: 2px;
+}
+QDialog#routeProfileEditor QListWidget#routeProfilesList::item:selected {
+    color: white; background: #193E69; border: 1px solid #237AE9;
+}
+QDialog#routeProfileEditor QCheckBox { color: #DDE2E7; spacing: 8px; }
+    )");
+    themeManager->RegisterStyle(this, routeSettingsStyleTemplate);
     auto profiles = Configs::dataManager->routesRepo->GetAllRouteProfiles();
     for (const auto &item: profiles) {
         chainList << item;

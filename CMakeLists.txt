@@ -34,7 +34,7 @@ if (UNIX AND NOT APPLE)
     set(QT_DBUS_LIBRARY Qt6::DBus)
 endif ()
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Network LinguistTools ${QT_DBUS_COMPONENT})
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network Svg LinguistTools ${QT_DBUS_COMPONENT})
 
 #### Platform Variables ####
 if (APPLE)
@@ -146,6 +146,14 @@ set(PROJECT_SOURCES
         include/ui/setting/ThemeManager.hpp
         src/ui/setting/ThemeManager.cpp
         src/ui/setting/Icon.cpp
+        include/ui/widget/MaterialIcon.h
+        src/ui/widget/MaterialIcon.cpp
+        include/ui/widget/ThronedTitleBar.h
+        src/ui/widget/ThronedTitleBar.cpp
+        include/ui/widget/ThronedToggle.h
+        src/ui/widget/ThronedToggle.cpp
+        include/ui/widget/ThronedWindowResizer.h
+        src/ui/widget/ThronedWindowResizer.cpp
 
         src/ui/mainWindow/mainwindow_setup.cpp
         src/ui/mainWindow/mainwindow_events.cpp
@@ -293,6 +301,10 @@ set(PROJECT_SOURCES
         src/ui/setting/RouteItem.cpp
         include/ui/setting/RouteItem.h
         include/ui/setting/RouteItem.ui
+        include/ui/setting/ApplicationPickerDialog.h
+        src/ui/setting/ApplicationPickerDialog.cpp
+        include/ui/setting/RouteProfileSimpleEditor.h
+        src/ui/setting/RouteProfileSimpleEditor.cpp
 
         src/ui/setting/RawRouteItem.cpp
         include/ui/setting/RawRouteItem.h
@@ -505,7 +517,7 @@ target_sources(Throned PRIVATE ${CMAKE_BINARY_DIR}/translations.qrc)
 # Target Link
 
 target_link_libraries(Throned PRIVATE
-        Qt6::Widgets Qt6::Network ${QT_DBUS_LIBRARY}
+        Qt6::Widgets Qt6::Network Qt6::Svg ${QT_DBUS_LIBRARY}
         Threads::Threads
         ${NKR_EXTERNAL_TARGETS}
         ${PLATFORM_LIBRARIES}

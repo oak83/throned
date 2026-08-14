@@ -3,11 +3,21 @@
 #include "include/database/GroupsRepo.h"
 #include "include/global/Configs.hpp"
 #include "include/configs/sub/RouteUpdater.hpp"
+#include "include/ui/setting/RouteProfileSimpleEditor.h"
+#include "include/ui/setting/ThemeManager.hpp"
+#include "include/ui/widget/MaterialIcon.h"
+#include "include/ui/widget/ThronedTitleBar.h"
+#include "include/ui/widget/ThronedWindowResizer.h"
+#include "include/ui/widget/ThronedToggle.h"
 
 #include <srslist.h>
 
 #include <QComboBox>
+#include <QAbstractButton>
+#include <QAction>
 #include <QDialogButtonBox>
+#include <QFont>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
@@ -17,10 +27,129 @@
 #include <QSizePolicy>
 #include <QStackedWidget>
 #include <QGridLayout>
+#include <QFrame>
+#include <QJsonDocument>
 #include <QMouseEvent>
+#include <QMenu>
+#include <QPainter>
+#include <QScrollArea>
 #include <QSignalBlocker>
 #include <QTabBar>
 #include <QTextEdit>
+#include <QToolButton>
+
+#include <algorithm>
+
+namespace {
+
+constexpr auto LocalProxyRuleName = "throned-local-proxy-traffic";
+constexpr auto RouteBlue = "#237AE9";
+constexpr auto RouteGreen = "#2EBC75";
+constexpr auto RouteRed = "#FF4D56";
+constexpr auto RoutePurple = "#A66CFF";
+
+class RouteActionFilterButton final : public QAbstractButton {
+public:
+    RouteActionFilterButton(MaterialIcon::Glyph glyph, const QString &title, const QColor &tone,
+                            QWidget *parent = nullptr)
+        : QAbstractButton(parent), glyph_(glyph), title_(title), tone_(tone) {
+        setCheckable(true);
+        setCursor(Qt::PointingHandCursor);
+        setFixedHeight(44);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    }
+
+    void setCount(int count) {
+        count_ = count;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QRectF bounds = rect().adjusted(.5, .5, -.5, -.5);
+        painter.setPen(isChecked() ? tone_ : QColor(QStringLiteral("#2F3136")));
+        painter.setBrush(isChecked() ? QColor(QStringLiteral("#193452")) : QColor(QStringLiteral("#222529")));
+        painter.drawRoundedRect(bounds, 6, 6);
+
+        painter.drawPixmap(13, (height() - 18) / 2, MaterialIcon::pixmap(glyph_, tone_, 18));
+        QFont titleFont = font();
+        titleFont.setWeight(QFont::DemiBold);
+        painter.setFont(titleFont);
+        painter.setPen(QColor(QStringLiteral("#F1F3F5")));
+        painter.drawText(QRect(43, 0, width() - 85, height()), Qt::AlignVCenter | Qt::AlignLeft, title_);
+
+        const QString count = QString::number(count_);
+        const int pillWidth = std::max(26, QFontMetrics(font()).horizontalAdvance(count) + 14);
+        const QRectF pill(width() - pillWidth - 12, (height() - 24) / 2.0, pillWidth, 24);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(isChecked() ? tone_ : QColor(QStringLiteral("#2B3037")));
+        painter.drawRoundedRect(pill, 5, 5);
+        painter.setPen(QColor(QStringLiteral("#F7F9FA")));
+        painter.drawText(pill, Qt::AlignCenter, count);
+    }
+
+private:
+    MaterialIcon::Glyph glyph_;
+    QString title_;
+    QColor tone_;
+    int count_ = 0;
+};
+
+bool isLocalProxyTrafficRule(const std::shared_ptr<Configs::RouteRule>& rule) {
+    if (!rule || rule->name != LocalProxyRuleName || rule->action != "route" || rule->outboundID != Configs::proxyID)
+        return false;
+    QStringList inbound = rule->inbound;
+    inbound.sort();
+    return inbound == QStringList({"mixed-in", "socks-in"});
+}
+
+QString compactJsonValue(const QJsonValue &value) {
+    if (value.isString()) return value.toString();
+    if (value.isDouble()) return QString::number(value.toDouble());
+    if (value.isBool()) return value.toBool() ? QStringLiteral("true") : QStringLiteral("false");
+    if (value.isArray()) {
+        QStringList parts;
+        const QJsonArray array = value.toArray();
+        for (int index = 0; index < array.size() && index < 2; ++index)
+            parts.append(compactJsonValue(array[index]));
+        QString text = parts.join(QStringLiteral(", "));
+        if (array.size() > 2) text += QStringLiteral(" +%1").arg(array.size() - 2);
+        return text;
+    }
+    if (value.isObject()) return QStringLiteral("{…}");
+    return QStringLiteral("null");
+}
+
+QString actionTone(const QString &action, int outboundId) {
+    if (action == QStringLiteral("reject")) return QStringLiteral("red");
+    if (action == QStringLiteral("hijack-dns") || action == QStringLiteral("sniff"))
+        return QStringLiteral("cyan");
+    if (outboundId == Configs::directID) return QStringLiteral("green");
+    if (outboundId == Configs::warpBypassID) return QStringLiteral("purple");
+    return QStringLiteral("blue");
+}
+
+int actionBucket(const std::shared_ptr<Configs::RouteRule> &rule) {
+    if (!rule) return -1;
+    if (rule->action == QStringLiteral("reject") || rule->outboundID == Configs::blockID) return 1;
+    if (rule->action != QStringLiteral("route") && rule->action != QStringLiteral("bypass")) return -1;
+    if (rule->outboundID == Configs::directID) return 0;
+    if (rule->outboundID == Configs::warpBypassID) return 3;
+    return 2;
+}
+
+QString actionFilterTitle(int action) {
+    switch (action) {
+    case 0: return RouteItem::tr("Direct");
+    case 1: return RouteItem::tr("Block");
+    case 3: return RouteItem::tr("WARP bypass");
+    default: return RouteItem::tr("Proxy");
+    }
+}
+
+} // namespace
 
 void adjustComboBoxWidth(const QComboBox *comboBox) {
     int maxWidth = 0;
@@ -151,6 +280,279 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     simpleProxy->setPlainText(chain->GetSimpleRules(Configs::proxy));
     simpleWarpBypass->setPlainText(chain->GetSimpleRules(Configs::warpBypass));
 
+    simpleEditor = new RouteProfileSimpleEditor(ui->tab_2);
+    ui->simple_direct_box->hide();
+    ui->simple_block_box->hide();
+    ui->simple_proxy_box->hide();
+    ui->simple_warpbypass_box->hide();
+    ui->howtouse_button->hide();
+    ui->verticalLayout_5->removeItem(ui->simpleGrid);
+    ui->verticalLayout_5->addWidget(simpleEditor, 1);
+    simpleEditor->setRules(Configs::bypass, simpleDirect->toPlainText());
+    simpleEditor->setRules(Configs::block, simpleBlock->toPlainText());
+    simpleEditor->setRules(Configs::proxy, simpleProxy->toPlainText());
+    simpleEditor->setRules(Configs::warpBypass, simpleWarpBypass->toPlainText());
+    simpleEditor->setRuleSetCatalog(geo_items);
+    int advancedRules = 0;
+    QStringList advancedRuleNames;
+    bool localProxyTraffic = false;
+    for (const auto& rule : chain->Rules) {
+        if (rule->type == Configs::custom && !isLocalProxyTrafficRule(rule)) {
+            ++advancedRules;
+            advancedRuleNames.append(rule->name);
+        }
+        if (isLocalProxyTrafficRule(rule)) localProxyTraffic = true;
+    }
+    simpleEditor->setAdvancedRules(advancedRuleNames);
+    simpleEditor->setLocalProxyTrafficEnabled(localProxyTraffic);
+    connect(simpleEditor, &RouteProfileSimpleEditor::rulesChanged, this, [this](int action, const QString& rules) {
+        switch (static_cast<Configs::simpleAction>(action)) {
+        case Configs::bypass: simpleDirect->setPlainText(rules); break;
+        case Configs::block: simpleBlock->setPlainText(rules); break;
+        case Configs::proxy: simpleProxy->setPlainText(rules); break;
+        case Configs::warpBypass: simpleWarpBypass->setPlainText(rules); break;
+        }
+    });
+    connect(simpleEditor, &RouteProfileSimpleEditor::localProxyTrafficChanged, this, [this](bool enabled) {
+        const auto it = std::find_if(chain->Rules.begin(), chain->Rules.end(), isLocalProxyTrafficRule);
+        if (enabled && it == chain->Rules.end()) {
+            auto rule = std::make_shared<Configs::RouteRule>();
+            rule->name = LocalProxyRuleName;
+            rule->action = "route";
+            rule->outboundID = Configs::proxyID;
+            rule->inbound = {"mixed-in", "socks-in"};
+            chain->Rules.append(rule);
+        } else if (!enabled && it != chain->Rules.end()) {
+            chain->Rules.erase(it);
+        }
+    });
+    connect(simpleEditor, &RouteProfileSimpleEditor::advancedEditorRequested, this, [this] {
+        ui->tabWidget->setCurrentIndex(1);
+        on_new_route_item_clicked();
+        showAdvancedDetail(currentIndex);
+    });
+
+    // Replace the legacy advanced page with the ordered-card view used by
+    // tools/ui-demo/RoutesPreview.  The old detailed editor is retained as the
+    // second page of the stack, so every existing rule field remains editable
+    // and serialization stays lossless.
+    QWidget *legacyAdvancedPage = ui->tab;
+    ui->tabWidget->removeTab(1);
+    auto *advancedHost = new QWidget(ui->tabWidget);
+    advancedHost->setObjectName(QStringLiteral("routeAdvancedHost"));
+    auto *advancedHostLayout = new QVBoxLayout(advancedHost);
+    advancedHostLayout->setContentsMargins(0, 0, 0, 0);
+    advancedHostLayout->setSpacing(0);
+    advancedStack = new QStackedWidget(advancedHost);
+    advancedStack->setObjectName(QStringLiteral("routeAdvancedStack"));
+
+    auto *summaryHost = new QWidget(advancedStack);
+    summaryHost->setObjectName(QStringLiteral("routeAdvancedSummaryHost"));
+    auto *summaryHostLayout = new QHBoxLayout(summaryHost);
+    summaryHostLayout->setContentsMargins(0, 0, 0, 0);
+    summaryHostLayout->setSpacing(10);
+
+    advancedSidebar = new QFrame(summaryHost);
+    advancedSidebar->setObjectName(QStringLiteral("routeAdvancedSidebar"));
+    advancedSidebar->setFixedWidth(228);
+    auto *sidebarLayout = new QVBoxLayout(advancedSidebar);
+    sidebarLayout->setContentsMargins(10, 12, 10, 10);
+    sidebarLayout->setSpacing(6);
+    auto *sidebarTitle = new QLabel(tr("Routing actions"), advancedSidebar);
+    sidebarTitle->setObjectName(QStringLiteral("routeSideTitle"));
+    sidebarLayout->addWidget(sidebarTitle);
+    sidebarLayout->addSpacing(8);
+    const struct {
+        int action;
+        const char *title;
+        MaterialIcon::Glyph glyph;
+        const char *tone;
+    } sidebarActions[] = {
+        {0, QT_TR_NOOP("Direct"), MaterialIcon::Glyph::Direct, RouteGreen},
+        {2, QT_TR_NOOP("Proxy"), MaterialIcon::Glyph::Shield, RouteBlue},
+        {1, QT_TR_NOOP("Block"), MaterialIcon::Glyph::Block, RouteRed},
+        {3, QT_TR_NOOP("WARP bypass"), MaterialIcon::Glyph::SwapVertical, RoutePurple},
+    };
+    for (const auto &item : sidebarActions) {
+        auto *button = new RouteActionFilterButton(item.glyph, tr(item.title), QColor(item.tone), advancedSidebar);
+        advancedActionButtons[item.action] = button;
+        connect(button, &QAbstractButton::clicked, this, [this, action = item.action] {
+            advancedActionFilter = action;
+            advancedShowAllActions = false;
+            rebuildAdvancedSummary();
+        });
+        sidebarLayout->addWidget(button);
+    }
+    sidebarLayout->addStretch(1);
+    auto *stats = new QFrame(advancedSidebar);
+    stats->setObjectName(QStringLiteral("routeAdvancedStats"));
+    auto *statsLayout = new QGridLayout(stats);
+    statsLayout->setContentsMargins(12, 10, 12, 10);
+    auto *statsTitle = new QLabel(tr("Profile statistics"), stats);
+    statsTitle->setObjectName(QStringLiteral("routeSideTitle"));
+    statsLayout->addWidget(statsTitle, 0, 0, 1, 2);
+    auto *totalText = new QLabel(tr("Total rules"), stats);
+    totalText->setObjectName(QStringLiteral("routeMuted"));
+    statsLayout->addWidget(totalText, 1, 0);
+    advancedTotalLabel = new QLabel(QStringLiteral("0"), stats);
+    advancedTotalLabel->setObjectName(QStringLiteral("routeStatsValue"));
+    statsLayout->addWidget(advancedTotalLabel, 1, 1, Qt::AlignRight);
+    sidebarLayout->addWidget(stats);
+    summaryHostLayout->addWidget(advancedSidebar);
+
+    auto *summaryScroll = new QScrollArea(summaryHost);
+    summaryScroll->setObjectName(QStringLiteral("routeAdvancedScroll"));
+    summaryScroll->setWidgetResizable(true);
+    summaryScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    summaryScroll->setFrameShape(QFrame::NoFrame);
+    auto *summaryPage = new QWidget(summaryScroll);
+    summaryPage->setObjectName(QStringLiteral("routeAdvancedSummary"));
+    advancedRulesLayout = new QVBoxLayout(summaryPage);
+    advancedRulesLayout->setContentsMargins(12, 10, 12, 10);
+    advancedRulesLayout->setSpacing(9);
+    summaryScroll->setWidget(summaryPage);
+    summaryHostLayout->addWidget(summaryScroll, 1);
+    advancedStack->addWidget(summaryHost);
+
+    auto *detailPage = new QWidget(advancedStack);
+    detailPage->setObjectName(QStringLiteral("routeAdvancedDetail"));
+    auto *detailLayout = new QVBoxLayout(detailPage);
+    detailLayout->setContentsMargins(10, 8, 10, 8);
+    detailLayout->setSpacing(8);
+    auto *detailBar = new QHBoxLayout;
+    auto *backButton = new QPushButton(tr("Back to rule list"), detailPage);
+    backButton->setObjectName(QStringLiteral("routeSecondaryButton"));
+    backButton->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::List, QColor(QStringLiteral("#DDE2E7")), 17));
+    detailBar->addWidget(backButton);
+    auto *detailHint = new QLabel(tr("Edit the selected rule without losing its original JSON fields."), detailPage);
+    detailHint->setObjectName(QStringLiteral("routeMuted"));
+    detailBar->addWidget(detailHint);
+    detailBar->addStretch(1);
+    detailLayout->addLayout(detailBar);
+    legacyAdvancedPage->setParent(detailPage);
+    legacyAdvancedPage->setVisible(true);
+    detailLayout->addWidget(legacyAdvancedPage, 1);
+    advancedStack->addWidget(detailPage);
+    connect(backButton, &QPushButton::clicked, this, [this] {
+        persistCurrentRuleAttrTabLabel();
+        rebuildAdvancedSummary();
+        advancedStack->setCurrentIndex(0);
+    });
+
+    advancedHostLayout->addWidget(advancedStack);
+    ui->tabWidget->insertTab(1, advancedHost, tr("Advanced"));
+    rebuildAdvancedSummary();
+
+    QFont editorFont = font();
+    editorFont.setStyleStrategy(QFont::PreferAntialias);
+    editorFont.setHintingPreference(QFont::PreferDefaultHinting);
+    simpleEditor->setFont(editorFont);
+    setObjectName("routeProfileEditor");
+    ui->tabWidget->setTabText(0, tr("Simple"));
+    ui->tabWidget->setStyleSheet({});
+    auto *modeTabs = new QTabBar(this);
+    modeTabs->setObjectName("routeModeTabs");
+    modeTabs->addTab(tr("Simple"));
+    modeTabs->addTab(tr("Advanced"));
+    modeTabs->setUsesScrollButtons(false);
+    modeTabs->setExpanding(true);
+    modeTabs->setFixedSize(212, 38);
+    ui->tabWidget->tabBar()->hide();
+    connect(modeTabs, &QTabBar::currentChanged, ui->tabWidget, &QTabWidget::setCurrentIndex);
+    connect(ui->tabWidget, &QTabWidget::currentChanged, modeTabs, &QTabBar::setCurrentIndex);
+    ui->rule_attr_tabs->setStyleSheet({});
+
+    // Use the exact structural shell from tools/ui-demo/RoutesPreview.  The
+    // controls below are the real editor controls; only their old Designer
+    // containers are discarded.
+    auto *dialogLayout = ui->verticalLayout_3;
+    while (QLayoutItem *item = dialogLayout->takeAt(0)) delete item;
+    dialogLayout->setContentsMargins(1, 1, 1, 1);
+    dialogLayout->setSpacing(0);
+    dialogLayout->addWidget(new ThronedTitleBar(tr("Route profile"), this));
+
+    auto *body = new QWidget(this);
+    body->setObjectName(QStringLiteral("routeBody"));
+    auto *bodyLayout = new QVBoxLayout(body);
+    bodyLayout->setContentsMargins(12, 8, 12, 10);
+    bodyLayout->setSpacing(9);
+
+    const auto makeField = [body](QLabel *label, QWidget *control, int minimumWidth) {
+        auto *box = new QFrame(body);
+        box->setObjectName(QStringLiteral("routeFieldBox"));
+        auto *layout = new QVBoxLayout(box);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(6);
+        label->setParent(box);
+        label->setObjectName(QStringLiteral("routeFieldLabel"));
+        control->setParent(box);
+        control->setMinimumWidth(minimumWidth);
+        control->setMinimumHeight(38);
+        layout->addWidget(label);
+        layout->addWidget(control);
+        return box;
+    };
+
+    ui->gridLayout->removeWidget(ui->route_name_l);
+    ui->gridLayout->removeWidget(ui->route_name);
+    ui->gridLayout->removeWidget(ui->def_out_l);
+    ui->gridLayout->removeWidget(ui->def_out);
+    ui->generalBox->hide();
+    auto *top = new QHBoxLayout;
+    top->setSpacing(14);
+    top->addWidget(makeField(ui->route_name_l, ui->route_name, 250), 2);
+    top->addWidget(makeField(ui->def_out_l, ui->def_out, 250), 2);
+    auto *modeBox = new QFrame(body);
+    modeBox->setObjectName(QStringLiteral("routeFieldBox"));
+    auto *modeLayout = new QVBoxLayout(modeBox);
+    modeLayout->setContentsMargins(0, 0, 0, 0);
+    modeLayout->setSpacing(6);
+    auto *modeLabel = new QLabel(tr("Mode"), modeBox);
+    modeLabel->setObjectName(QStringLiteral("routeFieldLabel"));
+    modeTabs->setParent(modeBox);
+    modeLayout->addWidget(modeLabel);
+    modeLayout->addWidget(modeTabs);
+    top->addWidget(modeBox);
+    top->addStretch(1);
+    ui->howtouse_button->setParent(body);
+    ui->howtouse_button->setVisible(true);
+    ui->howtouse_button->setText(tr("?  Help"));
+    ui->howtouse_button->setObjectName(QStringLiteral("routeSecondaryButton"));
+    ui->howtouse_button->setFixedHeight(42);
+    top->addWidget(ui->howtouse_button, 0, Qt::AlignBottom);
+    bodyLayout->addLayout(top);
+
+    ui->remoteBox->setParent(body);
+    bodyLayout->addWidget(ui->remoteBox);
+    ui->tabWidget->setParent(body);
+    ui->tabWidget->setObjectName(QStringLiteral("routeModeStack"));
+    bodyLayout->addWidget(ui->tabWidget, 1);
+
+    ui->buttonBox->hide();
+    auto *footer = new QHBoxLayout;
+    auto *saveHint = new QLabel(tr("Changes are saved only after validation."), body);
+    saveHint->setObjectName(QStringLiteral("routeMuted"));
+    footer->addWidget(saveHint);
+    footer->addStretch(1);
+    auto *cancelButton = new QPushButton(tr("Cancel"), body);
+    cancelButton->setObjectName(QStringLiteral("routeSecondaryButton"));
+    cancelButton->setMinimumWidth(138);
+    auto *saveButton = new QPushButton(tr("Save profile"), body);
+    saveButton->setObjectName(QStringLiteral("routeSaveButton"));
+    saveButton->setMinimumWidth(150);
+    connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
+    connect(saveButton, &QPushButton::clicked, this, &RouteItem::accept);
+    footer->addWidget(cancelButton);
+    footer->addWidget(saveButton);
+    bodyLayout->addLayout(footer);
+    dialogLayout->addWidget(body, 1);
+
+    themeManager->RegisterStyle(this, RouteProfileSimpleEditor::dialogStyleSheet());
+    setWindowFlag(Qt::FramelessWindowHint, true);
+    new ThronedWindowResizer(this);
+    setMinimumSize(960, 680);
+    resize(1085, 761);
+
     connect(ui->tabWidget->tabBar(), &QTabBar::currentChanged, this, [=, this]() {
         if (ui->tabWidget->tabBar()->currentIndex() == 1) {
             QString res;
@@ -158,16 +560,13 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
             res += chain->UpdateSimpleRules(simpleBlock->toPlainText(), Configs::block);
             res += chain->UpdateSimpleRules(simpleProxy->toPlainText(), Configs::proxy);
             res += chain->UpdateSimpleRules(simpleWarpBypass->toPlainText(), Configs::warpBypass);
-            if (!res.isEmpty()) {
-                runOnUiThread([=] {
-                    MessageBoxWarning(tr("Invalid rules"), tr("Some rules could not be added:\n") + res);
-                });
-            }
             if (currentIndex >= 0)
                 persistCurrentRuleAttrTabLabel();
-            currentIndex = -1;
+            currentIndex = chain->Rules.isEmpty() ? -1 : 0;
             updateRouteItemsView();
             updateRuleSection();
+            rebuildAdvancedSummary();
+            advancedStack->setCurrentIndex(0);
         } else {
             if (currentIndex >= 0)
                 persistCurrentRuleAttrTabLabel();
@@ -177,6 +576,7 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
             simpleBlock->setPlainText(chain->GetSimpleRules(Configs::block));
             simpleProxy->setPlainText(chain->GetSimpleRules(Configs::proxy));
             simpleWarpBypass->setPlainText(chain->GetSimpleRules(Configs::warpBypass));
+            syncRouteProfileToSimpleEditors();
         }
     });
 
@@ -230,11 +630,271 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     setupRemoteSection();
 
     updateRuleSection();
-    adjustSize();
 }
 
 RouteItem::~RouteItem() {
     delete ui;
+}
+
+void RouteItem::showAdvancedDetail(int ruleIndex) {
+    if (!advancedStack || ruleIndex < 0 || ruleIndex >= chain->Rules.size()) return;
+    if (currentIndex >= 0) persistCurrentRuleAttrTabLabel();
+    currentIndex = ruleIndex;
+    updateRouteItemsView();
+    updateRuleSection();
+    advancedStack->setCurrentIndex(1);
+}
+
+void RouteItem::rebuildAdvancedSummary() {
+    if (!advancedRulesLayout) return;
+    while (QLayoutItem *item = advancedRulesLayout->takeAt(0)) {
+        if (QWidget *widget = item->widget()) delete widget;
+        if (QLayout *layout = item->layout()) delete layout;
+        delete item;
+    }
+
+    std::map<int, int> actionCounts{{0, 0}, {1, 0}, {2, 0}, {3, 0}};
+    for (const auto &rule : chain->Rules) {
+        const int bucket = actionBucket(rule);
+        if (actionCounts.contains(bucket)) ++actionCounts[bucket];
+    }
+    for (const auto &[action, button] : advancedActionButtons) {
+        auto *filterButton = static_cast<RouteActionFilterButton *>(button);
+        filterButton->setCount(actionCounts[action]);
+        filterButton->setChecked(action == advancedActionFilter);
+    }
+    if (advancedTotalLabel) advancedTotalLabel->setText(QString::number(chain->Rules.size()));
+
+    QWidget *summaryParent = advancedRulesLayout->parentWidget();
+    auto *hero = new QWidget(summaryParent);
+    hero->setObjectName(QStringLiteral("routeTransparent"));
+    auto *heroLayout = new QHBoxLayout(hero);
+    heroLayout->setContentsMargins(0, 0, 0, 0);
+    heroLayout->setSpacing(9);
+    auto *heroIcon = new QLabel(hero);
+    heroIcon->setPixmap(MaterialIcon::pixmap(MaterialIcon::Glyph::List, QColor(QStringLiteral("#35C2F1")), 23));
+    heroLayout->addWidget(heroIcon);
+    auto *heroCopy = new QVBoxLayout;
+    heroCopy->setSpacing(2);
+    auto *heroTitle = new QLabel(tr("Ordered rule list"), hero);
+    heroTitle->setObjectName(QStringLiteral("routeAdvancedHero"));
+    heroCopy->addWidget(heroTitle);
+    auto *heroSubtitle = new QLabel(
+        tr("First match wins. Reordering here changes the actual sing-box priority."), hero);
+    heroSubtitle->setObjectName(QStringLiteral("routeMuted"));
+    heroSubtitle->setWordWrap(true);
+    heroSubtitle->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    heroCopy->addWidget(heroSubtitle);
+    heroLayout->addLayout(heroCopy, 1);
+
+    auto *sourceButton = new QPushButton(tr("Full source"), hero);
+    sourceButton->setObjectName(QStringLiteral("routeSecondaryButton"));
+    sourceButton->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Code, QColor(QStringLiteral("#DDE2E7")), 17));
+    sourceButton->setMinimumWidth(118);
+    connect(sourceButton, &QPushButton::clicked, this, [this] {
+        QDialog dialog(this);
+        dialog.setWindowTitle(tr("Full routing source"));
+        dialog.resize(760, 560);
+        themeManager->RegisterStyle(&dialog, RouteProfileSimpleEditor::dialogStyleSheet());
+        auto *layout = new QVBoxLayout(&dialog);
+        auto *source = new QPlainTextEdit(&dialog);
+        source->setReadOnly(true);
+        source->setPlainText(QString::fromUtf8(QJsonDocument(chain->get_route_rules(true)).toJson(QJsonDocument::Indented)));
+        layout->addWidget(source, 1);
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+        connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        layout->addWidget(buttons);
+        dialog.exec();
+    });
+    heroLayout->addWidget(sourceButton);
+
+    auto *validateButton = new QPushButton(tr("Validate"), hero);
+    validateButton->setObjectName(QStringLiteral("routeSecondaryButton"));
+    validateButton->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Shield, QColor(QStringLiteral("#2EBC75")), 17));
+    validateButton->setMinimumWidth(108);
+    connect(validateButton, &QPushButton::clicked, this, [this] {
+        QStringList invalid;
+        for (int index = 0; index < chain->Rules.size(); ++index) {
+            if (chain->Rules[index]->get_rule_json(true).isEmpty())
+                invalid.append(chain->Rules[index]->name.isEmpty() ? tr("Rule %1").arg(index + 1) : chain->Rules[index]->name);
+        }
+        if (invalid.isEmpty())
+            MessageBoxInfo(tr("Routing profile is valid"), tr("All %1 rules can be serialized.").arg(chain->Rules.size()));
+        else
+            MessageBoxWarning(tr("Invalid rules"), invalid.join(QStringLiteral("\n")));
+    });
+    heroLayout->addWidget(validateButton);
+
+    advancedRulesLayout->addWidget(hero);
+
+    auto *notice = new QFrame(summaryParent);
+    notice->setObjectName(QStringLiteral("routeAdvancedNotice"));
+    auto *noticeLayout = new QHBoxLayout(notice);
+    noticeLayout->setContentsMargins(12, 9, 12, 9);
+    auto *noticeIcon = new QLabel(notice);
+    noticeIcon->setPixmap(MaterialIcon::pixmap(MaterialIcon::Glyph::Shield, QColor(QStringLiteral("#237AE9")), 17));
+    noticeLayout->addWidget(noticeIcon);
+    auto *noticeText = new QLabel(advancedShowAllActions
+        ? tr("All actions are shown in their original global order; unknown JSON fields are preserved.")
+        : tr("Showing %1 rules · original global positions are preserved").arg(actionFilterTitle(advancedActionFilter)),
+        notice);
+    noticeText->setObjectName(QStringLiteral("routeMuted"));
+    noticeText->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    noticeLayout->addWidget(noticeText, 1);
+    auto *showAllButton = new QPushButton(advancedShowAllActions
+        ? tr("Show %1 only").arg(actionFilterTitle(advancedActionFilter))
+        : tr("Show all actions"), notice);
+    showAllButton->setObjectName(QStringLiteral("routeLinkButton"));
+    showAllButton->setMinimumWidth(132);
+    showAllButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    connect(showAllButton, &QPushButton::clicked, this, [this] {
+        advancedShowAllActions = !advancedShowAllActions;
+        rebuildAdvancedSummary();
+    });
+    noticeLayout->addWidget(showAllButton);
+    advancedRulesLayout->addWidget(notice);
+
+    int shownRules = 0;
+    for (int index = 0; index < chain->Rules.size(); ++index) {
+        const auto rule = chain->Rules[index];
+        if (!advancedShowAllActions && actionBucket(rule) != advancedActionFilter) continue;
+        ++shownRules;
+        const QJsonObject json = rule->get_rule_json(true);
+        const QString tone = actionTone(rule->action, rule->outboundID);
+        auto *card = new QFrame(summaryParent);
+        card->setObjectName(QStringLiteral("routeOrderedRule"));
+        card->setProperty("tone", tone);
+        auto *cardLayout = new QHBoxLayout(card);
+        cardLayout->setContentsMargins(13, 11, 11, 11);
+        cardLayout->setSpacing(10);
+        auto *drag = new QLabel(QStringLiteral("⋮⋮"), card);
+        drag->setObjectName(QStringLiteral("routeDragHandle"));
+        cardLayout->addWidget(drag);
+        auto *priority = new QLabel(QString::number(index + 1), card);
+        priority->setObjectName(QStringLiteral("routePriorityPill"));
+        priority->setAlignment(Qt::AlignCenter);
+        priority->setFixedSize(32, 28);
+        cardLayout->addWidget(priority);
+        auto *active = new ThronedToggle(true, card);
+        active->setToolTip(tr("This rule is active"));
+        active->setAttribute(Qt::WA_TransparentForMouseEvents);
+        cardLayout->addWidget(active);
+
+        auto *body = new QVBoxLayout;
+        body->setSpacing(7);
+        auto *titleRow = new QHBoxLayout;
+        auto *name = new QLabel(rule->name.isEmpty() ? tr("Rule %1").arg(index + 1) : rule->name, card);
+        name->setObjectName(QStringLiteral("routeOrderedTitle"));
+        name->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        titleRow->addWidget(name);
+        QString actionText = rule->action;
+        if (rule->action == QStringLiteral("route")) actionText = get_outbound_name(rule->outboundID);
+        auto *action = new QLabel(actionText, card);
+        action->setObjectName(QStringLiteral("routeActionPill"));
+        action->setProperty("tone", tone);
+        titleRow->addWidget(action);
+        titleRow->addStretch(1);
+        body->addLayout(titleRow);
+
+        auto *conditions = new QHBoxLayout;
+        conditions->setSpacing(6);
+        int conditionCount = 0;
+        for (auto it = json.begin(); it != json.end() && conditionCount < 3; ++it) {
+            if (it.key() == QStringLiteral("action") || it.key() == QStringLiteral("outbound")) continue;
+            const QString conditionText = QStringLiteral("%1  %2").arg(it.key(), compactJsonValue(it.value()));
+            auto *condition = new QLabel(card);
+            condition->setObjectName(QStringLiteral("routeConditionPill"));
+            condition->setProperty("tone", tone);
+            condition->setText(condition->fontMetrics().elidedText(conditionText, Qt::ElideRight, 205));
+            condition->setToolTip(conditionText);
+            condition->setMaximumWidth(220);
+            conditions->addWidget(condition);
+            ++conditionCount;
+        }
+        if (conditionCount == 0) {
+            auto *empty = new QLabel(tr("No match conditions"), card);
+            empty->setObjectName(QStringLiteral("routeMuted"));
+            conditions->addWidget(empty);
+        }
+        conditions->addStretch(1);
+        body->addLayout(conditions);
+        cardLayout->addLayout(body, 1);
+
+        auto *jsonButton = new QPushButton(QStringLiteral("{ }  JSON"), card);
+        jsonButton->setObjectName(QStringLiteral("routeSecondaryButton"));
+        connect(jsonButton, &QPushButton::clicked, this, [this, index] { showAdvancedDetail(index); });
+        cardLayout->addWidget(jsonButton);
+
+        auto *more = new QToolButton(card);
+        more->setObjectName(QStringLiteral("routeAdvancedMoreButton"));
+        more->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::More, QColor(QStringLiteral("#AEB7C2")), 18));
+        more->setPopupMode(QToolButton::InstantPopup);
+        more->setCursor(Qt::PointingHandCursor);
+        auto *menu = new QMenu(more);
+        auto *editAction = menu->addAction(MaterialIcon::icon(MaterialIcon::Glyph::Settings, QColor(QStringLiteral("#AEB7C2")), 17), tr("Edit rule"));
+        auto *moveUpAction = menu->addAction(MaterialIcon::icon(MaterialIcon::Glyph::ArrowUp, QColor(QStringLiteral("#AEB7C2")), 17), tr("Move up"));
+        auto *moveDownAction = menu->addAction(MaterialIcon::icon(MaterialIcon::Glyph::ArrowDown, QColor(QStringLiteral("#AEB7C2")), 17), tr("Move down"));
+        menu->addSeparator();
+        auto *deleteAction = menu->addAction(MaterialIcon::icon(MaterialIcon::Glyph::Block, QColor(QStringLiteral("#FF7B82")), 17), tr("Delete rule"));
+        moveUpAction->setEnabled(index > 0);
+        moveDownAction->setEnabled(index + 1 < chain->Rules.size());
+        connect(editAction, &QAction::triggered, this, [this, index] { showAdvancedDetail(index); });
+        connect(moveUpAction, &QAction::triggered, this, [this, index] {
+            currentIndex = index;
+            on_moveup_route_item_clicked();
+            rebuildAdvancedSummary();
+        });
+        connect(moveDownAction, &QAction::triggered, this, [this, index] {
+            currentIndex = index;
+            on_movedown_route_item_clicked();
+            rebuildAdvancedSummary();
+        });
+        connect(deleteAction, &QAction::triggered, this, [this, index] {
+            currentIndex = index;
+            on_delete_route_item_clicked();
+            rebuildAdvancedSummary();
+        });
+        more->setMenu(menu);
+        cardLayout->addWidget(more);
+        advancedRulesLayout->addWidget(card);
+    }
+
+    if (shownRules == 0) {
+        auto *empty = new QFrame(summaryParent);
+        empty->setObjectName(QStringLiteral("routeAdvancedNotice"));
+        auto *emptyLayout = new QHBoxLayout(empty);
+        emptyLayout->setContentsMargins(14, 14, 14, 14);
+        auto *emptyText = new QLabel(tr("No %1 rules yet.").arg(actionFilterTitle(advancedActionFilter)), empty);
+        emptyText->setObjectName(QStringLiteral("routeMuted"));
+        emptyLayout->addWidget(emptyText);
+        emptyLayout->addStretch(1);
+        auto *add = new QPushButton(tr("Add rule"), empty);
+        add->setObjectName(QStringLiteral("routeSecondaryButton"));
+        connect(add, &QPushButton::clicked, this, [this] {
+            on_new_route_item_clicked();
+            showAdvancedDetail(currentIndex);
+        });
+        emptyLayout->addWidget(add);
+        advancedRulesLayout->addWidget(empty);
+    }
+
+    auto *fallback = new QFrame(summaryParent);
+    fallback->setObjectName(QStringLiteral("routeFallbackCard"));
+    auto *fallbackLayout = new QHBoxLayout(fallback);
+    fallbackLayout->setContentsMargins(14, 10, 14, 10);
+    auto *fallbackIcon = new QLabel(fallback);
+    fallbackIcon->setPixmap(MaterialIcon::pixmap(MaterialIcon::Glyph::Direct, QColor(QStringLiteral("#2EBC75")), 18));
+    fallbackLayout->addWidget(fallbackIcon);
+    auto *fallbackText = new QLabel(tr("Unmatched traffic"), fallback);
+    fallbackText->setObjectName(QStringLiteral("routeOrderedTitle"));
+    fallbackLayout->addWidget(fallbackText);
+    fallbackLayout->addStretch(1);
+    auto *fallbackValue = new QLabel(get_outbound_name(chain->defaultOutboundID), fallback);
+    fallbackValue->setObjectName(QStringLiteral("routeActionPill"));
+    fallbackValue->setProperty("tone", actionTone(QStringLiteral("route"), chain->defaultOutboundID));
+    fallbackLayout->addWidget(fallbackValue);
+    advancedRulesLayout->addWidget(fallback);
+    advancedRulesLayout->addStretch(1);
 }
 
 void RouteItem::setupRemoteSection() {
@@ -335,10 +995,12 @@ void RouteItem::reloadRuleViewsFromChain() {
     simpleBlock->setPlainText(chain->GetSimpleRules(Configs::block));
     simpleProxy->setPlainText(chain->GetSimpleRules(Configs::proxy));
     simpleWarpBypass->setPlainText(chain->GetSimpleRules(Configs::warpBypass));
+    syncRouteProfileToSimpleEditors();
     ui->def_out->setCurrentText(Configs::outboundIDToString(chain->defaultOutboundID));
 }
 
 void RouteItem::accept() {
+    syncSimpleEditorsToRouteProfile();
     chain->name = ui->route_name->text();
 
     if (chain->name == "") {
@@ -383,6 +1045,30 @@ void RouteItem::accept() {
     QDialog::accept();
 }
 
+void RouteItem::syncSimpleEditorsToRouteProfile() {
+    if (!simpleEditor) return;
+    simpleDirect->setPlainText(simpleEditor->rules(Configs::bypass));
+    simpleBlock->setPlainText(simpleEditor->rules(Configs::block));
+    simpleProxy->setPlainText(simpleEditor->rules(Configs::proxy));
+    simpleWarpBypass->setPlainText(simpleEditor->rules(Configs::warpBypass));
+}
+
+void RouteItem::syncRouteProfileToSimpleEditors() {
+    if (!simpleEditor) return;
+    simpleEditor->setRules(Configs::bypass, simpleDirect->toPlainText());
+    simpleEditor->setRules(Configs::block, simpleBlock->toPlainText());
+    simpleEditor->setRules(Configs::proxy, simpleProxy->toPlainText());
+    simpleEditor->setRules(Configs::warpBypass, simpleWarpBypass->toPlainText());
+    QStringList advancedRuleNames;
+    bool localProxyTraffic = false;
+    for (const auto& rule : chain->Rules) {
+        if (rule->type == Configs::custom && !isLocalProxyTrafficRule(rule)) advancedRuleNames.append(rule->name);
+        if (isLocalProxyTrafficRule(rule)) localProxyTraffic = true;
+    }
+    simpleEditor->setAdvancedRules(advancedRuleNames);
+    simpleEditor->setLocalProxyTrafficEnabled(localProxyTraffic);
+}
+
 void RouteItem::updateRouteItemsView() {
     const QSignalBlocker listBlocker(ui->route_items);
     ui->route_items->clear();
@@ -411,7 +1097,7 @@ void RouteItem::syncRuleActionCombo() {
 }
 
 QWidget* RouteItem::makeAttributeEditorPage(const QString& attr) {
-    auto* container = new QWidget;
+    auto* container = new QWidget(ui->rule_attr_tabs);
     auto* lay = new QVBoxLayout(container);
     lay->setContentsMargins(8, 8, 8, 8);
     const auto rule = chain->Rules[currentIndex];
@@ -496,7 +1182,7 @@ QWidget* RouteItem::makeAttributeEditorPage(const QString& attr) {
 void RouteItem::ensurePlusTabBuiltOnce() {
     if (ruleAttrPlusList) return;
 
-    auto* container = new QWidget;
+    auto* container = new QWidget(ui->rule_attr_tabs);
     auto* lay = new QVBoxLayout(container);
     lay->setContentsMargins(8, 8, 8, 8);
 

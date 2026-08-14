@@ -4,11 +4,31 @@
 #include <QPalette>
 #include <QColor>
 #include <QMap>
+#include <QPainter>
+#include <QStyleFactory>
+#include <QWidget>
 
 #include "include/ui/setting/ThemeManager.hpp"
 #include "iostream"
 
 ThemeManager *themeManager = new ThemeManager;
+
+namespace {
+
+const QString StyleTemplateProperty = QStringLiteral("thronedStyleTemplate");
+
+const QMap<QString, ThronedThemeColors> &thronedThemes() {
+    return ThronedPalette::Themes();
+}
+
+QColor mixColors(const QColor &a, const QColor &b, qreal amount) {
+    const auto mix = [amount](int lhs, int rhs) {
+        return qRound(lhs * (1.0 - amount) + rhs * amount);
+    };
+    return QColor(mix(a.red(), b.red()), mix(a.green(), b.green()), mix(a.blue(), b.blue()));
+}
+
+} // namespace
 
 extern QString ReadFileText(const QString &path);
 
@@ -158,9 +178,28 @@ void ThemeManager::ApplyTheme(const QString &theme, bool force) {
     const auto lowerTheme = theme.toLower();
     const auto &palettes = customThemePalettes();
     const bool leavingCustom = palettes.contains(current_theme.toLower());
+    const bool leavingThroned = IsThronedTheme(current_theme);
     const bool enteringCustom = palettes.contains(lowerTheme);
 
-    if (enteringCustom) {
+    if (IsThronedTheme(theme)) {
+        // The redesigned UI is built from semantic colors. Fusion gives every
+        // platform the same control metrics while the palette also covers menus,
+        // popups and any legacy widget not yet styled by the new shell.
+        qApp->setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+        const auto colors = Colors(theme);
+        qApp->setPalette(buildThemePalette({
+            .window = colors.window, .windowText = colors.text,
+            .base = colors.surface, .alternateBase = colors.surfaceRaised,
+            .text = colors.text,
+            .button = colors.surfaceRaised, .buttonText = colors.text,
+            .brightText = QColor(Qt::white),
+            .highlight = colors.accent, .highlightedText = QColor(Qt::white),
+            .link = colors.accent,
+            .tooltipBase = colors.surfaceRaised, .tooltipText = colors.text,
+            .placeholder = colors.textSubtle, .disabledText = colors.textSubtle,
+        }));
+        qApp->setStyleSheet({});
+    } else if (enteringCustom) {
         // Custom themes own their whole look: install the complete palette first
         // so no color role leaks from Qt or a previously applied theme, then
         // layer the stylesheet on top.
@@ -172,18 +211,110 @@ void ThemeManager::ApplyTheme(const QString &theme, bool force) {
         }
     } else if (lowerTheme == "system") {
         // Back to the OS style + palette we snapshotted on first apply.
-        if (leavingCustom) qApp->setPalette(system_palette);
+        if (leavingCustom || leavingThroned) qApp->setPalette(system_palette);
         qApp->setStyleSheet("");
         qApp->setStyle(system_style_name);
     } else {
         // A Qt QStyleFactory style (Fusion, windows11, ...). Let the Qt style own
         // the palette; just drop any custom palette we installed before.
-        if (leavingCustom) qApp->setPalette(system_palette);
+        if (leavingCustom || leavingThroned) qApp->setPalette(system_palette);
         qApp->setStyleSheet("");
         qApp->setStyle(theme);
     }
 
     current_theme = theme;
 
+    RefreshRegisteredStyles();
     emit themeChanged(theme);
+}
+
+QStringList ThemeManager::ThronedThemes() const {
+    QStringList themes = ThronedPalette::ThemeNames();
+    themes << QStringLiteral("System");
+    return themes;
+}
+
+bool ThemeManager::IsThronedTheme(const QString &theme) const {
+    return thronedThemes().contains(theme.trimmed().toLower());
+}
+
+ThronedThemeColors ThemeManager::Colors(const QString &theme) const {
+    const QString requested = (theme.isEmpty() ? current_theme : theme).trimmed().toLower();
+    if (const auto it = thronedThemes().constFind(requested); it != thronedThemes().cend()) return it.value();
+
+    // System/legacy themes still get a coherent semantic palette derived from
+    // their live QPalette, so every redesigned screen follows the selection.
+    const QPalette palette = requested == QStringLiteral("system") && !system_style_name.isEmpty()
+        ? system_palette : (qApp ? qApp->palette() : QPalette());
+    const QColor window = palette.color(QPalette::Window);
+    const QColor surface = palette.color(QPalette::Base);
+    const QColor raised = palette.color(QPalette::Button);
+    const QColor text = palette.color(QPalette::WindowText);
+    const QColor accent = palette.color(QPalette::Highlight);
+    const bool dark = window.lightness() < 128;
+    return {
+        .window = window,
+        .surface = surface,
+        .surfaceRaised = raised,
+        .surfaceHover = dark ? raised.lighter(125) : raised.darker(108),
+        .border = palette.color(QPalette::Mid),
+        .borderStrong = palette.color(QPalette::Dark),
+        .text = text,
+        .textMuted = palette.color(QPalette::PlaceholderText),
+        .textSubtle = palette.color(QPalette::Disabled, QPalette::Text),
+        .accent = accent,
+        .accentHover = dark ? accent.lighter(118) : accent.darker(108),
+        .accentSoft = mixColors(surface, accent, dark ? 0.28 : 0.18),
+        .selection = mixColors(surface, accent, dark ? 0.35 : 0.24),
+        .selectionBorder = dark ? accent.darker(115) : accent.darker(125),
+        .success = QColor(QStringLiteral("#32C982")),
+        .controlInactive = dark ? raised.lighter(112) : raised.darker(112),
+        .scrollBar = dark ? raised.lighter(135) : raised.darker(120),
+        .scrollBarHover = dark ? raised.lighter(160) : raised.darker(140),
+        .dark = dark,
+    };
+}
+
+bool ThemeManager::IsDarkTheme(const QString &theme) const {
+    const QString lower = theme.toLower();
+    if (lower.contains(QStringLiteral("qdarkstyle")) || lower.contains(QStringLiteral("blacksoft"))) return true;
+    if (lower.contains(QStringLiteral("flatgray")) || lower.contains(QStringLiteral("lightblue"))
+        || lower.contains(QStringLiteral("softpink")) || lower.contains(QStringLiteral("vista"))) return false;
+    return Colors(theme).dark;
+}
+
+QIcon ThemeManager::PreviewIcon(const QString &theme) const {
+    const auto colors = Colors(theme);
+    QPixmap preview(64, 22);
+    preview.fill(Qt::transparent);
+    QPainter painter(&preview);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(colors.border, 1));
+    painter.setBrush(colors.window);
+    painter.drawRoundedRect(QRectF(0.5, 0.5, 63, 21), 5, 5);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(colors.surfaceRaised);
+    painter.drawRoundedRect(QRectF(5, 5, 35, 12), 3, 3);
+    painter.setBrush(colors.accent);
+    painter.drawRoundedRect(QRectF(44, 5, 15, 12), 3, 3);
+    return QIcon(preview);
+}
+
+QString ThemeManager::ResolveStyleSheet(const QString &styleSheetTemplate) const {
+    const int pointSize = qApp && qApp->font().pointSize() > 0 ? qApp->font().pointSize() : 10;
+    return ThronedPalette::Resolve(styleSheetTemplate, Colors(), qMax(11, (pointSize * 4 + 2) / 3));
+}
+
+void ThemeManager::RegisterStyle(QWidget *widget, const QString &styleSheetTemplate) const {
+    if (!widget) return;
+    widget->setProperty(StyleTemplateProperty.toUtf8().constData(), styleSheetTemplate);
+    widget->setStyleSheet(ResolveStyleSheet(styleSheetTemplate));
+}
+
+void ThemeManager::RefreshRegisteredStyles() const {
+    if (!qApp) return;
+    for (QWidget *widget : qApp->allWidgets()) {
+        const QVariant styleTemplate = widget->property(StyleTemplateProperty.toUtf8().constData());
+        if (styleTemplate.isValid()) widget->setStyleSheet(ResolveStyleSheet(styleTemplate.toString()));
+    }
 }

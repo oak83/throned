@@ -1,0 +1,42 @@
+#pragma once
+
+#include <QColor>
+#include <QIcon>
+#include <QPixmap>
+
+namespace MaterialIcon {
+
+enum class Glyph {
+    Add,
+    ArrowDown,
+    ArrowUp,
+    Apps,
+    Block,
+    Bolt,
+    ChevronDown,
+    ChevronRight,
+    Code,
+    Desktop,
+    Direct,
+    File,
+    Filter,
+    Folder,
+    List,
+    Menu,
+    More,
+    Process,
+    Public,
+    Reload,
+    Routes,
+    Search,
+    Settings,
+    Shield,
+    SwapVertical,
+    Tools,
+    Users,
+};
+
+QPixmap pixmap(Glyph glyph, const QColor &color, int pixels = 20);
+QIcon icon(Glyph glyph, const QColor &color, int pixels = 20);
+
+} // namespace MaterialIcon

@@ -2,6 +2,7 @@
 #include "NkrVersion.h"
 
 #include <QApplication>
+#include <QFrame>
 #include <QHeaderView>
 #include <QScrollBar>
 #include <QTimer>
@@ -18,30 +19,17 @@
 #include "include/ui/widget/StartStopButton.hpp"
 
 void MainWindow::applyTopBarMetrics() {
-    // Give the menu toolButtons a uniform width (the widest one's) so the top
-    // bar reads as an even row. The start/stop button keeps its own square size.
+    // MainPreview deliberately lets each compact nav item fit its own label.
     const QList<QToolButton*> menuButtons = {
         ui->toolButton_program, ui->toolButton_preferences, ui->toolButton_testing,
         ui->toolButton_routing, ui->toolButton_tools,
     };
-    // Drop the previous run's floor first: a stale minimum would otherwise be
-    // baked into minimumSizeHint() below and never shrink back.
-    for (auto* b : menuButtons) b->setMinimumWidth(0);
-
-    // Content width only: the chevron already clears the label via ::menu-indicator, so
-    // reserving arrow padding would widen all five for a gap only the widest needs.
-    int uniformButtonWidth = 0;
-    for (auto* b : menuButtons) {
-        b->ensurePolished();
-        uniformButtonWidth = qMax(uniformButtonWidth, b->sizeHint().width());
+    for (auto *button : menuButtons) {
+        button->setMinimumWidth(0);
+        button->setMaximumWidth(QWIDGETSIZE_MAX);
+        button->updateGeometry();
     }
-    for (auto* b : menuButtons) b->setMinimumWidth(uniformButtonWidth);
-
-    // Translated labels (RU runs ~2x English) outgrow the designed 800x600 floor and
-    // clip the widgets after it, so follow what the layout actually needs (#1665).
-    const QSize contentMin = minimumSizeHint();
-    setMinimumSize(qMax(designMinimumSize.width(), contentMin.width()),
-                   qMax(designMinimumSize.height(), contentMin.height()));
+    setMinimumSize(designMinimumSize);
 }
 
 void MainWindow::UpdateDataView(bool force)
@@ -54,6 +42,17 @@ void MainWindow::UpdateDataView(bool force)
     auto html = dataViewHtmlGenerator_.buildHtml();
     runOnUiThread([=, this] {
         ui->data_view->setHtml(html);
+        const bool hasTransientStatus = !html.trimmed().isEmpty();
+        ui->data_view->setFixedHeight(hasTransientStatus ? 72 : 0);
+        ui->data_view->setVisible(hasTransientStatus);
+        const bool hasBatchSelection = ui->profilesTableView->selectionModel()
+            && ui->profilesTableView->selectionModel()->selectedRows().size() > 1;
+        if (auto *connectedStatus = findChild<QFrame *>(QStringLiteral("statusCard"))) {
+            connectedStatus->setVisible(!hasTransientStatus && !hasBatchSelection);
+        }
+        if (auto *selectionStatus = findChild<QFrame *>(QStringLiteral("selectionCard"))) {
+            selectionStatus->setVisible(!hasTransientStatus && hasBatchSelection);
+        }
     }, true);
     lastUpdatedMs.store(QDateTime::currentMSecsSinceEpoch());
 }
@@ -90,6 +89,7 @@ void MainWindow::applyProfileFilters()
 {
     if (!profilesFilterModel) return;
     profilesFilterModel->setFilters(typeFilterString, addressFilterString, nameFilterString, countryFilterString);
+    profilesFilterModel->setSearch(globalFilterString);
     refresh_proxy_list_column_size();
 }
 

@@ -184,12 +184,8 @@ void MainWindow::keyPressEvent(QKeyEvent *event) {
 bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
     const QEvent::Type type = event->type();
 
-    if (type == QEvent::Resize && obj == ui->toolButton_program) {
-        const int h = ui->toolButton_program->height();
-        if (h > 0 && ui->toolButton_startstop->height() != h) {
-            ui->toolButton_startstop->setFixedSize(h, h);
-        }
-    }
+    // MainPreview uses a deliberate 40px circular control beside compact nav
+    // buttons; do not resize it to the first menu button's height.
     if (type == QEvent::MouseButtonPress) {
         auto mouseEvent = dynamic_cast<QMouseEvent *>(event);
         if (obj == ui->label_running && mouseEvent->button() == Qt::LeftButton && running != nullptr) {
@@ -205,7 +201,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
     } else if (type == QEvent::MouseButtonDblClick) {
         if (obj == ui->splitter) {
             const auto size = ui->splitter->size();
-            ui->splitter->setSizes({size.height() / 2, size.height() / 2});
+            ui->splitter->setSizes({size.height() * 3 / 5, size.height() * 2 / 5});
         }
     }
     return QMainWindow::eventFilter(obj, event);

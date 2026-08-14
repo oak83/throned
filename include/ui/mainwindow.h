@@ -284,6 +284,7 @@ private:
     QString nameFilterString;
     QString typeFilterString;
     QString countryFilterString;
+    QString globalFilterString;
 
     QTimer *m_filterRefreshDebounce = nullptr;
 

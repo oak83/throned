@@ -15,6 +15,15 @@
 #include <QLocalServer>
 #include <QThread>
 #include <QDateTime>
+#include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFormLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QTabWidget>
+#include <QVBoxLayout>
 #include <3rdparty/WinCommander.hpp>
 
 
@@ -24,6 +33,8 @@
 #include "include/ui/mainwindow_interface.h"
 #include "include/stats/traffic/TrafficStatsManager.hpp"
 #include "include/api/RPC.h"
+#include "include/ui/setting/RouteProfileSimpleEditor.h"
+#include "include/ui/setting/ThemeManager.hpp"
 
 #ifdef Q_OS_WIN
 #include "include/sys/windows/MiniDump.h"
@@ -187,6 +198,100 @@ namespace {
         LOG_WARN(QString("%1 is not writable, using %2").arg(installConfig, userConfig));
         return true;
     }
+
+    int RunRouteEditorPreview(QApplication &app) {
+        QDialog dialog;
+        dialog.setObjectName("routeProfileEditor");
+        dialog.setWindowTitle(QObject::tr("Throned — Route profile preview"));
+        dialog.resize(1120, 700);
+
+        QFont font = app.font();
+#ifdef Q_OS_WIN
+        font.setFamily(QStringLiteral("Segoe UI Variable Text"));
+#endif
+        font.setPointSize(10);
+        font.setStyleStrategy(QFont::PreferAntialias);
+        font.setHintingPreference(QFont::PreferDefaultHinting);
+        dialog.setFont(font);
+        themeManager->RegisterStyle(&dialog, RouteProfileSimpleEditor::dialogStyleSheet());
+
+        auto *root = new QVBoxLayout(&dialog);
+        root->setContentsMargins(12, 12, 12, 12);
+        root->setSpacing(10);
+        auto *header = new QFrame;
+        header->setObjectName("routeProfileHeader");
+        auto *headerLayout = new QHBoxLayout(header);
+        headerLayout->setContentsMargins(12, 10, 12, 10);
+        auto *nameLayout = new QVBoxLayout;
+        auto *nameLabel = new QLabel(QObject::tr("Name"));
+        nameLabel->setObjectName("routeFieldLabel");
+        auto *name = new QLineEdit(QObject::tr("Development"));
+        nameLayout->addWidget(nameLabel);
+        nameLayout->addWidget(name);
+        headerLayout->addLayout(nameLayout, 1);
+        auto *outboundLayout = new QVBoxLayout;
+        auto *outboundLabel = new QLabel(QObject::tr("Default outbound"));
+        outboundLabel->setObjectName("routeFieldLabel");
+        auto *outbound = new QComboBox;
+        outbound->setObjectName("def_out");
+        outbound->addItems({"direct", "proxy", "block", "warp-bypass"});
+        outbound->setMaximumWidth(250);
+        outboundLayout->addWidget(outboundLabel);
+        outboundLayout->addWidget(outbound);
+        headerLayout->addLayout(outboundLayout, 1);
+        auto *modeLayout = new QVBoxLayout;
+        auto *modeLabel = new QLabel(QObject::tr("Mode"));
+        modeLabel->setObjectName("routeFieldLabel");
+        auto *mode = new QTabBar;
+        mode->setObjectName("routeModeTabs");
+        mode->addTab(QObject::tr("Simple"));
+        mode->addTab(QObject::tr("Advanced"));
+        mode->setUsesScrollButtons(false);
+        mode->setExpanding(true);
+        mode->setMinimumWidth(220);
+        mode->setMaximumWidth(280);
+        modeLayout->addWidget(modeLabel);
+        modeLayout->addWidget(mode);
+        headerLayout->addLayout(modeLayout, 1);
+        root->addWidget(header);
+
+        auto *tabs = new QTabWidget;
+        auto *editor = new RouteProfileSimpleEditor;
+        editor->setRules(0, "domain:updates.example.com\n");
+        editor->setRules(1, "domain:ads.example\nip:198.51.100.0/24\n");
+        editor->setRules(2,
+            "processPath:C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe\n"
+            "processName:Discord.exe\ndomain:chatgpt.com\nruleset:geosite-telegram\n"
+            "ruleset:geosite-anthropic\nip:172.64.0.0/16\n");
+        editor->setRules(3, {});
+        editor->setAdvancedRules({QObject::tr("regional-routing"), QObject::tr("fallback-policy")});
+        editor->setRuleSetCatalog({
+            QStringLiteral("geosite-anthropic"), QStringLiteral("geosite-chatgpt"),
+            QStringLiteral("geosite-google"), QStringLiteral("geosite-telegram"),
+            QStringLiteral("geoip-cloudflare"), QStringLiteral("geoip-openai"),
+            QStringLiteral("geoip-private"), QStringLiteral("geoip-telegram"),
+        });
+        editor->setLocalProxyTrafficEnabled(true);
+        tabs->addTab(editor, QObject::tr("Simple"));
+        auto *advanced = new QLabel(QObject::tr("The existing lossless advanced editor remains available here."));
+        advanced->setAlignment(Qt::AlignCenter);
+        tabs->addTab(advanced, QObject::tr("Advanced"));
+        tabs->tabBar()->hide();
+        QObject::connect(mode, &QTabBar::currentChanged, tabs, &QTabWidget::setCurrentIndex);
+        QObject::connect(tabs, &QTabWidget::currentChanged, mode, &QTabBar::setCurrentIndex);
+        root->addWidget(tabs, 1);
+
+        auto *buttons = new QDialogButtonBox;
+        auto *cancel = buttons->addButton(QDialogButtonBox::Cancel);
+        cancel->setObjectName("routeSecondaryButton");
+        auto *save = buttons->addButton(QObject::tr("Save profile"), QDialogButtonBox::AcceptRole);
+        save->setObjectName("routeSaveButton");
+        QObject::connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
+        QObject::connect(save, &QPushButton::clicked, &dialog, &QDialog::accept);
+        root->addWidget(buttons);
+        dialog.show();
+        return app.exec();
+    }
 } // namespace
 
 #define LOCAL_SERVER_PREFIX "throned-"
@@ -205,6 +310,10 @@ int main(int argc, char* argv[]) {
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication::setQuitOnLastWindowClosed(false);
     QApplication a(argc, argv);
+
+    if (a.arguments().contains(QStringLiteral("--route-editor-preview"))) {
+        return RunRouteEditorPreview(a);
+    }
 
 #ifdef Q_OS_MACOS
     // Install before the event loop so launch-by-deeplink FileOpen events are caught.
@@ -461,6 +570,23 @@ int main(int argc, char* argv[]) {
 #endif
 
     API::defaultClient = new API::Client();
+
+    // Establish the readable production font before any redesigned widget or
+    // stylesheet is created. Appearance changes use the same path at runtime.
+    QFont appFont = a.font();
+    if (!Configs::dataManager->settingsRepo->font.isEmpty()) {
+        appFont.setFamily(Configs::dataManager->settingsRepo->font);
+    }
+#ifdef Q_OS_WIN
+    else {
+        appFont.setFamily(QStringLiteral("Segoe UI Variable Text"));
+    }
+#endif
+    appFont.setPointSize(Configs::dataManager->settingsRepo->font_size > 0
+        ? Configs::dataManager->settingsRepo->font_size : 10);
+    appFont.setStyleStrategy(QFont::PreferAntialias);
+    appFont.setHintingPreference(QFont::PreferDefaultHinting);
+    a.setFont(appFont);
 
     UI_InitMainWindow();
 

@@ -70,6 +70,7 @@ namespace Qv2ray {
             struct HighlightingRule {
                 QRegularExpression pattern;
                 QTextCharFormat format;
+                int captureGroup = 0;
             };
             QVector<HighlightingRule> highlightingRules;
 
@@ -84,6 +85,7 @@ namespace Qv2ray {
             QTextCharFormat timeFormat;
             QTextCharFormat ipHostFormat;
             QTextCharFormat v2rayComponentFormat;
+            QTextCharFormat processNameFormat;
         };
     } // namespace ui
 } // namespace Qv2ray

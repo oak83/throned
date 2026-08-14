@@ -17,7 +17,14 @@ ProfilesTableModel *ProfilesFilterProxyModel::profilesModel() const {
 }
 
 bool ProfilesFilterProxyModel::hasActiveFilter() const {
-    return !m_type.isEmpty() || !m_address.isEmpty() || !m_name.isEmpty() || !m_country.isEmpty();
+    return !m_type.isEmpty() || !m_address.isEmpty() || !m_name.isEmpty() || !m_country.isEmpty()
+        || !m_search.isEmpty();
+}
+
+void ProfilesFilterProxyModel::setSearch(const QString &search) {
+    if (m_search == search) return;
+    m_search = search;
+    invalidateRowsFilter();
 }
 
 void ProfilesFilterProxyModel::setFilters(const QString &type, const QString &address,
@@ -59,6 +66,14 @@ bool ProfilesFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex
     // A profile that failed to load stays visible rather than becoming unreachable.
     const auto *key = model->filterKeyAt(sourceRow);
     if (!key) return true;
+
+    if (!m_search.isEmpty()
+        && !key->type.contains(m_search, Qt::CaseInsensitive)
+        && !key->address.contains(m_search, Qt::CaseInsensitive)
+        && !key->name.contains(m_search, Qt::CaseInsensitive)
+        && !key->country.contains(m_search, Qt::CaseInsensitive)) {
+        return false;
+    }
 
     if (!m_address.isEmpty()) {
         if (m_address.startsWith(portPrefix)) {

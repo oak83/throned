@@ -21,6 +21,10 @@
 #include "include/ui/stats/dialog_traffic_stats.h"
 #include "include/ui/stats/dialog_runtime_stats.h"
 #include "include/ui/widget/StartStopButton.hpp"
+#include "include/ui/widget/MaterialIcon.h"
+#include "include/ui/widget/ThronedTitleBar.h"
+#include "include/ui/widget/ThronedToggle.h"
+#include "include/ui/widget/ThronedWindowResizer.h"
 
 #include "include/configs/generate.h"
 #include "include/database/GroupsRepo.h"
@@ -54,6 +58,13 @@
 #include <QUuid>
 
 #include <QClipboard>
+#include <QFrame>
+#include <QHBoxLayout>
+#include <QPalette>
+#include <QLabel>
+#include <QLineEdit>
+#include <QComboBox>
+#include <QPushButton>
 #include <QScrollBar>
 #include <QDesktopServices>
 #include <QTimer>
@@ -64,6 +75,9 @@
 #endif
 #include <QFileDialog>
 #include <QToolButton>
+#include <QTabBar>
+#include <QVBoxLayout>
+#include <QHeaderView>
 #include <include/global/HTTPRequestHelper.hpp>
 #include "include/global/DeviceDetailsHelper.hpp"
 
@@ -107,14 +121,7 @@ bool MainWindow::verify_core_pid(QLocalSocket *socket) {
 // Maps a theme name to the log viewer's syntax-highlight mode (true = dark, false = light).
 // Stylesheet themes have a known brightness; plain QStyle themes follow the OS preference.
 static bool themeUsesDarkLog(const QString &theme) {
-    const auto lower = theme.toLower();
-    if (lower.contains("vista") || lower.contains("flatgray") || lower.contains("lightblue") || lower.contains("softpink")) {
-        return false; // light themes
-    }
-    if (lower.contains("qdarkstyle") || lower.contains("blacksoft")) {
-        return true; // dark themes
-    }
-    return isDarkMode(); // bi-mode themes, follow system preference
+    return themeManager->IsDarkTheme(theme);
 }
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow) {
@@ -152,10 +159,330 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     bool isNum;
     Configs::dataManager->settingsRepo->theme.toInt(&isNum);
     if (isNum) {
-        Configs::dataManager->settingsRepo->theme = "System";
+        Configs::dataManager->settingsRepo->theme = QStringLiteral("Throned Midnight");
+    } else if (!themeManager->ThronedThemes().contains(Configs::dataManager->settingsRepo->theme)) {
+        // Retire the old platform/QSS theme mix in favour of palettes that cover
+        // every redesigned screen consistently.
+        Configs::dataManager->settingsRepo->theme = themeUsesDarkLog(Configs::dataManager->settingsRepo->theme)
+            ? QStringLiteral("Throned Midnight") : QStringLiteral("System");
     }
     themeManager->ApplyTheme(Configs::dataManager->settingsRepo->theme);
     ui->setupUi(this);
+
+    // MainPreview's exact production shell: the same title bar, block order,
+    // dimensions and palette that generate docs/ui-preview/main-en.png.
+    auto *redesignedCentral = new QWidget(this);
+    redesignedCentral->setObjectName(QStringLiteral("previewRoot"));
+    auto *rootLayout = new QVBoxLayout(redesignedCentral);
+    rootLayout->setContentsMargins(1, 1, 1, 1);
+    rootLayout->setSpacing(0);
+    rootLayout->addWidget(new ThronedTitleBar({}, redesignedCentral));
+
+    auto *body = new QWidget(redesignedCentral);
+    body->setObjectName(QStringLiteral("body"));
+    auto *bodyLayout = new QVBoxLayout(body);
+    bodyLayout->setContentsMargins(10, 10, 10, 10);
+    bodyLayout->setSpacing(7);
+
+    // The command bar belongs to the window chrome, not to the content: it sits
+    // edge to edge directly under the title bar so both read as one header band
+    // closed by a single hairline, instead of a card floating over another card.
+    auto *commandBar = new QFrame(redesignedCentral);
+    commandBar->setObjectName(QStringLiteral("commandBar"));
+    commandBar->setFixedHeight(54);
+    auto *commandLayout = new QHBoxLayout(commandBar);
+    commandLayout->setContentsMargins(14, 7, 10, 7);
+    commandLayout->setSpacing(5);
+
+    const QList<QPair<QToolButton *, MaterialIcon::Glyph>> navigation{
+        {ui->toolButton_program, MaterialIcon::Glyph::Desktop},
+        {ui->toolButton_preferences, MaterialIcon::Glyph::Settings},
+        {ui->toolButton_testing, MaterialIcon::Glyph::Users},
+        {ui->toolButton_routing, MaterialIcon::Glyph::Routes},
+        {ui->toolButton_tools, MaterialIcon::Glyph::Tools},
+    };
+    for (const auto &[button, glyph] : navigation) {
+        button->setParent(commandBar);
+        button->setStyleSheet({});
+        button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        button->setIconSize(QSize(19, 19));
+        button->setMinimumWidth(0);
+        button->setFixedHeight(38);
+        button->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        commandLayout->addWidget(button);
+        if (button != navigation.constLast().first) {
+            auto *separator = new QFrame(commandBar);
+            separator->setObjectName(QStringLiteral("vSeparator"));
+            separator->setFixedSize(1, 33);
+            commandLayout->addWidget(separator);
+        }
+    }
+    commandLayout->addStretch(1);
+
+    auto addToggle = [commandBar, commandLayout](const QString &text, QCheckBox *toggle) {
+        auto *label = new QLabel(text, commandBar);
+        label->setObjectName(QStringLiteral("controlLabel"));
+        commandLayout->addWidget(label);
+        toggle->setParent(commandBar);
+        toggle->hide();
+        auto *visualToggle = new ThronedToggle(toggle->isChecked(), commandBar);
+        visualToggle->bindTo(toggle);
+        commandLayout->addWidget(visualToggle);
+    };
+    addToggle(tr("TUN mode"), ui->checkBox_VPN);
+    auto *modeSeparator = new QFrame(commandBar);
+    modeSeparator->setObjectName(QStringLiteral("vSeparator"));
+    modeSeparator->setFixedSize(1, 33);
+    commandLayout->addWidget(modeSeparator);
+    addToggle(tr("System proxy"), ui->checkBox_SystemProxy);
+    ui->checkBox_VPN->setParent(commandBar);
+    ui->system_dns->setParent(commandBar);
+    ui->system_dns->hide();
+    ui->toolButton_startstop->setParent(commandBar);
+    ui->toolButton_startstop->setFixedSize(40, 40);
+    commandLayout->addSpacing(8);
+    commandLayout->addWidget(ui->toolButton_startstop);
+    rootLayout->addWidget(commandBar);
+
+    ui->data_view->setParent(redesignedCentral);
+    ui->data_view->setObjectName(QStringLiteral("selectionStatus"));
+    ui->data_view->setFixedHeight(0);
+    ui->data_view->hide();
+
+    ui->splitter->setParent(body);
+    ui->tabWidget->setStyleSheet({});
+    ui->stats_widget->setStyleSheet({});
+    ui->tabWidget->setObjectName(QStringLiteral("groupsCard"));
+    ui->stats_widget->setObjectName(QStringLiteral("logsCard"));
+    ui->tabWidget->tabBar()->setUsesScrollButtons(false);
+    ui->stats_widget->tabBar()->setUsesScrollButtons(false);
+    auto *logTools = new QWidget(ui->stats_widget);
+    logTools->setObjectName(QStringLiteral("logTools"));
+    auto *logToolsLayout = new QHBoxLayout(logTools);
+    logToolsLayout->setContentsMargins(0, 0, 8, 5);
+    logToolsLayout->setSpacing(6);
+    auto *clearLog = new QPushButton(tr("Clear"), logTools);
+    auto *copyLog = new QPushButton(tr("Copy"), logTools);
+    for (auto *button : {clearLog, copyLog}) button->setObjectName(QStringLiteral("logToolButton"));
+    logToolsLayout->addWidget(clearLog);
+    logToolsLayout->addWidget(copyLog);
+    auto *autoScrollLabel = new QLabel(tr("Auto-scroll"), logTools);
+    autoScrollLabel->setObjectName(QStringLiteral("logAutoScrollLabel"));
+    logToolsLayout->addWidget(autoScrollLabel);
+    auto *autoScrollSource = new QCheckBox(logTools);
+    autoScrollSource->setChecked(Configs::dataManager->settingsRepo->log_auto_scroll);
+    autoScrollSource->hide();
+    auto *autoScroll = new ThronedToggle(autoScrollSource->isChecked(), logTools);
+    autoScroll->bindTo(autoScrollSource);
+    logToolsLayout->addWidget(autoScroll);
+    auto *logLevel = new QComboBox(logTools);
+    logLevel->setObjectName(QStringLiteral("logLevelSelector"));
+    logLevel->addItem(QStringLiteral("INFO"), QStringLiteral("info"));
+    logLevel->addItem(QStringLiteral("DEBUG"), QStringLiteral("debug"));
+    logLevel->addItem(QStringLiteral("WARNING"), QStringLiteral("warning"));
+    const int currentLogLevel = logLevel->findData(Configs::dataManager->settingsRepo->log_level);
+    logLevel->setCurrentIndex(currentLogLevel >= 0 ? currentLogLevel : 0);
+    logLevel->setFixedWidth(106);
+    logLevel->setToolTip(tr("Core log level; applies on the next start"));
+    logToolsLayout->addWidget(logLevel);
+    connect(clearLog, &QPushButton::clicked, this, [this] {
+        qvLogDocument->clear();
+        ui->masterLogBrowser->clear();
+    });
+    connect(copyLog, &QPushButton::clicked, this, [this] {
+        QApplication::clipboard()->setText(ui->masterLogBrowser->toPlainText());
+    });
+    connect(autoScrollSource, &QCheckBox::toggled, this, [](bool enabled) {
+        Configs::dataManager->settingsRepo->log_auto_scroll = enabled;
+        Configs::dataManager->settingsRepo->Save();
+    });
+    connect(logLevel, &QComboBox::currentIndexChanged, this, [logLevel] {
+        Configs::dataManager->settingsRepo->log_level = logLevel->currentData().toString();
+        Configs::dataManager->settingsRepo->Save();
+    });
+    ui->stats_widget->setCornerWidget(logTools, Qt::TopRightCorner);
+    bodyLayout->addWidget(ui->splitter, 1);
+
+    // Bottom chrome mirrors the header: a full-width strip closed by a hairline
+    // rather than another bordered card stacked inside the content area.
+    auto *statusCard = new QFrame(redesignedCentral);
+    statusCard->setObjectName(QStringLiteral("statusCard"));
+    statusCard->setFixedHeight(68);
+    auto *statusLayout = new QHBoxLayout(statusCard);
+    statusLayout->setContentsMargins(15, 7, 13, 7);
+    statusLayout->setSpacing(12);
+    const QList<QPair<QLabel *, MaterialIcon::Glyph>> statusItems{
+        {ui->label_running, MaterialIcon::Glyph::Public},
+        {ui->label_inbound, MaterialIcon::Glyph::Desktop},
+        {ui->label_speed, MaterialIcon::Glyph::SwapVertical},
+    };
+    QList<QPair<QLabel *, MaterialIcon::Glyph>> mutedIcons;
+    for (const auto &[label, glyph] : statusItems) {
+        auto *icon = new QLabel(statusCard);
+        mutedIcons.append({icon, glyph});
+        statusLayout->addWidget(icon);
+        label->setParent(statusCard);
+        label->setObjectName(QStringLiteral("statusValue"));
+        statusLayout->addWidget(label, glyph == MaterialIcon::Glyph::Desktop ? 3 : 2);
+    }
+    auto *selectionCard = new QFrame(redesignedCentral);
+    selectionCard->setObjectName(QStringLiteral("selectionCard"));
+    auto *selectionLayout = new QHBoxLayout(selectionCard);
+    selectionLayout->setContentsMargins(15, 8, 13, 8);
+    selectionLayout->setSpacing(10);
+    auto *selectionIcon = new QLabel(selectionCard);
+    selectionLayout->addWidget(selectionIcon);
+    auto *selectionText = new QLabel(selectionCard);
+    selectionText->setObjectName(QStringLiteral("selectionText"));
+    selectionLayout->addWidget(selectionText);
+    selectionLayout->addStretch(1);
+    const QList<QPair<QString, QAction *>> selectionActions{
+        {tr("URL test"), ui->actionUrl_Test_Selected},
+        {tr("Speed test"), ui->actionSpeedtest_Selected},
+        {tr("Resolve IP"), ui->actionResolve_Selected_Out_IP},
+    };
+    for (const auto &[text, action] : selectionActions) {
+        auto *button = new QPushButton(text, selectionCard);
+        button->setObjectName(QStringLiteral("selectionAction"));
+        connect(button, &QPushButton::clicked, action, &QAction::trigger);
+        selectionLayout->addWidget(button);
+    }
+    selectionCard->setFixedHeight(68);
+    selectionCard->hide();
+    rootLayout->addWidget(body, 1);
+    rootLayout->addWidget(ui->data_view);
+    rootLayout->addWidget(selectionCard);
+    rootLayout->addWidget(statusCard);
+
+    // Icons are rasterised, so they have to be repainted whenever the theme
+    // changes; otherwise a blue glyph survives into a warm palette.
+    const auto retintIcons = [navigation, mutedIcons, selectionIcon] {
+        const auto colors = themeManager->Colors();
+        for (const auto &[button, glyph] : navigation)
+            button->setIcon(MaterialIcon::icon(glyph, colors.textMuted, 19));
+        for (const auto &[label, glyph] : mutedIcons)
+            label->setPixmap(MaterialIcon::pixmap(glyph, colors.textMuted, 18));
+        selectionIcon->setPixmap(MaterialIcon::pixmap(MaterialIcon::Glyph::List, colors.accent, 21));
+    };
+    retintIcons();
+    connect(themeManager, &ThemeManager::themeChanged, this, retintIcons);
+
+    setWindowFlag(Qt::FramelessWindowHint, true);
+    new ThronedWindowResizer(this);
+    setMinimumSize(960, 680);
+    ui->centralwidget = redesignedCentral;
+    setCentralWidget(redesignedCentral);
+
+    ui->profilesTableView->setAlternatingRowColors(false);
+    ui->profilesTableView->setShowGrid(false);
+    ui->profilesTableView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    ui->profilesTableView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    ui->profilesTableView->verticalHeader()->setDefaultSectionSize(34);
+    ui->profilesTableView->setCornerButtonEnabled(false);
+    auto tablePalette = ui->profilesTableView->palette();
+    tablePalette.setColor(QPalette::Highlight, QColor(QStringLiteral("#143C48")));
+    tablePalette.setColor(QPalette::HighlightedText, QColor(QStringLiteral("#FFFFFF")));
+    ui->profilesTableView->setPalette(tablePalette);
+    ui->connections->setShowGrid(false);
+    ui->masterLogBrowser->setLineWrapMode(QTextEdit::WidgetWidth);
+    const QString mainStyleTemplate = QStringLiteral(R"(
+* { font-size: %BASE_FONT_PX%px; color: #F1F3F5; }
+QMainWindow { background: #1B1E23; }
+QWidget#previewRoot { background: #1B1E23; border: 1px solid #2F3136; }
+QWidget#body { background: #1B1E23; }
+QFrame#titleBar { background: #1B1E23; border: none; }
+QLabel#titleBrand { font-size: 18px; font-weight: 700; }
+QLabel#titleContext { font-size: 14px; font-weight: 650; color: #D8DCE1; }
+QFrame#titleBar QToolButton { background: transparent; border: none; }
+QFrame#titleBar QToolButton:hover { background: #292D33; }
+QFrame#titleBar QToolButton#titleClose:hover { background: #C42B35; }
+QFrame#vSeparator { background: #2F3136; border: none; }
+QFrame#commandBar {
+    background: #1B1E23; border: none; border-bottom: 1px solid #2F3136;
+}
+QFrame#statusCard, QFrame#selectionCard {
+    background: #1B1E23; border: none; border-top: 1px solid #2F3136;
+}
+QFrame#commandBar QToolButton {
+    background: transparent; border: none; border-radius: 6px; font-weight: 550; padding: 7px 9px;
+}
+QFrame#commandBar QToolButton:hover { background: #292D33; }
+QFrame#commandBar QToolButton::menu-indicator { image: none; width: 0px; }
+QLabel#controlLabel { font-weight: 550; }
+QWidget#tableTools, QWidget#logTools { background: transparent; }
+QPushButton#logToolButton {
+    background: #222529; border: 1px solid #2F3136; border-radius: 5px; padding: 6px 10px;
+}
+QPushButton#logToolButton:hover { background: #292D33; border-color: #4A4F57; }
+QToolButton#tableFilterButton {
+    background: transparent; border: 1px solid transparent; border-radius: 6px;
+}
+QToolButton#tableFilterButton:hover { background: #292D33; border-color: #4A4F57; }
+QToolButton#tableFilterButton:checked { background: #182530; border-color: #237AE9; }
+QLineEdit#serverSearch {
+    background: #171B21; border: 1px solid #2F3136; border-radius: 6px; padding: 6px 9px;
+}
+QLineEdit#serverSearch:hover { border-color: #4A535E; }
+QLineEdit#serverSearch:focus { border-color: #2F91FF; }
+QComboBox#logLevelSelector {
+    background: #171B21; border: 1px solid #2F3136; border-radius: 5px;
+    padding: 6px 28px 6px 9px;
+}
+QComboBox#logLevelSelector:hover { border-color: #4A535E; }
+QTabWidget#groupsCard, QTabWidget#logsCard { background: transparent; }
+QTabWidget#groupsCard::pane, QTabWidget#logsCard::pane {
+    background: #171B21; border: 1px solid #2F3136; border-radius: 7px; top: -1px;
+}
+QTabWidget#groupsCard::tab-bar, QTabWidget#logsCard::tab-bar { left: 3px; }
+QTabWidget#groupsCard QTabBar, QTabWidget#logsCard QTabBar { background: transparent; qproperty-drawBase: 0; }
+QTabWidget#groupsCard QTabBar::tab, QTabWidget#logsCard QTabBar::tab {
+    background: transparent; border: none; border-bottom: 2px solid transparent;
+    padding: 6px 13px; margin-right: 3px; color: #A4ABB4; font-weight: 500;
+}
+QTabWidget#groupsCard QTabBar::tab:hover, QTabWidget#logsCard QTabBar::tab:hover { color: #F1F3F5; }
+QTabWidget#groupsCard QTabBar::tab:selected, QTabWidget#logsCard QTabBar::tab:selected {
+    color: #F1F3F5; background: #182530; border-bottom: 2px solid #237AE9;
+}
+QTableView, QTableWidget, QTextBrowser {
+    background: #171B21; border: none; outline: none;
+    selection-color: white; selection-background-color: #143C48;
+}
+QHeaderView::section {
+    background: #171B21; color: #C2C7CE; border: none; border-right: 1px solid #2F3136;
+    border-bottom: 1px solid #2F3136; padding: 5px 8px; font-weight: 500;
+}
+QHeaderView { background: #171B21; }
+QHeaderView::section:vertical,
+QHeaderView::section:vertical:checked,
+QHeaderView::section:vertical:pressed {
+    color: #8295A6; background: #171B21; border-right: 1px solid #2F3136;
+}
+QTableCornerButton::section { background: #171B21; border: none; border-right: 1px solid #2F3136; border-bottom: 1px solid #2F3136; }
+QTableView::item, QTableWidget::item { border-bottom: 1px solid #2F3136; padding: 3px 7px; }
+QTableView::item:selected, QTableWidget::item:selected {
+    color: white; background: #143C48;
+    border-top: 1px solid #1D7585; border-bottom: 1px solid #1D7585;
+}
+QSplitter::handle { background: transparent; height: 8px; }
+QTextBrowser#masterLogBrowser { padding: 8px 10px; font-family: "Cascadia Mono", "Consolas", monospace; font-size: 13px; }
+QFrame#statusCard QLabel#statusValue {
+    background: transparent; border: none; padding: 3px 0;
+}
+QFrame#selectionCard QLabel#selectionText { color: #F1F3F5; font-weight: 600; }
+QFrame#selectionCard QPushButton#selectionAction {
+    background: #222529; border: 1px solid #2F3136; border-radius: 5px; padding: 6px 10px;
+}
+QFrame#selectionCard QPushButton#selectionAction:hover { background: #292D33; border-color: #4A4F57; }
+QTextBrowser#selectionStatus {
+    color: #E5E8EB; background: #1B1E23; border: none;
+    border-top: 1px solid #2F3136; padding: 8px 15px;
+}
+QScrollBar:vertical { background: transparent; width: 11px; margin: 3px; }
+QScrollBar::handle:vertical { background: #344759; border-radius: 4px; min-height: 34px; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }
+)");
+    themeManager->RegisterStyle(this, mainStyleTemplate);
 
     // init shortcuts
     setActionsData();
@@ -171,6 +498,21 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     // setup log
     ui->splitter->restoreState(DecodeB64IfValid(Configs::dataManager->settingsRepo->splitter_state));
+    ui->splitter->setChildrenCollapsible(false);
+    ui->splitter->setStretchFactor(0, 3);
+    ui->splitter->setStretchFactor(1, 2);
+    // Splitter states saved by the legacy layout can allocate more than half
+    // the window to the log and make the profile table look compressed.  Keep
+    // sensible user-adjusted states, but migrate obviously legacy proportions
+    // to MainPreview's 3:2 table/log balance after the first layout pass.
+    QTimer::singleShot(0, ui->splitter, [this] {
+        const QList<int> sizes = ui->splitter->sizes();
+        if (sizes.size() != 2) return;
+        const int total = sizes[0] + sizes[1];
+        if (total <= 0) return;
+        if (sizes[0] * 100 < total * 52 || sizes[1] < 120)
+            ui->splitter->setSizes({total * 3 / 5, total * 2 / 5});
+    });
     setLogHighlighter(themeUsesDarkLog(Configs::dataManager->settingsRepo->theme));
     qvLogDocument->setUndoRedoEnabled(false);
     qvLogDocument->setMaximumBlockCount(Configs::dataManager->settingsRepo->max_log_line);
@@ -300,14 +642,42 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->tabWidget->installEventFilter(this);
     //
     auto btnFilter = new QToolButton(this);
-    btnFilter->setIcon(QIcon(":/icon/filter.png"));
+    btnFilter->setObjectName(QStringLiteral("tableFilterButton"));
     btnFilter->setToolTip(QString("%1\n%2").arg(tr("Enable Filter"), QKeySequence(QKeySequence::Find).toString(QKeySequence::NativeText)));
     btnFilter->setShortcut(QKeySequence::Find);
     btnFilter->setCheckable(true);
+    btnFilter->setIconSize(QSize(17, 17));
+    btnFilter->setFixedSize(32, 32);
     connect(btnFilter, &QToolButton::toggled, static_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader()), &ProfilesTableFilterHeader::setFiltersVisible);
     connect(static_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader()), &ProfilesTableFilterHeader::closeRequested,
             btnFilter, [btnFilter] { btnFilter->setChecked(false); });
-    ui->tabWidget->setCornerWidget(btnFilter, Qt::TopRightCorner);
+    auto *tableTools = new QWidget(ui->tabWidget);
+    tableTools->setObjectName(QStringLiteral("tableTools"));
+    auto *tableToolsLayout = new QHBoxLayout(tableTools);
+    tableToolsLayout->setContentsMargins(0, 0, 8, 5);
+    tableToolsLayout->setSpacing(6);
+    tableToolsLayout->addWidget(btnFilter);
+    auto *serverSearch = new QLineEdit(tableTools);
+    serverSearch->setObjectName(QStringLiteral("serverSearch"));
+    serverSearch->setPlaceholderText(tr("Search servers..."));
+    serverSearch->setClearButtonEnabled(true);
+    serverSearch->setFixedWidth(230);
+    auto *searchAction = serverSearch->addAction(QIcon(), QLineEdit::LeadingPosition);
+    tableToolsLayout->addWidget(serverSearch);
+    connect(serverSearch, &QLineEdit::textChanged, this, [this](const QString &text) {
+        globalFilterString = text;
+        if (m_filterRefreshDebounce) m_filterRefreshDebounce->start();
+    });
+    ui->tabWidget->setCornerWidget(tableTools, Qt::TopRightCorner);
+    const auto retintTableTools = [btnFilter, searchAction] {
+        const auto colors = themeManager->Colors();
+        btnFilter->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Filter,
+                                              btnFilter->isChecked() ? colors.accent : colors.textMuted, 17));
+        searchAction->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Search, colors.textSubtle, 16));
+    };
+    retintTableTools();
+    connect(btnFilter, &QToolButton::toggled, this, retintTableTools);
+    connect(themeManager, &ThemeManager::themeChanged, this, retintTableTools);
     //
     RegisterHotkey(false);
     //
@@ -420,7 +790,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->profilesTableView->setModel(profilesFilterModel);
     // Keep the start/stop button's enabled/disabled state in sync with selection.
     connect(ui->profilesTableView->selectionModel(), &QItemSelectionModel::selectionChanged, this,
-            [this] { refresh_startstop_button(); });
+            [this] {
+                refresh_startstop_button();
+                const int selected = ui->profilesTableView->selectionModel()->selectedRows().size();
+                auto *connected = findChild<QFrame *>(QStringLiteral("statusCard"));
+                auto *selection = findChild<QFrame *>(QStringLiteral("selectionCard"));
+                auto *selectionText = findChild<QLabel *>(QStringLiteral("selectionText"));
+                if (!connected || !selection || !selectionText || ui->data_view->isVisible()) return;
+                selectionText->setText(tr("%n profiles selected", nullptr, selected));
+                selection->setVisible(selected > 1);
+                connected->setVisible(selected <= 1);
+            });
     ui->profilesTableView->rowsSwapped = [this](int row1, int row2)
     {
         // A drop position in a filtered list says nothing about the group's real order.
@@ -650,7 +1030,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         }
     });
     ui->profilesTableView->verticalHeader()->setStretchLastSection(false);
-    ui->profilesTableView->verticalHeader()->setDefaultSectionSize(24);
+    ui->profilesTableView->verticalHeader()->setDefaultSectionSize(34);
     ui->profilesTableView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     ui->profilesTableView->setTabKeyNavigation(false);
     ui->profilesTableView->horizontalHeader()->setResizeContentsPrecision(0);

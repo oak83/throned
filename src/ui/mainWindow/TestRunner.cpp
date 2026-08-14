@@ -21,6 +21,7 @@ namespace {
     constexpr int kTestBatchSize = 100;
     constexpr int kLatencyPollIntervalMs = 200;
     constexpr int kSpeedPollIntervalMs = 100;
+    constexpr int kTrafficFlushIntervalMs = 1000;
 
     // An auto selector has no server of its own: whichever member answers changes
     // minute to minute, so a stored result would be noise on that row.
@@ -387,7 +388,13 @@ void TestRunner::runSpeedTests(const QList<int>& requestedIDs, bool testCurrent)
     runOnNewThread([this, profileIDs, testCurrent]() {
         stopRequested_.store(false);
         // Fresh per-tag byte baselines for this speed-test session.
-        { QMutexLocker lk(&creditMu_); credited_.clear(); }
+        flushTrafficCredits();
+        {
+            QMutexLocker lk(&creditMu_);
+            credited_.clear();
+            pendingTraffic_.clear();
+            trafficFlushTimer_.start();
+        }
         if (!testCurrent)
         {
             mw_->dataViewHtmlGenerator_.seedSpeedTest(profileIDs.size());
@@ -433,6 +440,8 @@ void TestRunner::runSpeedTests(const QList<int>& requestedIDs, bool testCurrent)
             runSpeedProbe(target);
             testingCurrent_.store(false);
         }
+        // A short or cancelled test may finish before the periodic flush.
+        flushTrafficCredits();
         mw_->dataViewHtmlGenerator_.clearTestSections();
         mw_->UpdateDataView(true);
         session_.unlock();
@@ -447,19 +456,40 @@ void TestRunner::creditTraffic(const std::shared_ptr<Configs::Profile>& profile,
 {
     if (profile == nullptr || tag.isEmpty()) return;
     if (Configs::dataManager->settingsRepo->disable_traffic_stats) return;
-    QMutexLocker lk(&creditMu_);
-    auto& base = credited_[tag];
-    const qint64 dUp = curUp >= base.first ? curUp - base.first : curUp;
-    const qint64 dDown = curDown >= base.second ? curDown - base.second : curDown;
-    base = qMakePair(curUp, curDown);
-    if (dUp <= 0 && dDown <= 0) return;
+    bool shouldFlush = false;
+    {
+        QMutexLocker lk(&creditMu_);
+        auto& base = credited_[tag];
+        const qint64 dUp = curUp >= base.first ? curUp - base.first : curUp;
+        const qint64 dDown = curDown >= base.second ? curDown - base.second : curDown;
+        base = qMakePair(curUp, curDown);
+        if (dUp <= 0 && dDown <= 0) return;
 
-    Stats::trafficStatsManager->AddConfigDelta(profile->id, dUp, dDown);
-    Stats::trafficStatsManager->AddAppDelta(Stats::SPEEDTEST_APP_NAME, "", dUp, dDown);
+        Stats::trafficStatsManager->AddConfigDelta(profile->id, dUp, dDown);
+        Stats::trafficStatsManager->AddAppDelta(Stats::SPEEDTEST_APP_NAME, "", dUp, dDown);
 
-    profile->traffic_uplink += dUp;
-    profile->traffic_downlink += dDown;
-    Configs::dataManager->profilesRepo->SaveTraffic(profile);
+        profile->traffic_uplink += dUp;
+        profile->traffic_downlink += dDown;
+        pendingTraffic_[profile->id] = profile;
+        shouldFlush = !trafficFlushTimer_.isValid()
+            || trafficFlushTimer_.elapsed() >= kTrafficFlushIntervalMs;
+    }
+    if (shouldFlush) flushTrafficCredits();
+}
+
+void TestRunner::flushTrafficCredits()
+{
+    // Keep snapshots and writes ordered if the final result races a poll tick.
+    QMutexLocker flushLock(&trafficFlushMu_);
+    QList<std::shared_ptr<Configs::Profile>> profiles;
+    {
+        QMutexLocker creditLock(&creditMu_);
+        profiles.reserve(pendingTraffic_.size());
+        for (const auto& profile : std::as_const(pendingTraffic_)) profiles.append(profile);
+        pendingTraffic_.clear();
+        trafficFlushTimer_.restart();
+    }
+    if (!profiles.isEmpty()) Configs::dataManager->profilesRepo->SaveTrafficBatch(profiles);
 }
 
 void TestRunner::pollSpeedTest(const QMap<QString, int>& tag2entID, bool testCurrent)
@@ -568,6 +598,8 @@ void TestRunner::runSpeedProbe(const Target& target)
 
         result = defaultClient->SpeedTest(&rpcOK, req, &coreError);
     }
+
+    flushTrafficCredits();
 
     if (!rpcOK || result.results.empty()) {
         // Detect missing Xray geo assets from a failed SpeedTest RPC (see runUrlProbe).

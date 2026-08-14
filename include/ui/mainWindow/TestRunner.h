@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QHash>
+#include <QElapsedTimer>
 #include <QList>
 #include <QMap>
 #include <QMutex>
@@ -82,6 +83,8 @@ private:
     void creditTraffic(const std::shared_ptr<Configs::Profile>& profile, const QString& tag,
                        qint64 curUp, qint64 curDown);
 
+    void flushTrafficCredits();
+
     MainWindow* mw_;
 
     // Held for a whole sweep, so it must never double as a per-batch latch.
@@ -95,4 +98,7 @@ private:
     // bytes are counted only here, diffed per tag against the last report.
     QMutex creditMu_;
     QHash<QString, QPair<qint64, qint64>> credited_;
+    QHash<int, std::shared_ptr<Configs::Profile>> pendingTraffic_;
+    QElapsedTimer trafficFlushTimer_;
+    QMutex trafficFlushMu_;
 };

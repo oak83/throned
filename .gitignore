@@ -88,3 +88,7 @@ out
 /libs
 srslist.h
 .claude
+/.ui-preview-artifact/
+
+# Local runtime data created when running a build from the source tree
+/config/

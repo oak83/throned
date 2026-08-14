@@ -11,6 +11,12 @@
 #include "include/database/entities/RouteProfile.h"
 
 class QListWidget;
+class QAbstractButton;
+class QFrame;
+class QLabel;
+class RouteProfileSimpleEditor;
+class QStackedWidget;
+class QVBoxLayout;
 
 class RouteItem : public QDialog {
     Q_OBJECT
@@ -44,6 +50,24 @@ private:
     AutoCompleteTextEdit* simpleProxy;
 
     AutoCompleteTextEdit* simpleWarpBypass;
+
+    RouteProfileSimpleEditor* simpleEditor = nullptr;
+
+    QStackedWidget* advancedStack = nullptr;
+    QVBoxLayout* advancedRulesLayout = nullptr;
+    QFrame* advancedSidebar = nullptr;
+    QLabel* advancedTotalLabel = nullptr;
+    std::map<int, QAbstractButton*> advancedActionButtons;
+    int advancedActionFilter = 2;
+    bool advancedShowAllActions = false;
+
+    void rebuildAdvancedSummary();
+
+    void showAdvancedDetail(int ruleIndex);
+
+    void syncSimpleEditorsToRouteProfile();
+
+    void syncRouteProfileToSimpleEditors();
 
     QListWidget* ruleAttrPlusList = nullptr;
 

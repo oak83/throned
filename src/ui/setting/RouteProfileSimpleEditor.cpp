@@ -1,0 +1,942 @@
+#include "include/ui/setting/RouteProfileSimpleEditor.h"
+
+#include "include/ui/setting/ApplicationPickerDialog.h"
+#include "include/ui/setting/ThemeManager.hpp"
+#include "include/ui/widget/MaterialIcon.h"
+#include "include/ui/widget/ThronedToggle.h"
+
+#include <QAbstractButton>
+#include <QComboBox>
+#include <QDir>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFileDialog>
+#include <QFileIconProvider>
+#include <QFileInfo>
+#include <QFontMetrics>
+#include <QFrame>
+#include <QGridLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QPainter>
+#include <QPlainTextEdit>
+#include <QPushButton>
+#include <QScrollArea>
+#include <QSignalBlocker>
+#include <QStyleOptionButton>
+#include <QToolButton>
+#include <QVBoxLayout>
+
+#include <algorithm>
+#include <functional>
+
+namespace {
+
+constexpr auto Blue = "#237AE9";
+constexpr auto Cyan = "#29B6F6";
+constexpr auto Green = "#2EBC75";
+constexpr auto Red = "#FF4D56";
+constexpr auto Purple = "#A66CFF";
+constexpr auto Muted = "#A4ABB4";
+
+class FlowLayout final : public QLayout {
+public:
+    explicit FlowLayout(QWidget *parent = nullptr, int horizontalSpacing = 8, int verticalSpacing = 7)
+        : QLayout(parent), horizontalSpacing_(horizontalSpacing), verticalSpacing_(verticalSpacing) {}
+
+    ~FlowLayout() override {
+        while (QLayoutItem *item = takeAt(0)) delete item;
+    }
+
+    void addItem(QLayoutItem *item) override { items_.append(item); }
+    int count() const override { return items_.size(); }
+    QLayoutItem *itemAt(int index) const override { return items_.value(index); }
+    QLayoutItem *takeAt(int index) override {
+        return index >= 0 && index < items_.size() ? items_.takeAt(index) : nullptr;
+    }
+    Qt::Orientations expandingDirections() const override { return {}; }
+    bool hasHeightForWidth() const override { return true; }
+    int heightForWidth(int width) const override { return arrange(QRect(0, 0, width, 0), true); }
+    QSize sizeHint() const override { return minimumSize(); }
+    QSize minimumSize() const override {
+        QSize size;
+        for (QLayoutItem *item : items_) size = size.expandedTo(item->minimumSize());
+        const QMargins margins = contentsMargins();
+        return size + QSize(margins.left() + margins.right(), margins.top() + margins.bottom());
+    }
+    void setGeometry(const QRect &rect) override {
+        QLayout::setGeometry(rect);
+        arrange(rect, false);
+    }
+
+private:
+    int arrange(const QRect &rect, bool measureOnly) const {
+        const QMargins margins = contentsMargins();
+        const QRect area = rect.adjusted(margins.left(), margins.top(), -margins.right(), -margins.bottom());
+        int x = area.x();
+        int y = area.y();
+        int rowHeight = 0;
+        for (QLayoutItem *item : items_) {
+            const QSize hint = item->sizeHint();
+            if (x > area.x() && x + hint.width() > area.right() + 1) {
+                x = area.x();
+                y += rowHeight + verticalSpacing_;
+                rowHeight = 0;
+            }
+            if (!measureOnly) item->setGeometry(QRect(QPoint(x, y), hint));
+            x += hint.width() + horizontalSpacing_;
+            rowHeight = std::max(rowHeight, hint.height());
+        }
+        return y + rowHeight - rect.y() + margins.bottom();
+    }
+
+    QList<QLayoutItem *> items_;
+    int horizontalSpacing_;
+    int verticalSpacing_;
+};
+
+class ActionButton final : public QAbstractButton {
+public:
+    ActionButton(MaterialIcon::Glyph glyph, const QString &title, const QColor &tone, QWidget *parent = nullptr)
+        : QAbstractButton(parent), glyph_(glyph), title_(title), tone_(tone) {
+        setCheckable(true);
+        setCursor(Qt::PointingHandCursor);
+        setFixedHeight(44);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    }
+
+    void setCount(int count) {
+        count_ = count;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QRectF bounds = rect().adjusted(.5, .5, -.5, -.5);
+        painter.setPen(isChecked() ? tone_ : QColor("#2F3136"));
+        painter.setBrush(isChecked() ? QColor("#193452") : QColor("#222529"));
+        painter.drawRoundedRect(bounds, 6, 6);
+
+        const auto icon = MaterialIcon::pixmap(glyph_, tone_, 18);
+        painter.drawPixmap(13, (height() - 18) / 2, icon);
+        QFont titleFont = font();
+        titleFont.setWeight(QFont::DemiBold);
+        painter.setFont(titleFont);
+        painter.setPen(QColor("#F1F3F5"));
+        painter.drawText(QRect(43, 0, width() - 85, height()), Qt::AlignVCenter | Qt::AlignLeft, title_);
+
+        const QString count = QString::number(count_);
+        const int pillWidth = std::max(26, QFontMetrics(font()).horizontalAdvance(count) + 14);
+        const QRectF pill(width() - pillWidth - 12, (height() - 24) / 2.0, pillWidth, 24);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(isChecked() ? tone_ : QColor("#2B3037"));
+        painter.drawRoundedRect(pill, 5, 5);
+        painter.setPen(QColor("#F7F9FA"));
+        painter.drawText(pill, Qt::AlignCenter, count);
+    }
+
+private:
+    MaterialIcon::Glyph glyph_;
+    QString title_;
+    QColor tone_;
+    int count_ = 0;
+};
+
+struct ActionPresentation {
+    QString title;
+    QString description;
+    QColor tone;
+    MaterialIcon::Glyph glyph;
+};
+
+ActionPresentation actionPresentation(int action) {
+    switch (action) {
+    case 0: return {RouteProfileSimpleEditor::tr("Direct rules"), RouteProfileSimpleEditor::tr("Traffic that should bypass the proxy."), QColor(Green), MaterialIcon::Glyph::Direct};
+    case 1: return {RouteProfileSimpleEditor::tr("Block rules"), RouteProfileSimpleEditor::tr("Traffic that should be rejected."), QColor(Red), MaterialIcon::Glyph::Block};
+    case 3: return {RouteProfileSimpleEditor::tr("WARP bypass rules"), RouteProfileSimpleEditor::tr("Traffic that should bypass the WARP outbound."), QColor(Purple), MaterialIcon::Glyph::SwapVertical};
+    default: return {RouteProfileSimpleEditor::tr("Proxy rules"), RouteProfileSimpleEditor::tr("Traffic that should be routed through a proxy outbound."), QColor(Blue), MaterialIcon::Glyph::Shield};
+    }
+}
+
+QString rulePrefix(const QString &rule) {
+    return rule.left(rule.indexOf(':'));
+}
+
+QString ruleValue(const QString &rule) {
+    return rule.mid(rule.indexOf(':') + 1);
+}
+
+QString ruleDisplayValue(const QString &rule) {
+    const QString value = ruleValue(rule);
+    return rule.startsWith("processPath:") ? QFileInfo(value).fileName() : value;
+}
+
+QIcon iconForRule(const QString &rule, MaterialIcon::Glyph fallback, const QColor &tone) {
+    if (rule.startsWith("processPath:")) {
+        const QFileInfo info(ruleValue(rule));
+        if (info.exists()) {
+            QFileIconProvider provider;
+            const QIcon icon = provider.icon(info);
+            if (!icon.isNull()) return icon;
+        }
+    }
+    return MaterialIcon::icon(fallback, tone, 16);
+}
+
+class RuleChip final : public QAbstractButton {
+public:
+    RuleChip(const QString &rule, const QIcon &icon, bool removable, QWidget *parent = nullptr)
+        : QAbstractButton(parent), rule_(rule), icon_(icon), removable_(removable) {
+        setCursor(removable ? Qt::PointingHandCursor : Qt::ArrowCursor);
+        setToolTip(rule);
+        setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        setFixedHeight(32);
+    }
+
+    QSize sizeHint() const override {
+        return {QFontMetrics(font()).horizontalAdvance(ruleDisplayValue(rule_)) + (removable_ ? 66 : 46), 32};
+    }
+
+    void setIcon(const QIcon &icon) {
+        icon_ = icon;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        QColor border("#343941");
+        QColor fill("#222529");
+        if (rule_.startsWith("processName:") || rule_.startsWith("processPath:")) {
+            border = QColor("#263C55");
+            fill = QColor("#1B2634");
+        } else if (rule_.startsWith("ruleset:")) {
+            border = QColor(rule_.contains("geoip-", Qt::CaseInsensitive) ? "#46402E" : "#3C3657");
+            fill = QColor(rule_.contains("geoip-", Qt::CaseInsensitive) ? "#25231D" : "#222034");
+        } else if (rule_.startsWith("ip:")) {
+            border = QColor("#46402E");
+            fill = QColor("#25231D");
+        }
+        if (underMouse() && removable_) border = QColor("#2F91FF");
+        painter.setPen(border);
+        painter.setBrush(fill);
+        painter.drawRoundedRect(rect().adjusted(0, 0, -1, -1), 5, 5);
+        painter.drawPixmap(10, (height() - 17) / 2, icon_.pixmap(17, 17));
+        painter.setPen(QColor("#E5E8EB"));
+        painter.drawText(QRect(35, 0, width() - (removable_ ? 56 : 45), height()),
+                         Qt::AlignVCenter | Qt::AlignLeft, ruleDisplayValue(rule_));
+        if (removable_) {
+            painter.setPen(QColor("#A4ABB4"));
+            painter.drawText(QRect(width() - 28, 0, 18, height()), Qt::AlignCenter, QStringLiteral("×"));
+        }
+    }
+
+private:
+    QString rule_;
+    QIcon icon_;
+    bool removable_;
+};
+
+class RuleCard final : public QFrame {
+public:
+    RuleCard(const QString &title, const QString &subtitle, MaterialIcon::Glyph glyph, const QColor &tone,
+             const QStringList &rules, bool expanded, const std::function<void(const QString &)> &remove,
+             const std::function<void()> &add,
+             QWidget *parent = nullptr)
+        : QFrame(parent) {
+        setObjectName("routeRuleCard");
+        auto *root = new QVBoxLayout(this);
+        root->setContentsMargins(14, 12, 14, 12);
+        root->setSpacing(8);
+
+        auto *heading = new QHBoxLayout;
+        auto *icon = new QLabel(this);
+        icon->setPixmap(MaterialIcon::pixmap(glyph, tone, 18));
+        icon->setFixedSize(22, 22);
+        heading->addWidget(icon);
+        auto *titles = new QVBoxLayout;
+        titles->setSpacing(1);
+        auto *titleRow = new QHBoxLayout;
+        auto *titleLabel = new QLabel(title, this);
+        titleLabel->setObjectName("routeSectionTitle");
+        titleRow->addWidget(titleLabel);
+        auto *count = new QLabel(QString::number(rules.size()), this);
+        count->setObjectName("routeCountPill");
+        titleRow->addWidget(count);
+        titleRow->addStretch();
+        titles->addLayout(titleRow);
+        auto *subtitleLabel = new QLabel(subtitle, this);
+        subtitleLabel->setObjectName("routeMuted");
+        titles->addWidget(subtitleLabel);
+        heading->addLayout(titles, 1);
+        if (add) {
+            auto *addButton = new QPushButton(RouteProfileSimpleEditor::tr("Add"), this);
+            addButton->setObjectName("routeCardAddButton");
+            addButton->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Add, QColor("#DDE2E7"), 16));
+            QObject::connect(addButton, &QPushButton::clicked, this, [add] { add(); });
+            heading->addWidget(addButton);
+        }
+        auto *expand = new QToolButton(this);
+        expand->setObjectName("routeIconButton");
+        expand->setCheckable(true);
+        expand->setChecked(expanded);
+        expand->setIcon(MaterialIcon::icon(expanded ? MaterialIcon::Glyph::ChevronDown : MaterialIcon::Glyph::ChevronRight,
+                                           QColor(Muted), 18));
+        heading->addWidget(expand);
+        root->addLayout(heading);
+
+        auto *details = new QWidget(this);
+        details->setObjectName("routeTransparent");
+        auto *chips = new FlowLayout(details);
+        chips->setContentsMargins(32, 2, 0, 0);
+        if (rules.isEmpty()) {
+            auto *empty = new QLabel(RouteProfileSimpleEditor::tr("No rules added yet."), details);
+            empty->setObjectName("routeEmpty");
+            chips->addWidget(empty);
+        } else {
+            for (const QString &rule : rules) {
+                auto *chip = new RuleChip(rule, iconForRule(rule, glyph, tone), static_cast<bool>(remove), details);
+                // A process rule names an executable, not a path, so its real
+                // icon can only arrive once the name has been resolved.
+                if (rule.startsWith("processName:")) {
+                    ApplicationIcons::resolve(ruleValue(rule), chip, [chip](const QIcon &icon) { chip->setIcon(icon); });
+                }
+                if (remove) QObject::connect(chip, &QAbstractButton::clicked, chip, [remove, rule] { remove(rule); });
+                chips->addWidget(chip);
+            }
+        }
+        details->setVisible(expanded);
+        subtitleLabel->setVisible(expanded);
+        root->addWidget(details);
+        QObject::connect(expand, &QToolButton::toggled, this, [details, subtitleLabel, expand](bool show) {
+            details->setVisible(show);
+            subtitleLabel->setVisible(show);
+            expand->setIcon(MaterialIcon::icon(show ? MaterialIcon::Glyph::ChevronDown : MaterialIcon::Glyph::ChevronRight,
+                                               QColor(Muted), 18));
+        });
+    }
+};
+
+QStringList cleanedRules(const QString &rules) {
+    QStringList result;
+    for (const QString &line : rules.split('\n')) {
+        const QString clean = line.trimmed();
+        if (!clean.isEmpty() && !result.contains(clean)) result.append(clean);
+    }
+    return result;
+}
+
+} // namespace
+
+RouteProfileSimpleEditor::RouteProfileSimpleEditor(QWidget *parent) : QWidget(parent) {
+    setObjectName("routeSimpleEditor");
+    auto *root = new QHBoxLayout(this);
+    root->setContentsMargins(0, 0, 0, 0);
+    root->setSpacing(10);
+
+    auto *sidebar = new QFrame(this);
+    sidebar->setObjectName("routeSidebar");
+    sidebar->setFixedWidth(228);
+    auto *side = new QVBoxLayout(sidebar);
+    side->setContentsMargins(10, 12, 10, 10);
+    side->setSpacing(6);
+    auto *sideTitle = new QLabel(tr("Routing actions"), sidebar);
+    sideTitle->setObjectName("routeSideTitle");
+    side->addWidget(sideTitle);
+    side->addSpacing(8);
+
+    const struct { int action; const char *title; MaterialIcon::Glyph glyph; const char *tone; } actions[] = {
+        {0, QT_TR_NOOP("Direct"), MaterialIcon::Glyph::Direct, Green},
+        {2, QT_TR_NOOP("Proxy"), MaterialIcon::Glyph::Shield, Blue},
+        {1, QT_TR_NOOP("Block"), MaterialIcon::Glyph::Block, Red},
+        {3, QT_TR_NOOP("WARP bypass"), MaterialIcon::Glyph::SwapVertical, Purple},
+    };
+    for (const auto &item : actions) {
+        auto *button = new ActionButton(item.glyph, tr(item.title), QColor(item.tone), sidebar);
+        actionButtons_[item.action] = button;
+        connect(button, &QAbstractButton::clicked, this, [this, action = item.action] { selectAction(action); });
+        side->addWidget(button);
+    }
+    side->addStretch();
+
+    auto *stats = new QFrame(sidebar);
+    stats->setObjectName("routeStats");
+    auto *statsLayout = new QGridLayout(stats);
+    statsLayout->setContentsMargins(12, 10, 12, 10);
+    auto *statsTitle = new QLabel(tr("Profile statistics"), stats);
+    statsTitle->setObjectName("routeSideTitle");
+    statsLayout->addWidget(statsTitle, 0, 0, 1, 2);
+    auto *totalText = new QLabel(tr("Total rules"), stats);
+    totalText->setObjectName("routeMuted");
+    statsLayout->addWidget(totalText, 1, 0);
+    totalLabel_ = new QLabel("0", stats);
+    totalLabel_->setObjectName("routeStatsValue");
+    statsLayout->addWidget(totalLabel_, 1, 1, Qt::AlignRight);
+    side->addWidget(stats);
+    root->addWidget(sidebar);
+
+    auto *content = new QWidget(this);
+    content->setObjectName("routeTransparent");
+    auto *contentLayout = new QVBoxLayout(content);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(8);
+    auto *top = new QHBoxLayout;
+    auto *headerIcon = new QLabel(content);
+    headerIcon->setObjectName("routeHeaderIcon");
+    headerIcon->setProperty("routeHeaderIcon", true);
+    headerIcon->setFixedSize(26, 26);
+    top->addWidget(headerIcon);
+    auto *titles = new QVBoxLayout;
+    titles->setSpacing(1);
+    heading_ = new QLabel(content);
+    heading_->setObjectName("routeHeading");
+    description_ = new QLabel(content);
+    description_->setObjectName("routeMuted");
+    titles->addWidget(heading_);
+    titles->addWidget(description_);
+    top->addLayout(titles, 1);
+    auto *ruleOrderButton = new QPushButton(tr("Rule order"), content);
+    ruleOrderButton->setObjectName("routeSecondaryButton");
+    ruleOrderButton->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::SwapVertical, QColor("#DDE2E7"), 16));
+    connect(ruleOrderButton, &QPushButton::clicked, this, &RouteProfileSimpleEditor::advancedEditorRequested);
+    top->addWidget(ruleOrderButton);
+    contentLayout->addLayout(top);
+
+    auto *quick = new QFrame(content);
+    quick->setObjectName("routeRuleCard");
+    auto *quickRoot = new QVBoxLayout(quick);
+    quickRoot->setContentsMargins(14, 12, 14, 12);
+    quickRoot->setSpacing(8);
+    auto *quickHeading = new QHBoxLayout;
+    auto *quickIcon = new QLabel(quick);
+    quickIcon->setPixmap(MaterialIcon::pixmap(MaterialIcon::Glyph::Bolt, QColor(Blue), 18));
+    quickIcon->setFixedSize(22, 22);
+    quickHeading->addWidget(quickIcon);
+    auto *quickTitles = new QVBoxLayout;
+    quickTitles->setSpacing(1);
+    auto *quickHeadingTitle = new QLabel(tr("Quick options"), quick);
+    quickHeadingTitle->setObjectName("routeSectionTitle");
+    auto *quickHeadingSubtitle = new QLabel(tr("Common routing behavior."), quick);
+    quickHeadingSubtitle->setObjectName("routeMuted");
+    quickTitles->addWidget(quickHeadingTitle);
+    quickTitles->addWidget(quickHeadingSubtitle);
+    quickHeading->addLayout(quickTitles, 1);
+    auto *quickExpander = new QToolButton(quick);
+    quickExpander->setObjectName("routeIconButton");
+    quickExpander->setCheckable(true);
+    quickExpander->setChecked(true);
+    quickExpander->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::ChevronDown, QColor(Muted), 18));
+    quickHeading->addWidget(quickExpander);
+    quickRoot->addLayout(quickHeading);
+
+    auto *quickDetails = new QWidget(quick);
+    quickDetails->setObjectName("routeTransparent");
+    auto *quickLayout = new QHBoxLayout(quickDetails);
+    quickLayout->setContentsMargins(32, 2, 0, 0);
+    quickLayout->setSpacing(10);
+    auto *quickToggle = new ThronedToggle(false, quickDetails);
+    localProxyToggle_ = quickToggle;
+    quickLayout->addWidget(quickToggle, 0, Qt::AlignVCenter);
+    auto *quickCopy = new QVBoxLayout;
+    quickCopy->setSpacing(1);
+    auto *quickTitle = new QLabel(tr("Route local proxy traffic through proxy"), quickDetails);
+    quickTitle->setObjectName("routeSectionTitle");
+    auto *quickSubtitle = new QLabel(tr("Also route mixed-in and socks-in traffic through this outbound."), quickDetails);
+    quickSubtitle->setObjectName("routeMuted");
+    quickCopy->addWidget(quickTitle);
+    quickCopy->addWidget(quickSubtitle);
+    quickLayout->addLayout(quickCopy, 1);
+    connect(quickToggle, &QAbstractButton::toggled, this, [this](bool enabled) {
+        localProxyTrafficEnabled_ = enabled;
+        emit localProxyTrafficChanged(enabled);
+    });
+    quickRoot->addWidget(quickDetails);
+    connect(quickExpander, &QToolButton::toggled, quick, [quickDetails, quickHeadingSubtitle, quickExpander](bool show) {
+        quickDetails->setVisible(show);
+        quickHeadingSubtitle->setVisible(show);
+        quickExpander->setIcon(MaterialIcon::icon(show ? MaterialIcon::Glyph::ChevronDown : MaterialIcon::Glyph::ChevronRight,
+                                                   QColor(Muted), 18));
+    });
+    quickOptionsCard_ = quick;
+
+    auto *scroll = new QScrollArea(content);
+    scroll->setObjectName("routeCardsScroll");
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto *cards = new QWidget(scroll);
+    cards->setObjectName("routeTransparent");
+    cardsLayout_ = new QVBoxLayout(cards);
+    cardsLayout_->setContentsMargins(0, 0, 0, 0);
+    cardsLayout_->setSpacing(9);
+    cardsLayout_->addWidget(quickOptionsCard_);
+    cardsLayout_->addStretch();
+    scroll->setWidget(cards);
+    contentLayout->addWidget(scroll, 1);
+    root->addWidget(content, 1);
+
+    themeManager->RegisterStyle(this, QStringLiteral(R"(
+#routeSimpleEditor, #routeTransparent, QScrollArea#routeCardsScroll, QScrollArea#routeCardsScroll > QWidget > QWidget {
+    background: transparent;
+}
+QFrame#routeSidebar, QFrame#routeStats, QFrame#routeRuleCard {
+    background: #171B21;
+    border: 1px solid #2F3136;
+    border-radius: 7px;
+}
+QLabel#routeSideTitle, QLabel#routeSectionTitle { color: #F1F3F5; font-weight: 600; }
+QLabel#routeHeading { color: #F1F3F5; font-size: 17px; font-weight: 650; }
+QLabel#routeMuted { color: #A4ABB4; font-size: 13px; }
+QLabel#routeEmpty { color: #747C86; font-size: 13px; font-style: italic; }
+QLabel#routeStatsValue { color: #F1F3F5; font-weight: 700; }
+QLabel#routeCountPill {
+    color: #DDE2E7; background: #272C33; border: none; border-radius: 5px;
+    padding: 2px 8px; margin-left: 4px;
+}
+QToolButton#routeIconButton { background: transparent; border: none; padding: 3px; }
+QToolButton#routeIconButton:hover { background: #22272E; border-radius: 4px; }
+QToolButton#routeChip {
+    color: #E5E8EB; background: #222529; border: 1px solid #343941;
+    border-radius: 5px; padding: 6px 9px;
+}
+QToolButton#routeChip:hover { background: #292E35; border-color: #4A535E; }
+QPushButton#routeCardAddButton {
+    color: #DDE2E7; background: #222529; border: 1px solid #343941;
+    border-radius: 5px; padding: 6px 10px;
+}
+QPushButton#routeCardAddButton:hover { background: #292E35; border-color: #4A535E; }
+QPushButton#routePrimaryButton {
+    color: white; background: #237AE9; border: 1px solid #3187F3;
+    border-radius: 6px; padding: 8px 14px; font-weight: 600;
+}
+QPushButton#routePrimaryButton:hover { background: #2F86F1; }
+QPushButton#routeSecondaryButton {
+    color: #E1E4E8; background: #222529; border: 1px solid #2F3136;
+    border-radius: 5px; padding: 7px 11px;
+}
+QPushButton#routeSecondaryButton:hover { background: #292E35; border-color: #4A535E; }
+)"));
+
+    selectAction(2);
+}
+
+QString RouteProfileSimpleEditor::dialogStyleSheet() {
+    return QStringLiteral(R"(
+QDialog#routeProfileEditor {
+    background: #1B1E23; color: #F1F3F5;
+    font-size: %BASE_FONT_PX%px;
+}
+QDialog#routeProfileEditor QWidget#routeBody { background: #1B1E23; }
+/* Unscoped so every dialog that installs this sheet gets the same chrome. */
+QFrame#titleBar {
+    background: #1B1E23; border: none; border-bottom: 1px solid #2F3136;
+}
+QLabel#titleBrand { font-size: 18px; font-weight: 700; }
+QLabel#titleContext { color: #D8DCE1; font-size: 14px; font-weight: 650; }
+QFrame#vSeparator { background: #2F3136; border: none; }
+QFrame#titleBar QToolButton {
+    color: #F1F3F5; background: transparent; border: none;
+}
+QFrame#titleBar QToolButton:hover { background: #292D33; }
+QFrame#titleBar QToolButton#titleClose:hover { background: #C42B35; }
+QDialog#routeProfileEditor QFrame#routeFieldBox { background: transparent; border: none; }
+QDialog#routeProfileEditor QGroupBox#generalBox, QFrame#routeProfileHeader {
+    background: #171B21; border: 1px solid #2F3136; border-radius: 7px;
+}
+QDialog#routeProfileEditor QGroupBox#generalBox { margin: 0; }
+QDialog#routeProfileEditor QGroupBox#generalBox QLabel,
+QDialog#routeProfileEditor QLabel#routeFieldLabel { color: #A4ABB4; font-size: 13px; }
+QDialog#routeProfileEditor QLineEdit, QDialog#routeProfileEditor QComboBox,
+QDialog#routeProfileEditor QPlainTextEdit, QDialog#routeProfileEditor QTextEdit,
+QDialog#routeProfileEditor QTextBrowser, QDialog#routeProfileEditor QListWidget,
+QDialog#routeProfileEditor QTableView {
+    color: #F1F3F5; background: #171B21; border: 1px solid #2F3136;
+    border-radius: 6px; padding: 6px 9px; selection-background-color: #237AE9;
+}
+QDialog#routeProfileEditor QComboBox#def_out { padding-right: 34px; }
+QDialog#routeProfileEditor QComboBox#def_out::drop-down {
+    subcontrol-origin: padding; subcontrol-position: top right;
+    width: 30px; border: none;
+}
+QDialog#routeProfileEditor QLineEdit:focus, QDialog#routeProfileEditor QComboBox:focus,
+QDialog#routeProfileEditor QPlainTextEdit:focus, QDialog#routeProfileEditor QTextEdit:focus,
+QDialog#routeProfileEditor QTableView:focus {
+    border-color: #237AE9;
+}
+QDialog#routeProfileEditor QTabWidget::pane { border: none; background: transparent; }
+QDialog#routeProfileEditor QTabWidget#routeModeStack,
+QDialog#routeProfileEditor QTabWidget#routeModeStack > QWidget > QWidget { background: transparent; }
+QDialog#routeProfileEditor QTabBar { background: transparent; qproperty-drawBase: 0; }
+QDialog#routeProfileEditor QTabBar::tab {
+    color: #A4ABB4; background: #171B21; border: 1px solid #2F3136;
+    padding: 7px 24px; min-width: 78px;
+}
+QDialog#routeProfileEditor QTabBar::tab:first { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
+QDialog#routeProfileEditor QTabBar::tab:last { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
+QDialog#routeProfileEditor QTabBar::tab:selected { color: white; background: #237AE9; border-color: #3187F3; }
+QDialog#routeProfileEditor QTabBar#routeModeTabs {
+    background: #171B21; border: 1px solid #2F3136; border-radius: 6px;
+}
+QDialog#routeProfileEditor QTabBar#routeModeTabs::tab {
+    background: transparent; border: none; color: #A4ABB4;
+    min-width: 92px; min-height: 28px; margin: 3px 1px; padding: 0 4px;
+}
+QDialog#routeProfileEditor QTabBar#routeModeTabs::tab:first { margin-left: 3px; }
+QDialog#routeProfileEditor QTabBar#routeModeTabs::tab:last { margin-right: 3px; }
+QDialog#routeProfileEditor QTabBar#routeModeTabs::tab:selected {
+    background: #237AE9; border: 1px solid #4193F4; border-radius: 5px; color: white;
+}
+QDialog#routeProfileEditor QTabBar#applicationPickerTabs::tab {
+    border-radius: 6px; margin-right: 6px; padding: 7px 16px; min-width: 118px;
+}
+QDialog#routeProfileEditor QHeaderView::section {
+    color: #A4ABB4; background: #171B21; border: none; border-bottom: 1px solid #2F3136;
+    padding: 7px 9px; font-weight: 600;
+}
+QDialog#routeProfileEditor QTableView::item { border: none; padding: 4px 7px; }
+QDialog#routeProfileEditor QTableView::item:selected { color: white; background: #193E69; }
+QDialog#routeProfileEditor QHeaderView::down-arrow,
+QDialog#routeProfileEditor QHeaderView::up-arrow { margin-top: 4px; }
+QDialog#routeProfileEditor QPushButton#applicationPickerReload { padding: 5px 12px; min-width: 78px; }
+QDialog#routeProfileEditor QDialogButtonBox QPushButton,
+QDialog#routeProfileEditor QPushButton#routeSecondaryButton {
+    color: #F1F3F5; background: #222529; border: 1px solid #2F3136;
+    border-radius: 6px; padding: 8px 24px; min-width: 92px;
+}
+QDialog#routeProfileEditor QDialogButtonBox QPushButton:hover,
+QDialog#routeProfileEditor QPushButton#routeSecondaryButton:hover { background: #292E35; }
+QDialog#routeProfileEditor QPushButton#routeSaveButton {
+    color: white; background: #237AE9; border: 1px solid #3187F3;
+    border-radius: 6px; padding: 8px 24px; min-width: 112px; font-weight: 600;
+}
+QDialog#routeProfileEditor QPushButton#routeSaveButton:hover { background: #2F86F1; }
+QDialog#routeProfileEditor QScrollBar:vertical {
+    background: transparent; width: 11px; margin: 2px 1px;
+}
+QDialog#routeProfileEditor QScrollBar::handle:vertical {
+    background: #3A424D; min-height: 34px; border-radius: 4px; margin: 2px 1px;
+}
+QDialog#routeProfileEditor QScrollBar::handle:vertical:hover { background: #4B5663; }
+QDialog#routeProfileEditor QScrollBar::add-line:vertical,
+QDialog#routeProfileEditor QScrollBar::sub-line:vertical { height: 0; background: transparent; }
+QDialog#routeProfileEditor QScrollBar::add-page:vertical,
+QDialog#routeProfileEditor QScrollBar::sub-page:vertical { background: transparent; }
+QDialog#routeProfileEditor QScrollBar:horizontal {
+    background: transparent; height: 11px; margin: 1px 2px;
+}
+QDialog#routeProfileEditor QScrollBar::handle:horizontal {
+    background: #3A424D; min-width: 34px; border-radius: 4px; margin: 1px 2px;
+}
+QDialog#routeProfileEditor QScrollBar::handle:horizontal:hover { background: #4B5663; }
+QDialog#routeProfileEditor QScrollBar::add-line:horizontal,
+QDialog#routeProfileEditor QScrollBar::sub-line:horizontal { width: 0; background: transparent; }
+QDialog#routeProfileEditor QScrollBar::add-page:horizontal,
+QDialog#routeProfileEditor QScrollBar::sub-page:horizontal { background: transparent; }
+QDialog#routeProfileEditor QWidget#routeAdvancedHost,
+QDialog#routeProfileEditor QWidget#routeAdvancedSummaryHost,
+QDialog#routeProfileEditor QWidget#routeAdvancedSummary,
+QDialog#routeProfileEditor QWidget#routeAdvancedDetail,
+QDialog#routeProfileEditor QStackedWidget#routeAdvancedStack,
+QDialog#routeProfileEditor QScrollArea#routeAdvancedScroll { background: transparent; border: none; }
+QDialog#routeProfileEditor QFrame#routeAdvancedSidebar,
+QDialog#routeProfileEditor QFrame#routeAdvancedStats {
+    background: #171B21; border: 1px solid #2F3136; border-radius: 7px;
+}
+QDialog#routeProfileEditor QLabel#routeSideTitle { color: #F1F3F5; font-weight: 650; }
+QDialog#routeProfileEditor QLabel#routeStatsValue { color: #F1F3F5; font-weight: 700; }
+QDialog#routeProfileEditor QLabel#routeAdvancedHero {
+    color: #F1F3F5; font-size: 18px; font-weight: 700;
+}
+QDialog#routeProfileEditor QFrame#routeAdvancedNotice,
+QDialog#routeProfileEditor QFrame#routeFallbackCard,
+QDialog#routeProfileEditor QFrame#routeOrderedRule {
+    background: #171B21; border: 1px solid #2F3136; border-radius: 7px;
+}
+QDialog#routeProfileEditor QFrame#routeOrderedRule:hover { border-color: #45505C; }
+QDialog#routeProfileEditor QLabel#routeDragHandle { color: #617181; font-size: 16px; }
+QDialog#routeProfileEditor QLabel#routePriorityPill {
+    color: #DDE7F0; background: #252B33; border: 1px solid #343C46; border-radius: 6px;
+    font-weight: 700;
+}
+QDialog#routeProfileEditor QLabel#routeOrderedTitle { color: #F1F3F5; font-weight: 700; }
+QDialog#routeProfileEditor QLabel#routeActionPill,
+QDialog#routeProfileEditor QLabel#routeConditionPill {
+    color: #CFE6FF; background: #193452; border: 1px solid #285C8F;
+    border-radius: 5px; padding: 4px 8px;
+}
+QDialog#routeProfileEditor QLabel#routeActionPill { font-weight: 700; }
+QDialog#routeProfileEditor QLabel#routeActionPill[tone="green"],
+QDialog#routeProfileEditor QLabel#routeConditionPill[tone="green"] {
+    color: #BDF7D6; background: #17392A; border-color: #276744;
+}
+QDialog#routeProfileEditor QLabel#routeActionPill[tone="red"],
+QDialog#routeProfileEditor QLabel#routeConditionPill[tone="red"] {
+    color: #FFD0D4; background: #402126; border-color: #7F343C;
+}
+QDialog#routeProfileEditor QLabel#routeActionPill[tone="purple"],
+QDialog#routeProfileEditor QLabel#routeConditionPill[tone="purple"] {
+    color: #E2D1FF; background: #2B2142; border-color: #5B4089;
+}
+QDialog#routeProfileEditor QLabel#routeActionPill[tone="cyan"],
+QDialog#routeProfileEditor QLabel#routeConditionPill[tone="cyan"] {
+    color: #C9F4FF; background: #173744; border-color: #276275;
+}
+QDialog#routeProfileEditor QToolButton#routeAdvancedIconButton {
+    background: #222529; border: 1px solid #2F3136; border-radius: 5px; padding: 6px;
+}
+QDialog#routeProfileEditor QToolButton#routeAdvancedIconButton:hover {
+    background: #292E35; border-color: #4A535E;
+}
+QDialog#routeProfileEditor QToolButton#routeAdvancedIconButton:disabled {
+    background: transparent; border-color: transparent;
+}
+QDialog#routeProfileEditor QToolButton#routeAdvancedMoreButton {
+    background: transparent; border: 1px solid transparent; border-radius: 5px; padding: 6px;
+}
+QDialog#routeProfileEditor QToolButton#routeAdvancedMoreButton:hover {
+    background: #292E35; border-color: #4A535E;
+}
+QDialog#routeProfileEditor QPushButton#routeLinkButton {
+    color: #4DA3FF; background: transparent; border: none; padding: 4px 6px;
+}
+QDialog#routeProfileEditor QPushButton#routeLinkButton:hover { color: #7BBAFF; text-decoration: underline; }
+QDialog#routeProfileEditor QMenu {
+    color: #F1F3F5; background: #1B1E23; border: 1px solid #3A4048; border-radius: 6px;
+    padding: 5px;
+}
+QDialog#routeProfileEditor QMenu::item { padding: 7px 26px 7px 10px; border-radius: 4px; }
+QDialog#routeProfileEditor QMenu::item:selected { background: #263B55; }
+QDialog#routeProfileEditor QMenu::separator { height: 1px; background: #2F3136; margin: 4px 7px; }
+)");
+}
+
+void RouteProfileSimpleEditor::setRules(int action, const QString &rules) {
+    rules_[action] = cleanedRules(rules);
+    updateTotalCount();
+    updateActionButtons();
+    if (selectedAction_ == action) rebuild();
+}
+
+QString RouteProfileSimpleEditor::rules(int action) const {
+    const QStringList values = rules_.value(action);
+    return values.isEmpty() ? QString() : values.join('\n') + '\n';
+}
+
+void RouteProfileSimpleEditor::setAdvancedRuleCount(int count) {
+    advancedRuleCount_ = count;
+    updateTotalCount();
+    rebuild();
+}
+
+void RouteProfileSimpleEditor::setAdvancedRules(const QStringList &names) {
+    advancedRules_.clear();
+    for (const QString &name : names) advancedRules_.append(QStringLiteral("raw:") + name);
+    advancedRuleCount_ = advancedRules_.size();
+    updateTotalCount();
+    rebuild();
+}
+
+void RouteProfileSimpleEditor::setRuleSetCatalog(const QStringList &names) {
+    ruleSetCatalog_ = names;
+    ruleSetCatalog_.removeDuplicates();
+    ruleSetCatalog_.sort(Qt::CaseInsensitive);
+}
+
+void RouteProfileSimpleEditor::setLocalProxyTrafficEnabled(bool enabled) {
+    localProxyTrafficEnabled_ = enabled;
+    if (localProxyToggle_) {
+        const QSignalBlocker blocker(localProxyToggle_);
+        localProxyToggle_->setChecked(enabled);
+    }
+}
+
+void RouteProfileSimpleEditor::selectAction(int action) {
+    selectedAction_ = action;
+    updateActionButtons();
+    rebuild();
+}
+
+void RouteProfileSimpleEditor::updateActionButtons() {
+    for (auto it = actionButtons_.begin(); it != actionButtons_.end(); ++it) {
+        it.value()->setChecked(it.key() == selectedAction_);
+        if (auto *button = dynamic_cast<ActionButton *>(it.value())) button->setCount(rules_.value(it.key()).size());
+    }
+}
+
+void RouteProfileSimpleEditor::rebuild() {
+    while (cardsLayout_->count() > 2) {
+        QLayoutItem *item = cardsLayout_->takeAt(1);
+        if (item->widget()) item->widget()->deleteLater();
+        delete item;
+    }
+    const auto presentation = actionPresentation(selectedAction_);
+    heading_->setText(presentation.title);
+    description_->setText(presentation.description);
+    if (auto *icon = findChild<QLabel *>("routeHeaderIcon"))
+        icon->setPixmap(MaterialIcon::pixmap(presentation.glyph, presentation.tone, 24));
+
+    quickOptionsCard_->setVisible(selectedAction_ == 2);
+
+    QStringList applications;
+    QStringList domains;
+    QStringList network;
+    for (const QString &rule : rules_.value(selectedAction_)) {
+        const QString prefix = rulePrefix(rule);
+        if (prefix == "processName" || prefix == "processPath") applications.append(rule);
+        else if (prefix == "ip" || (prefix == "ruleset" && ruleValue(rule).startsWith("geoip-"))) network.append(rule);
+        else domains.append(rule);
+    }
+    const auto remove = [this](const QString &rule) { removeRule(rule); };
+    cardsLayout_->insertWidget(cardsLayout_->count() - 1,
+        new RuleCard(tr("Applications"), tr("Match by installed app, running process, or executable."), MaterialIcon::Glyph::Apps,
+                      QColor(Blue), applications, true, remove, [this] { addApplicationRules(); }, this));
+    cardsLayout_->insertWidget(cardsLayout_->count() - 1,
+        new RuleCard(tr("Domains & rule sets"), tr("Match domain names and remote geosite lists."), MaterialIcon::Glyph::Public,
+                      QColor(Cyan), domains, true, remove, [this] { addRule(QStringLiteral("domain")); }, this));
+    cardsLayout_->insertWidget(cardsLayout_->count() - 1,
+        new RuleCard(tr("Processes & IP/CIDR"), tr("Match destination IP addresses and CIDR ranges."), MaterialIcon::Glyph::Process,
+                      QColor(Green), network, false, remove, [this] { addRule(QStringLiteral("network")); }, this));
+    cardsLayout_->insertWidget(cardsLayout_->count() - 1,
+        new RuleCard(tr("Advanced / raw rules"), tr("Ordered conditions, exact priority, and lossless JSON."), MaterialIcon::Glyph::List,
+                      QColor(Cyan), advancedRules_, false, {}, [this] { emit advancedEditorRequested(); }, this));
+}
+
+void RouteProfileSimpleEditor::addApplicationRules() {
+    ApplicationPickerDialog picker(this);
+    themeManager->RegisterStyle(&picker, RouteProfileSimpleEditor::dialogStyleSheet());
+    if (picker.exec() != QDialog::Accepted) return;
+    bool changed = false;
+    for (const QString &rule : picker.selectedRules()) {
+        if (!rules_[selectedAction_].contains(rule)) {
+            rules_[selectedAction_].append(rule);
+            changed = true;
+        }
+    }
+    if (!changed) return;
+    emit rulesChanged(selectedAction_, rules(selectedAction_));
+    updateActionButtons();
+    rebuild();
+}
+
+void RouteProfileSimpleEditor::addRule(const QString &section) {
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Add routing rule"));
+    dialog.setObjectName("routeAddDialog");
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *hint = new QLabel(section == QStringLiteral("network")
+        ? tr("Paste one or more destination IP addresses or CIDR ranges, one per line.")
+        : tr("Paste one or more values, one per line, or choose several rule sets."), &dialog);
+    hint->setObjectName("routeMuted");
+    layout->addWidget(hint);
+    auto *type = new QComboBox(&dialog);
+    if (section == QStringLiteral("network")) {
+        type->addItem(tr("IP / CIDR"), "ip");
+        type->addItem(tr("GeoIP rule set"), "geoip");
+    } else {
+        type->addItem(tr("Domain"), "domain");
+        type->addItem(tr("Domain suffix"), "suffix");
+        type->addItem(tr("Domain keyword"), "keyword");
+        type->addItem(tr("Domain regex"), "regex");
+        type->addItem(tr("Geosite rule set"), "geosite");
+    }
+    layout->addWidget(type);
+    auto *valueRow = new QHBoxLayout;
+    auto *value = new QPlainTextEdit(&dialog);
+    value->setPlaceholderText(tr("One value per line…"));
+    value->setMinimumHeight(112);
+    valueRow->addWidget(value, 1);
+    layout->addLayout(valueRow);
+
+    auto *catalog = new QWidget(&dialog);
+    auto *catalogLayout = new QVBoxLayout(catalog);
+    catalogLayout->setContentsMargins(0, 0, 0, 0);
+    catalogLayout->setSpacing(8);
+    auto *catalogSearch = new QLineEdit(catalog);
+    catalogSearch->setPlaceholderText(tr("Search rule sets…"));
+    catalogSearch->addAction(MaterialIcon::icon(MaterialIcon::Glyph::Search, QColor(Muted), 17), QLineEdit::LeadingPosition);
+    catalogLayout->addWidget(catalogSearch);
+    auto *catalogList = new QListWidget(catalog);
+    catalogList->setSelectionMode(QAbstractItemView::MultiSelection);
+    catalogList->setMinimumHeight(220);
+    catalogLayout->addWidget(catalogList);
+    layout->addWidget(catalog);
+
+    const auto updateCatalog = [this, type, valueRow, catalog, catalogList, catalogSearch] {
+        const QString kind = type->currentData().toString();
+        const bool showCatalog = kind == QStringLiteral("geosite") || kind == QStringLiteral("geoip");
+        catalog->setVisible(showCatalog);
+        for (int index = 0; index < valueRow->count(); ++index)
+            if (auto *widget = valueRow->itemAt(index)->widget()) widget->setVisible(!showCatalog);
+        catalogList->clear();
+        if (!showCatalog) return;
+        const QString prefix = kind + '-';
+        for (const QString &name : ruleSetCatalog_) {
+            if (!name.startsWith(prefix, Qt::CaseInsensitive)) continue;
+            auto *item = new QListWidgetItem(name.mid(prefix.size()), catalogList);
+            item->setData(Qt::UserRole, name);
+        }
+        catalogSearch->clear();
+        catalogSearch->setFocus();
+    };
+    connect(type, &QComboBox::currentIndexChanged, &dialog, [updateCatalog](int) { updateCatalog(); });
+    connect(catalogSearch, &QLineEdit::textChanged, &dialog, [catalogList](const QString &needle) {
+        for (int row = 0; row < catalogList->count(); ++row) {
+            auto *item = catalogList->item(row);
+            const bool visible = item->text().contains(needle, Qt::CaseInsensitive)
+                || item->data(Qt::UserRole).toString().contains(needle, Qt::CaseInsensitive);
+            item->setHidden(!visible);
+        }
+    });
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel | QDialogButtonBox::Ok);
+    buttons->button(QDialogButtonBox::Ok)->setText(tr("Add selected"));
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    dialog.setStyleSheet(styleSheet());
+    dialog.setMinimumWidth(460);
+    value->setFocus();
+    updateCatalog();
+    if (dialog.exec() != QDialog::Accepted) return;
+    const QString kind = type->currentData().toString();
+    const bool selectedRuleSet = kind == QStringLiteral("geosite") || kind == QStringLiteral("geoip");
+    QStringList values;
+    if (selectedRuleSet) {
+        for (QListWidgetItem *item : catalogList->selectedItems())
+            values.append(item->data(Qt::UserRole).toString());
+    } else {
+        values = cleanedRules(value->toPlainText());
+    }
+    if (values.isEmpty()) return;
+    const QString prefix = selectedRuleSet ? QStringLiteral("ruleset") : kind;
+    bool changed = false;
+    for (const QString &entry : values) {
+        const QString rule = prefix + ':' + entry;
+        if (rules_[selectedAction_].contains(rule)) continue;
+        rules_[selectedAction_].append(rule);
+        changed = true;
+    }
+    if (!changed) return;
+    updateTotalCount();
+    emit rulesChanged(selectedAction_, rules(selectedAction_));
+    updateActionButtons();
+    rebuild();
+}
+
+void RouteProfileSimpleEditor::removeRule(const QString &rule) {
+    rules_[selectedAction_].removeAll(rule);
+    updateTotalCount();
+    emit rulesChanged(selectedAction_, rules(selectedAction_));
+    updateActionButtons();
+    rebuild();
+}
+
+void RouteProfileSimpleEditor::updateTotalCount() {
+    int total = advancedRuleCount_;
+    for (auto it = rules_.cbegin(); it != rules_.cend(); ++it) total += it.value().size();
+    totalLabel_->setText(QString::number(total));
+}

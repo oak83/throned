@@ -16,6 +16,7 @@ public:
     // An empty string disables that test. `address` also accepts "port=N",
     // "port=MIN:MAX", "port=MIN:" and "port=:MAX".
     void setFilters(const QString &type, const QString &address, const QString &name, const QString &country);
+    void setSearch(const QString &search);
     bool hasActiveFilter() const;
 
     ProfilesTableModel *profilesModel() const;
@@ -34,4 +35,5 @@ private:
     QString m_address;
     QString m_name;
     QString m_country;
+    QString m_search;
 };

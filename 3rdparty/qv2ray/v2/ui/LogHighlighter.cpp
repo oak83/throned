@@ -112,6 +112,18 @@ namespace Qv2ray::ui {
             rule.format = tcpudpFormat;
             highlightingRules.append(rule);
         }
+
+        // Keep long process paths readable: the path remains neutral and only
+        // the executable/binary name receives the purple process accent used
+        // by MainPreview.
+        processNameFormat.setForeground(QColor(195, 151, 255));
+        processNameFormat.setFontWeight(QFont::DemiBold);
+        rule.pattern = QRegularExpression(
+            R"((?:found\s+process\s+path|process\s+path)\s*:\s*(?:.*[\\/])([^\\/\s]+))",
+            QRegularExpression::CaseInsensitiveOption);
+        rule.format = processNameFormat;
+        rule.captureGroup = 1;
+        highlightingRules.append(rule);
     }
 
     void SyntaxHighlighter::highlightBlock(const QString &text) {
@@ -120,7 +132,9 @@ namespace Qv2ray::ui {
 
             while (matchIterator.hasNext()) {
                 QRegularExpressionMatch match = matchIterator.next();
-                setFormat(match.capturedStart(), match.capturedLength(), rule.format);
+                const int capture = rule.captureGroup;
+                if (match.capturedStart(capture) >= 0)
+                    setFormat(match.capturedStart(capture), match.capturedLength(capture), rule.format);
             }
         }
 

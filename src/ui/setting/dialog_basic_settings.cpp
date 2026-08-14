@@ -3,6 +3,11 @@
 #include "3rdparty/qv2ray/v2/ui/widgets/editors/w_JsonEditor.hpp"
 #include "include/ui/setting/ThemeManager.hpp"
 #include "include/ui/setting/Icon.hpp"
+#include "include/ui/setting/RouteProfileSimpleEditor.h"
+#include "include/ui/widget/MaterialIcon.h"
+#include "include/ui/widget/ThronedTitleBar.h"
+#include "include/ui/widget/ThronedWindowResizer.h"
+#include "include/ui/widget/ThronedToggle.h"
 #include "include/global/GuiUtils.hpp"
 #include "include/global/Configs.hpp"
 #include "include/global/HTTPRequestHelper.hpp"
@@ -28,9 +33,16 @@
 #include <QCheckBox>
 #include <QScreen>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QGridLayout>
 #include <QDialogButtonBox>
+#include <QButtonGroup>
+#include <QFrame>
 #include <QLabel>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QStackedWidget>
+#include <QTabBar>
 
 #include "include/ui/mainwindow.h"
 
@@ -131,7 +143,8 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
         qApp->setFont(font);
         Configs::dataManager->settingsRepo->font = fontName;
         Configs::dataManager->settingsRepo->Save();
-        adjustSize();
+        themeManager->RefreshRegisteredStyles();
+        updateGeometry();
     });
     for (int i=7;i<=26;i++) {
         ui->font_size->addItem(Int2String(i));
@@ -143,13 +156,14 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
         qApp->setFont(font);
         Configs::dataManager->settingsRepo->font_size = sizeStr.toInt();
         Configs::dataManager->settingsRepo->Save();
-        adjustSize();
+        themeManager->RefreshRegisteredStyles();
+        updateGeometry();
     });
     //
-    ui->theme->addItems(QStyleFactory::keys());
-    ui->theme->addItem("QDarkStyle");
-    // feiyangqingyun custom stylesheet themes (ported from upstream nekoray)
-    ui->theme->addItems({"FlatGray", "LightBlue", "SoftPink", "BlackSoft"});
+    ui->theme->setIconSize(QSize(64, 22));
+    ui->theme->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    for (const QString &theme : themeManager->ThronedThemes())
+        ui->theme->addItem(themeManager->PreviewIcon(theme), theme);
     ui->enable_custom_icon->setChecked(Configs::dataManager->settingsRepo->use_custom_icons);
     connect(ui->select_custom_icon, &QPushButton::clicked, this, [=, this] {
         auto n = QMessageBox::information(this, "Custom Icon Manual", tr(Configs::Information::CustomIconManual.toStdString().c_str()), QMessageBox::Open | QMessageBox::Cancel);
@@ -175,17 +189,15 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
         }
     });
     //
-    bool ok;
-    auto themeId = Configs::dataManager->settingsRepo->theme.toInt(&ok);
-    if (ok) {
-        ui->theme->setCurrentIndex(themeId);
-    } else {
-        ui->theme->setCurrentText(Configs::dataManager->settingsRepo->theme);
-    }
+    QString selectedTheme = Configs::dataManager->settingsRepo->theme;
+    if (ui->theme->findText(selectedTheme) < 0)
+        selectedTheme = themeManager->IsDarkTheme(selectedTheme) ? QStringLiteral("Throned Midnight")
+                                                                 : QStringLiteral("System");
+    ui->theme->setCurrentText(selectedTheme);
     //
-    connect(ui->theme, &QComboBox::currentIndexChanged, this, [=,this](int index) {
-        themeManager->ApplyTheme(ui->theme->currentText());
-        Configs::dataManager->settingsRepo->theme = ui->theme->currentText();
+    connect(ui->theme, &QComboBox::currentTextChanged, this, [=,this](const QString &theme) {
+        themeManager->ApplyTheme(theme);
+        Configs::dataManager->settingsRepo->theme = theme;
         Configs::dataManager->settingsRepo->Save();
     });
 
@@ -227,8 +239,6 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
         bool custom = impl == "custom";
         ui->fragment_size->setEnabled(custom);
         ui->fragment_sleep->setEnabled(custom);
-        ui->fragment_size_l->setEnabled(custom);
-        ui->fragment_sleep_l->setEnabled(custom);
     };
     connect(ui->fragment_implementation, &QComboBox::currentTextChanged, this, syncFragParams);
     syncFragParams(ui->fragment_implementation->currentText());
@@ -280,18 +290,546 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     D_LOAD_BOOL(skip_cert)
     ui->utlsFingerprint->setCurrentText(Configs::dataManager->settingsRepo->utlsFingerprint);
 
-    // The .ui geometry is a design-time hint only: the size the content actually
-    // needs depends on the platform's font metrics and on the active translation,
-    // and both run larger than what the layout was drawn against. Held at the
-    // designed size, the tab's rows get handed less height than their minimum and
-    // Qt lays them out overlapping each other (#1671). Size to the content
-    // instead, bounded by the screen so the button box stays reachable.
-    QSize want = sizeHint();
-    if (const QScreen *scr = parent ? parent->screen() : screen()) {
-        const QRect avail = scr->availableGeometry();
-        want = want.boundedTo(QSize(avail.width() - 24, avail.height() - 72));
+    // Build the production settings window from the same structure as
+    // tools/ui-demo/SettingsPreview.  The original controls are reparented, so
+    // loading, validation and saving continue to use the existing code paths.
+    setObjectName(QStringLiteral("basicSettingsDialog"));
+    setWindowTitle(tr("Settings"));
+    setWindowFlag(Qt::FramelessWindowHint, true);
+    new ThronedWindowResizer(this);
+
+    const auto makeFieldRow = [this](const QString &title, const QString &hint, QWidget *control) {
+        auto *row = new QFrame(this);
+        row->setObjectName(QStringLiteral("settingsField"));
+        auto *layout = new QGridLayout(row);
+        layout->setContentsMargins(12, 9, 12, 9);
+        layout->setHorizontalSpacing(18);
+        layout->setVerticalSpacing(3);
+        auto *label = new QLabel(title, row);
+        label->setObjectName(QStringLiteral("settingsFieldTitle"));
+        label->setWordWrap(true);
+        label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        layout->addWidget(label, 0, 0);
+        if (!hint.isEmpty()) {
+            auto *hintLabel = new QLabel(hint, row);
+            hintLabel->setObjectName(QStringLiteral("settingsMuted"));
+            hintLabel->setWordWrap(true);
+            hintLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+            layout->addWidget(hintLabel, 1, 0);
+        }
+        control->setParent(row);
+        if (!qobject_cast<QAbstractButton *>(control)) {
+            control->setMinimumWidth(270);
+            auto policy = control->sizePolicy();
+            policy.setHorizontalPolicy(QSizePolicy::Preferred);
+            policy.setHorizontalStretch(0);
+            control->setSizePolicy(policy);
+        }
+        layout->addWidget(control, 0, 1, hint.isEmpty() ? 1 : 2, 1);
+        layout->setColumnStretch(0, 1);
+        return row;
+    };
+    const auto makeToggle = [this](QCheckBox *source) {
+        const bool sourceWasHidden = source->isHidden();
+        auto *toggle = new ThronedToggle(source->isChecked(), this);
+        toggle->bindTo(source);
+        toggle->setToolTip(source->toolTip());
+        // Keep the original checkbox alive because accept() and existing signal
+        // handlers still read it.  The legacy Designer page is deleted after
+        // its controls are moved into the redesigned shell.
+        source->setParent(toggle);
+        source->hide();
+        if (sourceWasHidden) toggle->hide();
+        return toggle;
+    };
+    const auto makeSection = [this](const QString &title, const QString &subtitle) {
+        auto *section = new QFrame(this);
+        section->setObjectName(QStringLiteral("settingsSection"));
+        auto *layout = new QVBoxLayout(section);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+        auto *heading = new QFrame(section);
+        heading->setObjectName(QStringLiteral("settingsHeading"));
+        auto *headingLayout = new QVBoxLayout(heading);
+        headingLayout->setContentsMargins(14, 11, 14, 9);
+        headingLayout->setSpacing(2);
+        auto *titleLabel = new QLabel(title, heading);
+        titleLabel->setObjectName(QStringLiteral("settingsSectionTitle"));
+        headingLayout->addWidget(titleLabel);
+        auto *subtitleLabel = new QLabel(subtitle, heading);
+        subtitleLabel->setObjectName(QStringLiteral("settingsMuted"));
+        headingLayout->addWidget(subtitleLabel);
+        layout->addWidget(heading);
+        return section;
+    };
+
+    // Save tab names/pages before replacing QTabWidget with a scrollable stack.
+    QStringList pageNames;
+    QList<QWidget *> legacyPages;
+    for (int index = 0; index < ui->tabWidget->count(); ++index) {
+        pageNames.append(ui->tabWidget->tabText(index));
+        legacyPages.append(ui->tabWidget->widget(index));
     }
-    resize(want);
+    while (ui->tabWidget->count() > 0) ui->tabWidget->removeTab(0);
+
+    auto *commonPage = new QWidget(this);
+    commonPage->setObjectName(QStringLiteral("settingsPage"));
+    auto *commonLayout = new QVBoxLayout(commonPage);
+    commonLayout->setContentsMargins(14, 8, 14, 8);
+    commonLayout->setSpacing(10);
+    auto *commonTitle = new QLabel(tr("Common settings"), commonPage);
+    commonTitle->setObjectName(QStringLiteral("settingsHero"));
+    commonLayout->addWidget(commonTitle);
+    auto *commonSubtitle = new QLabel(tr("Everyday proxy, inbound, and test behavior."), commonPage);
+    commonSubtitle->setObjectName(QStringLiteral("settingsMuted"));
+    commonLayout->addWidget(commonSubtitle);
+
+    auto *inboundSection = makeSection(tr("Inbound"), tr("Local proxy endpoint used by applications."));
+    auto *inboundLayout = qobject_cast<QVBoxLayout *>(inboundSection->layout());
+    inboundLayout->addWidget(makeFieldRow(tr("Listen address"), {}, ui->inbound_address));
+    inboundLayout->addWidget(makeFieldRow(tr("Mixed port"), tr("SOCKS and HTTP on one local port"), ui->inbound_socks_port));
+    inboundLayout->addWidget(makeFieldRow(tr("Random port"), tr("Choose a free port on every start"), makeToggle(ui->random_listen_port)));
+    inboundLayout->addWidget(makeFieldRow(tr("Disable mixed inbound"), tr("Do not expose the local mixed proxy endpoint"), makeToggle(ui->disable_mixed_inbound)));
+    inboundLayout->addWidget(makeFieldRow(tr("Authentication"), tr("Require credentials for local proxy clients"), makeToggle(ui->inbound_auth)));
+    inboundLayout->addWidget(makeFieldRow(tr("Username"), {}, ui->inbound_user));
+    inboundLayout->addWidget(makeFieldRow(tr("Password"), {}, ui->inbound_pass));
+#ifdef Q_OS_WIN
+    inboundLayout->addWidget(makeFieldRow(tr("System proxy scheme"), {}, ui->proxy_scheme));
+#endif
+    auto *customInboundRow = new QFrame(commonPage);
+    customInboundRow->setObjectName(QStringLiteral("settingsField"));
+    auto *customInboundLayout = new QHBoxLayout(customInboundRow);
+    customInboundLayout->setContentsMargins(12, 9, 12, 9);
+    auto *customInboundLabel = new QLabel(tr("Custom inbound JSON"), customInboundRow);
+    customInboundLabel->setObjectName(QStringLiteral("settingsFieldTitle"));
+    customInboundLayout->addWidget(customInboundLabel);
+    customInboundLayout->addStretch(1);
+    ui->custom_inbound_edit->setParent(customInboundRow);
+    ui->custom_inbound_edit->setObjectName(QStringLiteral("settingsSecondaryButton"));
+    customInboundLayout->addWidget(ui->custom_inbound_edit);
+    inboundLayout->addWidget(customInboundRow);
+    commonLayout->addWidget(inboundSection);
+
+    auto *testingSection = makeSection(tr("Testing"), tr("Defaults used by URL and speed tests."));
+    auto *testingLayout = qobject_cast<QVBoxLayout *>(testingSection->layout());
+    testingLayout->addWidget(makeFieldRow(tr("Latency test URL"), {}, ui->test_latency_url));
+    testingLayout->addWidget(makeFieldRow(tr("URL test timeout"), tr("Milliseconds before a latency test fails"), ui->url_timeout));
+    testingLayout->addWidget(makeFieldRow(tr("Concurrent tests"), {}, ui->test_concurrent));
+    testingLayout->addWidget(makeFieldRow(tr("Speed test mode"), {}, ui->speedtest_mode));
+    testingLayout->addWidget(makeFieldRow(tr("Speed test timeout"), {}, ui->test_timeout));
+    testingLayout->addWidget(makeFieldRow(tr("Download test URL"), {}, ui->simple_down_url));
+    commonLayout->addWidget(testingSection);
+    commonLayout->addStretch(1);
+
+    auto *oldRoot = ui->gridLayout;
+    oldRoot->removeWidget(ui->tabWidget);
+    oldRoot->removeWidget(ui->buttonBox);
+    while (QLayoutItem *item = oldRoot->takeAt(0)) delete item;
+    oldRoot->setContentsMargins(1, 1, 1, 1);
+    oldRoot->setHorizontalSpacing(0);
+    oldRoot->setVerticalSpacing(0);
+    oldRoot->addWidget(new ThronedTitleBar(tr("Settings"), this), 0, 0);
+
+    auto *body = new QWidget(this);
+    body->setObjectName(QStringLiteral("settingsBody"));
+    auto *bodyLayout = new QVBoxLayout(body);
+    bodyLayout->setContentsMargins(12, 10, 12, 10);
+    bodyLayout->setSpacing(10);
+    auto *work = new QHBoxLayout;
+    work->setSpacing(10);
+    auto *sidebar = new QFrame(body);
+    sidebar->setObjectName(QStringLiteral("settingsSidebar"));
+    sidebar->setFixedWidth(220);
+    auto *sidebarLayout = new QVBoxLayout(sidebar);
+    sidebarLayout->setContentsMargins(10, 12, 10, 12);
+    sidebarLayout->setSpacing(6);
+    auto *sidebarTitle = new QLabel(tr("Settings"), sidebar);
+    sidebarTitle->setObjectName(QStringLiteral("settingsSidebarTitle"));
+    sidebarLayout->addWidget(sidebarTitle);
+
+    auto *stack = new QStackedWidget(body);
+    stack->setObjectName(QStringLiteral("settingsStack"));
+    auto *commonScroll = new QScrollArea(stack);
+    commonScroll->setObjectName(QStringLiteral("settingsScroll"));
+    commonScroll->setWidgetResizable(true);
+    commonScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    commonScroll->setFrameShape(QFrame::NoFrame);
+    commonScroll->setWidget(commonPage);
+    stack->addWidget(commonScroll);
+
+    if (!pageNames.isEmpty()) pageNames[0] = tr("Common");
+    if (pageNames.size() > 2) pageNames[2] = tr("Appearance");
+    if (pageNames.size() > 6) pageNames[6] = tr("Backups");
+
+    const auto makeInlineControl = [this](QWidget *primary, QAbstractButton *secondary) {
+        auto *host = new QWidget(this);
+        host->setObjectName(QStringLiteral("settingsInlineControl"));
+        auto *layout = new QHBoxLayout(host);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(6);
+        primary->setParent(host);
+        secondary->setParent(host);
+        secondary->setObjectName(QStringLiteral("settingsSecondaryButton"));
+        layout->addWidget(primary, 1);
+        layout->addWidget(secondary);
+        return host;
+    };
+    const auto prepareEditor = [](QWidget *editor) {
+        editor->setMinimumHeight(92);
+        editor->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        return editor;
+    };
+
+    // Move every established control into the same SettingsPreview card system.
+    // Keeping the actual Designer controls preserves all existing bindings and
+    // save logic while avoiding the cramped legacy tab layouts.
+    for (int index = 1; index < legacyPages.size(); ++index) {
+        auto *pageScroll = new QScrollArea(stack);
+        pageScroll->setObjectName(QStringLiteral("settingsScroll"));
+        pageScroll->setWidgetResizable(true);
+        pageScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        pageScroll->setFrameShape(QFrame::NoFrame);
+        auto *pageHost = new QWidget(pageScroll);
+        pageHost->setObjectName(QStringLiteral("settingsPage"));
+        auto *pageLayout = new QVBoxLayout(pageHost);
+        pageLayout->setContentsMargins(14, 8, 14, 8);
+        pageLayout->setSpacing(10);
+        const QString pageTitle = index < pageNames.size() ? pageNames[index] : tr("Settings");
+        auto *heading = new QLabel(pageTitle, pageHost);
+        heading->setObjectName(QStringLiteral("settingsHero"));
+        pageLayout->addWidget(heading);
+        auto *subtitle = new QLabel(tr("Configure %1 settings.").arg(pageTitle.toLower()), pageHost);
+        subtitle->setObjectName(QStringLiteral("settingsMuted"));
+        pageLayout->addWidget(subtitle);
+
+        const auto addToggleRow = [&](QVBoxLayout *layout, const QString &title, QCheckBox *source,
+                                      const QString &hint = QString()) {
+            const bool sourceWasHidden = source->isHidden();
+            auto *row = makeFieldRow(title, hint, makeToggle(source));
+            row->setVisible(!sourceWasHidden);
+            layout->addWidget(row);
+        };
+        const auto addControlRow = [&](QVBoxLayout *layout, const QString &title, QWidget *control,
+                                       const QString &hint = QString()) {
+            layout->addWidget(makeFieldRow(title, hint, control));
+        };
+
+        switch (index) {
+        case 1: { // Logging
+            auto *output = makeSection(tr("Log output"), tr("Control verbosity and retained history."));
+            auto *layout = qobject_cast<QVBoxLayout *>(output->layout());
+            addControlRow(layout, tr("Max log lines"), ui->max_log_line);
+            addToggleRow(layout, tr("Auto-scroll log"), ui->log_auto_scroll);
+            addControlRow(layout, tr("Sing-box log level"), ui->log_level);
+            addControlRow(layout, tr("Xray log level"), ui->xray_loglevel);
+            pageLayout->addWidget(output);
+
+            auto *include = makeSection(tr("Include filters"), tr("Keep only matching log entries when enabled."));
+            layout = qobject_cast<QVBoxLayout *>(include->layout());
+            addToggleRow(layout, tr("Enable include rules"), ui->enable_log_include);
+            addControlRow(layout, tr("Keywords"), prepareEditor(ui->log_include_keyword));
+            addControlRow(layout, tr("Regular expressions"), prepareEditor(ui->log_include_regex));
+            pageLayout->addWidget(include);
+
+            auto *exclude = makeSection(tr("Exclude filters"), tr("Hide matching log entries when enabled."));
+            layout = qobject_cast<QVBoxLayout *>(exclude->layout());
+            addToggleRow(layout, tr("Enable exclude rules"), ui->enable_log_exclude);
+            addControlRow(layout, tr("Keywords"), prepareEditor(ui->log_exclude_keyword));
+            addControlRow(layout, tr("Regular expressions"), prepareEditor(ui->log_exclude_regex));
+            pageLayout->addWidget(exclude);
+            break;
+        }
+        case 2: { // Appearance
+            auto *visuals = makeSection(tr("Theme and language"), tr("Fonts, colors, language, and application icons."));
+            auto *layout = qobject_cast<QVBoxLayout *>(visuals->layout());
+            addControlRow(layout, tr("Color theme"), ui->theme, tr("Previewed immediately across every redesigned screen."));
+            addControlRow(layout, tr("Language"), ui->language);
+            addControlRow(layout, tr("Font"), ui->font);
+            addControlRow(layout, tr("Font size"), ui->font_size, tr("Changes the base interface size without restarting."));
+            addToggleRow(layout, tr("Use custom icons"), ui->enable_custom_icon);
+            ui->select_custom_icon->setObjectName(QStringLiteral("settingsSecondaryButton"));
+            addControlRow(layout, tr("Custom icon files"), ui->select_custom_icon,
+                          tr("PNG files must use Throned's supported tray-icon names."));
+            pageLayout->addWidget(visuals);
+
+            auto *window = makeSection(tr("Window and statistics"), tr("Startup behavior and information shown in the main window."));
+            layout = qobject_cast<QVBoxLayout *>(window->layout());
+            addToggleRow(layout, tr("Connection statistics"), ui->connection_statistics);
+            addToggleRow(layout, ui->disable_traffic_aggregation->text(), ui->disable_traffic_aggregation);
+            addToggleRow(layout, ui->show_config_security->text(), ui->show_config_security);
+            addToggleRow(layout, ui->start_minimal->text(), ui->start_minimal);
+            addToggleRow(layout, ui->show_sys_dns->text(), ui->show_sys_dns);
+            addToggleRow(layout, ui->disable_tray->text(), ui->disable_tray);
+            addToggleRow(layout, tr("Delete profiles without confirmation"), ui->skip_delete_confirm);
+            pageLayout->addWidget(window);
+            break;
+        }
+        case 3: { // Subscription
+            auto *updates = makeSection(tr("Automatic updates"), tr("Schedule subscription and routing-profile refreshes."));
+            auto *layout = qobject_cast<QVBoxLayout *>(updates->layout());
+            addControlRow(layout, tr("User agent"), ui->user_agent);
+            addToggleRow(layout, tr("Update subscriptions automatically"), ui->sub_auto_update_enable);
+            addControlRow(layout, tr("Subscription interval (minutes)"), ui->sub_auto_update);
+            addToggleRow(layout, tr("Update routing profiles automatically"), ui->route_auto_update_enable);
+            addControlRow(layout, tr("Routing interval (minutes)"), ui->route_auto_update);
+            pageLayout->addWidget(updates);
+
+            auto *behavior = makeSection(tr("Update behavior"), tr("Choose how imported profiles and device metadata are handled."));
+            layout = qobject_cast<QVBoxLayout *>(behavior->layout());
+            addToggleRow(layout, ui->allow_stopping_active_profile->text(), ui->allow_stopping_active_profile);
+            addToggleRow(layout, ui->sub_clear->text(), ui->sub_clear);
+            addToggleRow(layout, ui->sub_show_change_popup->text(), ui->sub_show_change_popup);
+            addToggleRow(layout, ui->sub_send_hwid->text(), ui->sub_send_hwid);
+            addControlRow(layout, tr("Custom system parameters"), ui->sub_custom_hwid_params,
+                          tr("Optional overrides for HWID, OS, version, or model."));
+            pageLayout->addWidget(behavior);
+            break;
+        }
+        case 4: { // Core
+            auto *mux = makeSection(tr("Multiplexing"), tr("Shared sing-box multiplexing defaults."));
+            auto *layout = qobject_cast<QVBoxLayout *>(mux->layout());
+            addControlRow(layout, tr("Protocol"), ui->mux_protocol);
+            addControlRow(layout, tr("Concurrency"), ui->mux_concurrency);
+            addToggleRow(layout, ui->mux_padding->text(), ui->mux_padding);
+            addToggleRow(layout, ui->mux_default_on->text(), ui->mux_default_on);
+            pageLayout->addWidget(mux);
+
+            auto *fragment = makeSection(tr("TLS fragmentation"), tr("Packet fragmentation and TLS-record behavior."));
+            layout = qobject_cast<QVBoxLayout *>(fragment->layout());
+            addControlRow(layout, tr("Implementation"), ui->fragment_implementation);
+            addControlRow(layout, tr("Fragment size"), ui->fragment_size);
+            addControlRow(layout, tr("Fragment delay"), ui->fragment_sleep);
+            addToggleRow(layout, ui->fragment_default_on->text(), ui->fragment_default_on);
+            addToggleRow(layout, ui->tls_tricks_default_on->text(), ui->tls_tricks_default_on);
+            pageLayout->addWidget(fragment);
+
+            auto *clash = makeSection(tr("Clash API"), tr("Local controller endpoint exposed by the core."));
+            layout = qobject_cast<QVBoxLayout *>(clash->layout());
+            addControlRow(layout, tr("Listen address"), ui->core_box_clash_listen_addr);
+            addControlRow(layout, tr("API port"), ui->core_box_clash_api);
+            addControlRow(layout, tr("API secret"), ui->core_box_clash_api_secret);
+            pageLayout->addWidget(clash);
+
+            auto *xray = makeSection(tr("Xray core"), tr("Defaults used by Xray-backed profiles."));
+            layout = qobject_cast<QVBoxLayout *>(xray->layout());
+            addControlRow(layout, tr("Mux concurrency"), ui->xray_mux_concurrency);
+            addToggleRow(layout, ui->xray_default_mux->text(), ui->xray_default_mux);
+            addControlRow(layout, tr("VLESS preference"), ui->vless_xray_pref);
+            pageLayout->addWidget(xray);
+            break;
+        }
+        case 5: { // Miscellaneous
+            auto *network = makeSection(tr("Network"), tr("Application updates and outbound network behavior."));
+            auto *layout = qobject_cast<QVBoxLayout *>(network->layout());
+            addToggleRow(layout, ui->allow_beta->text(), ui->allow_beta);
+            addToggleRow(layout, ui->net_insecure->text(), ui->net_insecure);
+            addToggleRow(layout, ui->reset_proxy_on_disable_sp->text(), ui->reset_proxy_on_disable_sp);
+            addToggleRow(layout, ui->net_use_proxy->text(), ui->net_use_proxy);
+            pageLayout->addWidget(network);
+
+            auto *core = makeSection(tr("Core services"), tr("Traffic statistics and the local DNS endpoint."));
+            layout = qobject_cast<QVBoxLayout *>(core->layout());
+            addToggleRow(layout, ui->disable_stats->text(), ui->disable_stats);
+            addControlRow(layout, tr("DNS inbound port"), ui->dns_in_port);
+            pageLayout->addWidget(core);
+
+            auto *ntp = makeSection(tr("NTP client"), tr("Time synchronization used by sing-box."));
+            layout = qobject_cast<QVBoxLayout *>(ntp->layout());
+            addToggleRow(layout, ui->ntp_enable->text(), ui->ntp_enable);
+            addControlRow(layout, tr("Server"), ui->ntp_server);
+            addControlRow(layout, tr("Port"), ui->ntp_port);
+            addControlRow(layout, tr("Interval"), ui->ntp_interval);
+            addControlRow(layout, tr("Outbound"), ui->ntp_outbound);
+            pageLayout->addWidget(ntp);
+
+            auto *assets = makeSection(tr("Xray geo assets"), tr("Sources used for geoip.dat and geosite.dat."));
+            layout = qobject_cast<QVBoxLayout *>(assets->layout());
+            addControlRow(layout, tr("GeoIP asset URL"), makeInlineControl(ui->xray_geoip_url, ui->xray_geoip_download));
+            addControlRow(layout, tr("Geosite asset URL"), makeInlineControl(ui->xray_geosite_url, ui->xray_geosite_download));
+            pageLayout->addWidget(assets);
+            break;
+        }
+        case 6: { // Backup and restore
+            auto *create = makeSection(tr("Create backup"), tr("Choose which local data to include."));
+            auto *layout = qobject_cast<QVBoxLayout *>(create->layout());
+            addToggleRow(layout, ui->backup_inc_profiles->text(), ui->backup_inc_profiles);
+            addToggleRow(layout, ui->backup_inc_routes->text(), ui->backup_inc_routes);
+            addToggleRow(layout, ui->backup_inc_settings->text(), ui->backup_inc_settings);
+            addToggleRow(layout, ui->backup_inc_icons->text(), ui->backup_inc_icons);
+            ui->backup_create->setObjectName(QStringLiteral("settingsSecondaryButton"));
+            addControlRow(layout, tr("Backup file"), ui->backup_create);
+            pageLayout->addWidget(create);
+
+            auto *restore = makeSection(tr("Restore backup"), tr("Import data from an existing Throned backup."));
+            layout = qobject_cast<QVBoxLayout *>(restore->layout());
+            ui->backup_restore->setObjectName(QStringLiteral("settingsSecondaryButton"));
+            addControlRow(layout, tr("Backup file"), ui->backup_restore);
+            pageLayout->addWidget(restore);
+            break;
+        }
+        case 7: { // Security
+            auto *permissions = makeSection(tr("Permissions"), tr("Administrative privileges and startup behavior."));
+            auto *layout = qobject_cast<QVBoxLayout *>(permissions->layout());
+            addToggleRow(layout, ui->disable_priv_req->text(), ui->disable_priv_req);
+            addToggleRow(layout, ui->windows_no_admin->text(), ui->windows_no_admin);
+            pageLayout->addWidget(permissions);
+
+            auto *certificates = makeSection(tr("Certificates"), tr("Certificate stores and TLS validation defaults."));
+            layout = qobject_cast<QVBoxLayout *>(certificates->layout());
+            addToggleRow(layout, ui->mozilla_cert->text(), ui->mozilla_cert);
+            addToggleRow(layout, ui->skip_cert->text(), ui->skip_cert);
+            addControlRow(layout, tr("uTLS fingerprint"), ui->utlsFingerprint);
+            pageLayout->addWidget(certificates);
+            break;
+        }
+        default:
+            legacyPages[index]->setParent(pageHost);
+            legacyPages[index]->setObjectName(QStringLiteral("settingsLegacyPage"));
+            legacyPages[index]->setVisible(true);
+            pageLayout->addWidget(legacyPages[index], 1);
+            break;
+        }
+        pageLayout->addStretch(1);
+        pageScroll->setWidget(pageHost);
+        stack->addWidget(pageScroll);
+        if (index <= 7) delete legacyPages[index];
+    }
+
+    auto *navGroup = new QButtonGroup(this);
+    navGroup->setExclusive(true);
+    const QList<MaterialIcon::Glyph> pageIcons{
+        MaterialIcon::Glyph::Settings, MaterialIcon::Glyph::List, MaterialIcon::Glyph::Desktop,
+        MaterialIcon::Glyph::Reload, MaterialIcon::Glyph::Tools, MaterialIcon::Glyph::Apps,
+        MaterialIcon::Glyph::Folder, MaterialIcon::Glyph::Shield,
+    };
+    for (int index = 0; index < stack->count(); ++index) {
+        const QString name = index < pageNames.size() ? pageNames[index] : tr("Settings");
+        auto *button = new QPushButton(name, sidebar);
+        button->setObjectName(QStringLiteral("settingsNav"));
+        button->setCheckable(true);
+        button->setIcon(MaterialIcon::icon(pageIcons.value(index, MaterialIcon::Glyph::Settings), QColor(QStringLiteral("#AEB7C2")), 17));
+        button->setIconSize(QSize(17, 17));
+        button->setCursor(Qt::PointingHandCursor);
+        navGroup->addButton(button, index);
+        sidebarLayout->addWidget(button);
+    }
+    navGroup->button(0)->setChecked(true);
+    connect(navGroup, &QButtonGroup::idClicked, stack, &QStackedWidget::setCurrentIndex);
+    sidebarLayout->addStretch(1);
+    auto *version = new QLabel(tr("Throned settings"), sidebar);
+    version->setObjectName(QStringLiteral("settingsMuted"));
+    sidebarLayout->addWidget(version);
+    work->addWidget(sidebar);
+    work->addWidget(stack, 1);
+    bodyLayout->addLayout(work, 1);
+
+    ui->buttonBox->setParent(body);
+    if (auto *save = ui->buttonBox->button(QDialogButtonBox::Ok)) {
+        save->setText(tr("Save settings"));
+        save->setObjectName(QStringLiteral("settingsPrimaryButton"));
+        save->setMinimumWidth(150);
+    }
+    if (auto *cancel = ui->buttonBox->button(QDialogButtonBox::Cancel)) {
+        cancel->setText(tr("Cancel"));
+        cancel->setObjectName(QStringLiteral("settingsSecondaryButton"));
+        cancel->setMinimumWidth(120);
+    }
+    bodyLayout->addWidget(ui->buttonBox, 0, Qt::AlignRight);
+    oldRoot->addWidget(body, 1, 0);
+    delete legacyPages.value(0);
+    delete ui->tabWidget;
+
+    const QString settingsStyleTemplate = RouteProfileSimpleEditor::dialogStyleSheet() + QStringLiteral(R"(
+QDialog#basicSettingsDialog QWidget#settingsBody,
+QDialog#basicSettingsDialog QWidget#settingsPage,
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage,
+QDialog#basicSettingsDialog QScrollArea#settingsScroll > QWidget > QWidget { background: #1B1E23; }
+QDialog#basicSettingsDialog QFrame#settingsSidebar,
+QDialog#basicSettingsDialog QFrame#settingsSection {
+    background: #171B21; border: 1px solid #2F3136; border-radius: 7px;
+}
+QDialog#basicSettingsDialog QLabel#settingsSidebarTitle,
+QDialog#basicSettingsDialog QLabel#settingsSectionTitle,
+QDialog#basicSettingsDialog QLabel#settingsFieldTitle {
+    color: #F1F3F5; font-weight: 700;
+}
+QDialog#basicSettingsDialog QLabel#settingsHero { color: #F1F3F5; font-size: 18px; font-weight: 700; }
+QDialog#basicSettingsDialog QLabel#settingsMuted { color: #AEB7C2; }
+QDialog#basicSettingsDialog QFrame#settingsHeading { border: none; border-bottom: 1px solid #2F3136; }
+QDialog#basicSettingsDialog QFrame#settingsField { border: none; border-top: 1px solid #25292F; }
+QDialog#basicSettingsDialog QPushButton#settingsNav {
+    color: #DDE2E7; background: transparent; border: 1px solid transparent;
+    border-radius: 6px; padding: 9px 11px; text-align: left;
+}
+QDialog#basicSettingsDialog QPushButton#settingsNav:hover:!checked {
+    background: #222529; border-color: #2F3136;
+}
+QDialog#basicSettingsDialog QPushButton#settingsNav:checked {
+    color: white; background: #193452; border-color: #237AE9;
+}
+QDialog#basicSettingsDialog QPushButton#settingsPrimaryButton {
+    color: white; background: #237AE9; border: 1px solid #3B8BF0;
+    border-radius: 6px; padding: 8px 18px; font-weight: 700;
+}
+QDialog#basicSettingsDialog QPushButton#settingsSecondaryButton {
+    color: #F1F3F5; background: #222529; border: 1px solid #2F3136;
+    border-radius: 6px; padding: 8px 14px;
+}
+QDialog#basicSettingsDialog QScrollArea#settingsScroll { background: transparent; border: none; }
+QDialog#basicSettingsDialog QStackedWidget#settingsStack { background: transparent; }
+QDialog#basicSettingsDialog QWidget#settingsPage QTextEdit,
+QDialog#basicSettingsDialog QWidget#settingsPage QPlainTextEdit {
+    color: #F1F3F5; background: #171B21; border: 1px solid #2F3136;
+    border-radius: 6px; padding: 7px 9px; selection-background-color: #237AE9;
+}
+QDialog#basicSettingsDialog QWidget#settingsPage QTextEdit:focus,
+QDialog#basicSettingsDialog QWidget#settingsPage QPlainTextEdit:focus { border-color: #237AE9; }
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QGroupBox {
+    color: #F1F3F5; background: #171B21; border: 1px solid #2F3136;
+    border-radius: 7px; margin-top: 12px; padding: 12px 10px 10px 10px;
+}
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QGroupBox::title {
+    color: #DDE2E7; subcontrol-origin: margin; subcontrol-position: top left;
+    left: 12px; padding: 0 6px; font-weight: 650;
+}
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QLineEdit,
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QComboBox,
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QSpinBox,
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QDoubleSpinBox,
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QTextEdit,
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QPlainTextEdit,
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QListWidget,
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QTableView {
+    color: #F1F3F5; background: #171B21; border: 1px solid #2F3136;
+    border-radius: 6px; padding: 6px 9px; selection-background-color: #237AE9;
+}
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QLineEdit:focus,
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QComboBox:focus,
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QSpinBox:focus,
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QTextEdit:focus,
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QPlainTextEdit:focus {
+    border-color: #237AE9;
+}
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QCheckBox {
+    color: #DDE2E7; spacing: 7px; background: transparent;
+}
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QCheckBox::indicator {
+    width: 18px; height: 18px; border: 1px solid #4A535E; border-radius: 5px; background: #22272E;
+}
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QCheckBox::indicator:checked {
+    background: #237AE9; border-color: #4193F4;
+}
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QPushButton {
+    color: #F1F3F5; background: #222529; border: 1px solid #2F3136;
+    border-radius: 6px; padding: 7px 11px;
+}
+QDialog#basicSettingsDialog QWidget#settingsLegacyPage QPushButton:hover {
+    background: #292E35; border-color: #4A535E;
+}
+    )");
+    themeManager->RegisterStyle(this, settingsStyleTemplate);
+    setMinimumSize(900, 620);
+    resize(1000, 700);
 }
 
 DialogBasicSettings::~DialogBasicSettings() {
