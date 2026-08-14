@@ -1,6 +1,8 @@
 #include "include/control/ThronedControl.h"
 
 #include "include/global/Configs.hpp"
+#include "include/database/GroupsRepo.h"
+#include "include/database/entities/Group.h"
 #include "include/database/ProfilesRepo.h"
 #include "include/database/RoutesRepo.h"
 #include "include/database/SettingsRepo.h"
@@ -165,6 +167,24 @@ const QList<Command> &commandTable() {
          {{"action", "string", true, "proxy, direct, block", "which list to edit"},
           {"domains", "string[]", true, "", "accepts the bare form or the stored one"}},
          "action, domains (the resulting list)"},
+        {"logs", "Recent log lines, oldest first.",
+         {{"lines", "int", false, "", "how many to return, up to 2000; 200 by default"},
+          {"contains", "string", false, "", "keep only lines containing this text"}},
+         "lines[]"},
+        {"groups.list", "Server groups and subscriptions.", {},
+         "groups[]: id, name, url, subscription, archive, profiles (count)"},
+        {"subscriptions.update", "Refresh every subscription in the background.", {},
+         "started. Watch groups.list or logs for the outcome."},
+        {"routing.create", "Add a routing profile, optionally as a copy of an existing one.",
+         {{"name", "string", true, "", ""},
+          {"copy_of", "int", false, "", "routing profile id to copy rules and defaults from"},
+          {"select", "bool", false, "true, false", "also make it active"}},
+         "id, name, default_outbound, rules_enabled, raw, remote"},
+        {"routing.delete", "Remove a routing profile.",
+         {{"id", "int", true, "", "not the active one, and not the last one left"}}, "deleted"},
+        {"routing.apply", "Restart the running profile so pending routing edits take effect.", {}, "applied"},
+        // Documented once here rather than on each command: every routing edit
+        // takes it, and repeating it fifteen times would bury the rest.
         {"routing.export", "The whole profile as a lossless document: every rule with every field, in order.",
          {{"id", "int", false, "", "routing profile id; the active one by default"}},
          "profile - feed it back to routing.import unchanged, or edited"},
@@ -192,9 +212,16 @@ const QList<Command> &commandTable() {
     return table;
 }
 
-QJsonObject saveAndApply(const std::shared_ptr<Configs::RouteProfile> &profile, const QJsonObject &data) {
+// Every routing change is saved at once, but restarting the core to make it
+// effective is optional: a caller working through a batch of edits does not want
+// the traffic interrupted after each one.
+QJsonObject saveAndApply(const std::shared_ptr<Configs::RouteProfile> &profile, QJsonObject data,
+                         const QJsonObject &request) {
     Configs::dataManager->routesRepo->Save(profile);
-    if (hooks.applyRoutingChange) hooks.applyRoutingChange();
+    const bool apply = !request.value(QStringLiteral("apply")).isBool()
+        || request.value(QStringLiteral("apply")).toBool();
+    if (apply && hooks.applyRoutingChange) hooks.applyRoutingChange();
+    data["applied"] = apply;
     return ok(data);
 }
 
@@ -323,7 +350,7 @@ QJsonObject Execute(const QJsonObject &request) {
         if (!outboundFromName(request.value(QStringLiteral("outbound")).toString(), &outbound))
             return fail(QStringLiteral("\"outbound\" must be direct, proxy, block or warp"));
         profile->defaultOutboundID = outbound;
-        return saveAndApply(profile, QJsonObject{{"default_outbound", outboundName(outbound)}});
+        return saveAndApply(profile, QJsonObject{{"default_outbound", outboundName(outbound)}}, request);
     }
 
     if (cmd == QStringLiteral("routing.set_rules_enabled")) {
@@ -333,7 +360,91 @@ QJsonObject Execute(const QJsonObject &request) {
         if (!request.value(QStringLiteral("enabled")).isBool())
             return fail(QStringLiteral("\"enabled\" must be true or false"));
         profile->applyProfileRules = request.value(QStringLiteral("enabled")).toBool();
-        return saveAndApply(profile, QJsonObject{{"rules_enabled", profile->applyProfileRules}});
+        return saveAndApply(profile, QJsonObject{{"rules_enabled", profile->applyProfileRules}}, request);
+    }
+
+    if (cmd == QStringLiteral("routing.apply")) {
+        if (!hooks.applyRoutingChange) return fail(QStringLiteral("the window is not ready yet"));
+        hooks.applyRoutingChange();
+        return ok(QJsonObject{{"applied", true}});
+    }
+
+    if (cmd == QStringLiteral("logs")) {
+        if (!hooks.recentLogs) return fail(QStringLiteral("the window is not ready yet"));
+        const int wanted = request.value(QStringLiteral("lines")).isDouble()
+            ? qBound(1, request.value(QStringLiteral("lines")).toInt(), 2000) : 200;
+        QStringList lines = hooks.recentLogs(wanted);
+        const QString contains = request.value(QStringLiteral("contains")).toString();
+        if (!contains.isEmpty())
+            lines = lines.filter(contains, Qt::CaseInsensitive);
+        return ok(QJsonObject{{"lines", QJsonArray::fromStringList(lines)}});
+    }
+
+    if (cmd == QStringLiteral("groups.list")) {
+        QJsonArray items;
+        for (const int id : Configs::dataManager->groupsRepo->GetAllGroupIds()) {
+            const auto group = Configs::dataManager->groupsRepo->GetGroup(id);
+            if (!group) continue;
+            items.append(QJsonObject{
+                {"id", group->id},
+                {"name", group->name},
+                {"url", group->url},
+                {"subscription", !group->url.trimmed().isEmpty()},
+                {"archive", group->archive},
+                {"profiles", static_cast<int>(group->Profiles().size())},
+            });
+        }
+        return ok(QJsonObject{{"groups", items}});
+    }
+
+    if (cmd == QStringLiteral("subscriptions.update")) {
+        if (!hooks.updateSubscriptions) return fail(QStringLiteral("the window is not ready yet"));
+        // The refresh runs in the background; the caller watches groups.list or
+        // the log for the result rather than being blocked here.
+        hooks.updateSubscriptions();
+        return ok(QJsonObject{{"started", true}});
+    }
+
+    if (cmd == QStringLiteral("routing.create")) {
+        const QString name = request.value(QStringLiteral("name")).toString().trimmed();
+        if (name.isEmpty()) return fail(QStringLiteral("\"name\" is required"));
+        auto profile = Configs::RoutesRepo::NewRouteProfile();
+        profile->name = name;
+        // Copying an existing profile is how an agent experiments without
+        // touching the one the user is routing through.
+        if (request.value(QStringLiteral("copy_of")).isDouble()) {
+            const auto source = Configs::dataManager->routesRepo->GetRouteProfile(
+                request.value(QStringLiteral("copy_of")).toInt());
+            if (!source) return fail(QStringLiteral("no routing profile to copy from"));
+            const Configs::RouteProfile copied(*source);
+            profile->Rules = copied.Rules;
+            profile->defaultOutboundID = copied.defaultOutboundID;
+            profile->applyProfileRules = copied.applyProfileRules;
+            profile->isRaw = copied.isRaw;
+            profile->rawRoute = copied.rawRoute;
+            profile->preventModifications = copied.preventModifications;
+        }
+        if (!Configs::dataManager->routesRepo->AddRouteProfile(profile))
+            return fail(QStringLiteral("could not create the routing profile"));
+        if (request.value(QStringLiteral("select")).toBool()) {
+            Configs::dataManager->settingsRepo->current_route_id = profile->id;
+            Configs::dataManager->settingsRepo->Save();
+            if (hooks.applyRoutingChange) hooks.applyRoutingChange();
+        }
+        return ok(describeProfile(profile));
+    }
+
+    if (cmd == QStringLiteral("routing.delete")) {
+        const int id = request.value(QStringLiteral("id")).toInt(-1);
+        if (id < 0) return fail(QStringLiteral("\"id\" is required"));
+        if (!Configs::dataManager->routesRepo->GetRouteProfile(id))
+            return fail(QStringLiteral("no routing profile with id %1").arg(id));
+        const auto remaining = Configs::dataManager->routesRepo->GetAllRouteProfileIds();
+        if (remaining.size() <= 1) return fail(QStringLiteral("the last routing profile cannot be deleted"));
+        if (id == Configs::dataManager->settingsRepo->current_route_id)
+            return fail(QStringLiteral("select another profile before deleting the active one"));
+        Configs::dataManager->routesRepo->DeleteRouteProfile(id);
+        return ok(QJsonObject{{"deleted", id}});
     }
 
     if (cmd == QStringLiteral("routing.export")) {
@@ -391,7 +502,7 @@ QJsonObject Execute(const QJsonObject &request) {
             {"default_outbound", outboundName(profile->defaultOutboundID)},
         };
         if (!warnings.trimmed().isEmpty()) data["warnings"] = warnings.trimmed();
-        return saveAndApply(profile, data);
+        return saveAndApply(profile, data, request);
     }
 
     if (cmd == QStringLiteral("routing.add_apps") || cmd == QStringLiteral("routing.remove_apps")) {
@@ -424,7 +535,7 @@ QJsonObject Execute(const QJsonObject &request) {
         return saveAndApply(profile, QJsonObject{
             {"action", request.value(QStringLiteral("action")).toString()},
             {"apps", QJsonArray::fromStringList(processEntries)},
-        });
+        }, request);
     }
 
     if (cmd == QStringLiteral("routing.add_domains") || cmd == QStringLiteral("routing.remove_domains")) {
@@ -455,7 +566,7 @@ QJsonObject Execute(const QJsonObject &request) {
         return saveAndApply(profile, QJsonObject{
             {"action", request.value(QStringLiteral("action")).toString()},
             {"domains", QJsonArray::fromStringList(current)},
-        });
+        }, request);
     }
 
     return fail(QStringLiteral("unknown command \"%1\"; send {\"cmd\":\"help\"}").arg(cmd));

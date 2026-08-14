@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QJsonObject>
+#include <QStringList>
 #include <QString>
 
 #include <functional>
@@ -24,6 +25,9 @@ struct Hooks {
     std::function<int()>        runningProfileId;
     std::function<void(bool)>   setTun;
     std::function<void(bool)>   setSystemProxy;
+    std::function<void()>       updateSubscriptions;
+    // The last log lines the window is showing, newest last.
+    std::function<QStringList(int)> recentLogs;
     // True when the process already holds the rights TUN needs. Turning TUN on
     // without them restarts the app behind a UAC prompt, which would leave a
     // control client waiting for an answer that never comes.

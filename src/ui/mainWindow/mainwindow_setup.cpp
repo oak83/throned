@@ -1589,6 +1589,13 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     ThronedControl::hooks.setTun = [this](bool enabled) { set_spmode_vpn(enabled); };
     ThronedControl::hooks.setSystemProxy = [this](bool enabled) { set_spmode_system_proxy(enabled); };
     ThronedControl::hooks.isElevated = [] { return Configs::IsAdmin(); };
+    ThronedControl::hooks.updateSubscriptions = [] { UI_update_all_groups(false); };
+    ThronedControl::hooks.recentLogs = [this](int wanted) {
+        // The window's log document is the same text the Logs tab shows, so a
+        // caller sees exactly what a person would be reading.
+        const QStringList all = qvLogDocument->toPlainText().split('\n', Qt::SkipEmptyParts);
+        return all.mid(qMax(0, all.size() - wanted));
+    };
     ThronedControl::hooks.applyRoutingChange = [this] {
         refreshRoutingStatus();
         if (Configs::dataManager->settingsRepo->started_id >= 0)
