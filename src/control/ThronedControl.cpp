@@ -80,6 +80,15 @@ QString withRulePrefix(const QString &entry) {
     return QStringLiteral("suffix:") + entry;
 }
 
+// A caller naming an application gives either "discord.exe" or a full path.
+// The first matches wherever the program runs from, the second pins one binary.
+QString asProcessEntry(const QString &app) {
+    if (app.startsWith(QStringLiteral("processName:")) || app.startsWith(QStringLiteral("processPath:")))
+        return app;
+    const bool looksLikePath = app.contains('/') || app.contains('\\');
+    return (looksLikePath ? QStringLiteral("processPath:") : QStringLiteral("processName:")) + app;
+}
+
 QStringList requestedStrings(const QJsonObject &request, const QString &key) {
     QStringList values;
     for (const QJsonValue &value : request.value(key).toArray()) {
@@ -146,6 +155,16 @@ const QList<Command> &commandTable() {
          {{"action", "string", true, "proxy, direct, block", "which list to edit"},
           {"domains", "string[]", true, "", "accepts the bare form or the stored one"}},
          "action, domains (the resulting list)"},
+        {"routing.add_apps", "Route applications by their process.",
+         {{"action", "string", true, "proxy, direct, block", "which list to edit"},
+          {"apps", "string[]", true, "",
+           "an executable name such as discord.exe, or a full path; a path is matched "
+           "exactly, a bare name matches wherever the program runs from"}},
+         "action, apps (the resulting process entries)"},
+        {"routing.remove_apps", "Stop routing applications by their process.",
+         {{"action", "string", true, "proxy, direct, block", "which list to edit"},
+          {"apps", "string[]", true, "", "accepts the bare name, a path, or the stored form"}},
+         "action, apps (the resulting process entries)"},
     };
     return table;
 }
@@ -292,6 +311,39 @@ QJsonObject Execute(const QJsonObject &request) {
             return fail(QStringLiteral("\"enabled\" must be true or false"));
         profile->applyProfileRules = request.value(QStringLiteral("enabled")).toBool();
         return saveAndApply(profile, QJsonObject{{"rules_enabled", profile->applyProfileRules}});
+    }
+
+    if (cmd == QStringLiteral("routing.add_apps") || cmd == QStringLiteral("routing.remove_apps")) {
+        const auto profile = activeProfile();
+        if (!profile) return fail(QStringLiteral("no active routing profile"));
+        if (profile->isRaw) return fail(QStringLiteral("a raw profile is edited as JSON, not as app lists"));
+        Configs::simpleAction action = Configs::proxy;
+        if (!actionFromName(request.value(QStringLiteral("action")).toString(), &action))
+            return fail(QStringLiteral("\"action\" must be proxy, direct or block"));
+        const QStringList apps = requestedStrings(request, QStringLiteral("apps"));
+        if (apps.isEmpty()) return fail(QStringLiteral("\"apps\" must be a non-empty array"));
+
+        QStringList current = profile->GetSimpleRules(action).split('\n', Qt::SkipEmptyParts);
+        const bool adding = cmd.endsWith(QStringLiteral("add_apps"));
+        for (const QString &app : apps) {
+            const QString entry = asProcessEntry(app);
+            if (adding) {
+                if (!current.contains(entry)) current << entry;
+            } else {
+                current.removeAll(entry);
+                current.removeAll(app);
+            }
+        }
+        const QString error = profile->UpdateSimpleRules(current.join('\n'), action);
+        if (!error.isEmpty()) return fail(error);
+        QStringList processEntries;
+        for (const QString &entry : current)
+            if (entry.startsWith(QStringLiteral("processName:")) || entry.startsWith(QStringLiteral("processPath:")))
+                processEntries << entry;
+        return saveAndApply(profile, QJsonObject{
+            {"action", request.value(QStringLiteral("action")).toString()},
+            {"apps", QJsonArray::fromStringList(processEntries)},
+        });
     }
 
     if (cmd == QStringLiteral("routing.add_domains") || cmd == QStringLiteral("routing.remove_domains")) {

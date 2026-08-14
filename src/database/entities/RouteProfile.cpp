@@ -624,6 +624,16 @@ namespace Configs {
         return res;
     }
 
+    bool RouteProfile::UsesProcessRules() const {
+        for (const auto &rule : Rules) {
+            if (!rule) continue;
+            if (!rule->process_name.isEmpty() || !rule->process_path.isEmpty()
+                || !rule->process_path_regex.isEmpty())
+                return true;
+        }
+        return false;
+    }
+
     bool RouteProfile::IsEmpty() {
         if (isRaw) return rawRoute.trimmed().isEmpty();
         for (const auto& item: Rules) {

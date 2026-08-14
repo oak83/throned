@@ -117,6 +117,11 @@ namespace Configs {
         // NIC. Rule-sets are not resolvable at build time and are left out.
         QStringList get_hijacked_ips();
 
+        // True when any rule matches on the owning process. sing-box only looks
+        // that up when route.find_process is on, so a profile that uses these
+        // rules has to ask for it or they silently never match.
+        bool UsesProcessRules() const;
+
         bool IsEmpty();
 
         void ResetRules();

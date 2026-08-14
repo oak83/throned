@@ -2013,7 +2013,12 @@ namespace Configs {
             } else {
                 route["final"] = outboundIDToString(defOut);
             }
-            if (settings.enable_stats && !route.contains("find_process"))  route["find_process"] = true;
+            // Process lookup is what makes process_name/process_path rules match
+            // at all, so a profile that uses them needs it even when the traffic
+            // statistics that normally switch it on are turned off.
+            if (!route.contains("find_process")
+                && (settings.enable_stats || routeChain->UsesProcessRules()))
+                route["find_process"] = true;
             if (!route.contains("default_domain_resolver"))
                 route["default_domain_resolver"] = QJsonObject{
                                         {"server", tags::dnsDirect},

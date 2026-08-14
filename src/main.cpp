@@ -280,6 +280,30 @@ namespace {
                 *request = {{"cmd", "routing.set_rules_enabled"}, {"enabled", args.first() == "on"}};
                 return true;
             }
+            if (verb == "app" || verb == "apps") {
+                QString via = QStringLiteral("proxy");
+                QJsonArray entries;
+                bool removing = false;
+                for (int i = 0; i < args.size(); ++i) {
+                    if (args.at(i) == "--via" || args.at(i) == "-v") {
+                        if (i + 1 >= args.size()) { *error = QStringLiteral("--via needs proxy, direct or block"); return false; }
+                        via = args.at(++i);
+                        continue;
+                    }
+                    if (entries.isEmpty() && (args.at(i) == "add" || args.at(i) == "remove")) {
+                        removing = args.at(i) == "remove";
+                        continue;
+                    }
+                    entries.append(args.at(i));
+                }
+                if (entries.isEmpty()) { *error = QStringLiteral("'route app' needs add or remove and an executable"); return false; }
+                *request = {
+                    {"cmd", removing ? "routing.remove_apps" : "routing.add_apps"},
+                    {"action", via},
+                    {"apps", entries},
+                };
+                return true;
+            }
             if (verb == "add" || verb == "remove") {
                 QString via = QStringLiteral("proxy");
                 QJsonArray entries;
@@ -395,6 +419,9 @@ Commands
   route add <domain>...        route domains, e.g.
                                route add example.com --via proxy
   route remove <domain>...     drop them again
+  route app add <exe>...        route an application, e.g.
+                               route app add discord.exe --via proxy
+  route app remove <exe>...     stop routing it
 
   Add --via proxy|direct|block to choose the list; proxy is the default.
   A bare domain covers its subdomains. Prefixes like ruleset: or processName:
