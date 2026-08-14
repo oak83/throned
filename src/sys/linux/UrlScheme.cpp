@@ -24,8 +24,20 @@ static QString desktopFilePath() {
     return dir + "/" + kDesktopId;
 }
 
+// "throned" is in no icon theme for the /opt and AppImage layouts, so unpack a
+// copy and reference it by absolute path. The resource path is the fork's own:
+// upstream's :/Throne/Throne.png does not exist here, and a failed copy would
+// silently leave the entry pointing at an icon name nothing resolves.
+static QString iconTarget() {
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString path = dir + "/throned.png";
+    QDir().mkpath(dir);
+    QFile::remove(path);
+    return QFile::copy(":/Throned.png", path) ? path : QStringLiteral("throned");
+}
+
 QString UrlScheme_DesiredState() {
-    return "v2|" + execTarget();
+    return "v3|" + execTarget();
 }
 
 void UrlScheme_Apply() {
@@ -35,17 +47,14 @@ void UrlScheme_Apply() {
     QFile f(path);
     if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream ts(&f);
-        // The config mime types are declared but never claimed as a default, which
-        // puts Throne in the file manager's "Open With" list without taking .json
-        // away from whatever the user reads it with. That list skips NoDisplay
-        // entries, so the entry has to be a visible one.
         ts << "[Desktop Entry]\n"
            << "Type=Application\n"
            << "Name=Throned\n"
-           << "Icon=throned\n"
+           << "Icon=" << iconTarget() << "\n"
            << "Exec=\"" << execTarget() << "\" %U\n"
            << "MimeType=x-scheme-handler/throne;application/json;application/yaml;text/yaml;text/plain;\n"
-           << "Terminal=false\n";
+           << "Terminal=false\n"
+           << "NoDisplay=true\n";
         ts.flush();
         f.close();
     }

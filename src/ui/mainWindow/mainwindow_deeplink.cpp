@@ -363,11 +363,12 @@ void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {
         break;
     case MwMessage::CoreStarted:
         Configs::IsAdmin(true);
-        if (settings->remember_system_proxy) {
+        if (settings->remember_enable && settings->remember_system_proxy) {
             set_spmode_system_proxy(true, false);
         }
-        if (settings->remember_tun || settings->flag_restart_tun_on) {
-            set_spmode_vpn(true, false);
+        if ((settings->remember_enable && settings->remember_tun) || settings->flag_restart_tun_on) {
+            set_spmode_vpn(true, settings->flag_restart_tun_on);
+            settings->flag_restart_tun_on = false;
         }
         if (settings->flag_dns_set) {
             set_system_dns(true);

@@ -51,6 +51,10 @@
 #ifdef Q_OS_LINUX
 #include <include/sys/linux/coreDump.h>
 #include <qfontdatabase.h>
+#include <QSocketNotifier>
+#include <signal.h>
+#include <unistd.h>
+#include <fcntl.h>
 #endif
 #ifdef Q_OS_MACOS
 #include <QFileOpenEvent>
@@ -85,9 +89,54 @@ protected:
 #define LOCAL_SERVER_PREFIX "throned-"
 
 void signal_handler(int signum) {
-    GetMainWindow()->prepare_exit();
+    Q_UNUSED(signum)
+    if (auto *mw = GetMainWindow()) mw->prepare_exit();
     qApp->quit();
 }
+
+#ifdef Q_OS_LINUX
+namespace {
+    int g_signalPipe[2] = {-1, -1};
+
+    // Async-signal-safe: a write() to the self-pipe is all that is allowed here. The
+    // teardown itself (Qt widgets, QProcess, SQLite) runs from the notifier below, on
+    // the main thread, so a session-manager SIGTERM can no longer be delivered on a
+    // worker thread or re-enter a lock the interrupted thread was already holding.
+    void posix_signal_handler(int signum) {
+        const auto byte = static_cast<char>(signum);
+        [[maybe_unused]] const ssize_t written = ::write(g_signalPipe[1], &byte, 1);
+    }
+
+    void install_termination_handlers() {
+        if (::pipe(g_signalPipe) != 0) {
+            // Without the pipe, the unsafe direct handler still beats no handler at all.
+            signal(SIGTERM, signal_handler);
+            signal(SIGINT, signal_handler);
+            return;
+        }
+        for (const int fd : g_signalPipe) {
+            ::fcntl(fd, F_SETFD, ::fcntl(fd, F_GETFD) | FD_CLOEXEC);
+            // Non-blocking: a full pipe must fail the write, never block in signal context.
+            ::fcntl(fd, F_SETFL, ::fcntl(fd, F_GETFL) | O_NONBLOCK);
+        }
+
+        auto *notifier = new QSocketNotifier(g_signalPipe[0], QSocketNotifier::Read, qApp);
+        QObject::connect(notifier, &QSocketNotifier::activated, qApp, [notifier] {
+            notifier->setEnabled(false); // one teardown is enough; later signals just fill the pipe
+            char drain[16];
+            while (::read(g_signalPipe[0], drain, sizeof(drain)) > 0) {}
+            signal_handler(0);
+        });
+
+        struct sigaction sa{};
+        sa.sa_handler = posix_signal_handler;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_RESTART;
+        sigaction(SIGTERM, &sa, nullptr);
+        sigaction(SIGINT, &sa, nullptr);
+    }
+}
+#endif
 
 QTranslator* trans = nullptr;
 QTranslator* trans_qt = nullptr;
@@ -959,8 +1008,7 @@ int main(int argc, char* argv[]) {
     });
 
 #ifdef Q_OS_LINUX
-    signal(SIGTERM, signal_handler);
-    signal(SIGINT, signal_handler);
+    install_termination_handlers();
 #endif
 
 #ifdef Q_OS_WIN

@@ -90,16 +90,11 @@ void MainWindow::on_commitDataRequest() {
     }
     settings->splitter_state = ui->splitter->saveState().toBase64();
 
-    // Snapshot on exit rather than per toggle, so "remember last proxy" is independent
-    // of the order the user flipped the proxy/tun modes.
-    if (settings->remember_enable) {
-        if (settings->started_id >= 0) settings->remember_id = settings->started_id;
-        settings->remember_system_proxy = settings->spmode_system_proxy;
-        settings->remember_tun = settings->spmode_vpn;
-    } else {
-        settings->remember_system_proxy = false;
-        settings->remember_tun = false;
-    }
+    // Backstop for the eager writes in set_spmode_*/UpdateStartedId: this only runs on a
+    // graceful exit, so it must never be the sole place the remembered state is recorded.
+    if (settings->remember_enable && settings->started_id >= 0) settings->remember_id = settings->started_id;
+    settings->remember_system_proxy = settings->spmode_system_proxy;
+    settings->remember_tun = settings->spmode_vpn;
 
     settings->Save();
     qDebug() << "End of data save";
@@ -275,6 +270,7 @@ void MainWindow::set_spmode_system_proxy(bool enable, bool save) {
     }
 
     if (save) {
+        Configs::dataManager->settingsRepo->remember_system_proxy = enable;
         Configs::dataManager->settingsRepo->Save();
     }
 
@@ -295,6 +291,8 @@ void MainWindow::set_spmode_vpn(bool enable, bool save) {
     }
 
     if (save) {
+        // Written here, after the elevation check, so a failed enable is not remembered.
+        Configs::dataManager->settingsRepo->remember_tun = enable;
         Configs::dataManager->settingsRepo->Save();
     }
 
