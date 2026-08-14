@@ -82,6 +82,8 @@ protected:
 };
 #endif
 
+#define LOCAL_SERVER_PREFIX "throned-"
+
 void signal_handler(int signum) {
     GetMainWindow()->prepare_exit();
     qApp->quit();
@@ -374,7 +376,7 @@ namespace {
     QString HumanHelpText() {
         return QStringLiteral(R"(Throned command line
 
-  Throned --cli <command>
+  throned --cli <command>
 
 Commands
 
@@ -409,7 +411,16 @@ briefly interrupts traffic.
 )");
     }
 
-    int RunControlClient(const QString &serverName, QStringList words) {
+    // The socket is named after the working directory, so an instance started
+    // from the install folder and one that fell back to appdata never collide.
+    QString LocalServerNameFor(const QDir &dir) {
+        QByteArray hashBytes = QCryptographicHash::hash(dir.absolutePath().toUtf8(), QCryptographicHash::Md5)
+                                   .toBase64(QByteArray::OmitTrailingEquals);
+        hashBytes.replace('+', '0').replace('/', '1');
+        return LOCAL_SERVER_PREFIX + QString::fromUtf8(hashBytes);
+    }
+
+    int RunControlClient(const QStringList &serverNames, QStringList words) {
         AttachToParentConsole();
 
         const bool rawJsonOut = words.removeAll(QStringLiteral("--json")) > 0;
@@ -435,7 +446,7 @@ briefly interrupts traffic.
         } else {
             QString error;
             if (!ParseHumanCommand(words, &request, &error)) {
-                PrintLine(error + QStringLiteral("\nRun: Throned --cli help"));
+                PrintLine(error + QStringLiteral("\nrun: throned --cli help"));
                 return 2;
             }
         }
@@ -451,9 +462,22 @@ briefly interrupts traffic.
             PrintLine(machineOutput ? json : text);
         };
 
+        // An instance may live under the install folder or under appdata, and
+        // which one it picked depends on whether the install folder turned out
+        // writable. Trying both beats re-deriving that decision, which would
+        // mean creating directories a read-only query has no business creating.
         QLocalSocket socket;
-        socket.connectToServer(serverName);
-        if (!socket.waitForConnected(1000)) {
+        bool connected = false;
+        for (const QString &candidate : serverNames) {
+            if (candidate.isEmpty()) continue;
+            socket.connectToServer(candidate);
+            if (socket.waitForConnected(1000)) {
+                connected = true;
+                break;
+            }
+            socket.abort();
+        }
+        if (!connected) {
             report(QStringLiteral(R"({"ok":false,"error":"Throned is not running in this directory"})"),
                    QStringLiteral("throned is not running here; start it first, or run this from its folder"));
             return 3;
@@ -577,7 +601,6 @@ briefly interrupts traffic.
     }
 } // namespace
 
-#define LOCAL_SERVER_PREFIX "throned-"
 
 int main(int argc, char* argv[]) {
     Logging::InstallQtMessageHandler();
@@ -649,6 +672,19 @@ int main(int argc, char* argv[]) {
     useAppdata = true; // Example: Package & MacOS
 #endif
     QApplication::setApplicationName("Throned");
+
+    // Control mode talks to a running instance and exits. It has to happen
+    // before the config directory is resolved, because that step creates
+    // directories and copies a legacy Throne profile into them - which a
+    // read-only query run from an arbitrary folder must never do.
+    if (const int cliAt = arguments.indexOf(QStringLiteral("--cli")); cliAt >= 0) {
+        const QDir appdataWd(appdataDir.isEmpty()
+            ? QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) : appdataDir);
+        QStringList candidates{LocalServerNameFor(useAppdata ? appdataWd : wd)};
+        if (!useAppdata) candidates << LocalServerNameFor(appdataWd);
+        return RunControlClient(candidates, arguments.mid(cliAt + 1));
+    }
+
     if(useAppdata) {
         if (!appdataDir.isEmpty()) {
             wd.setPath(appdataDir);
@@ -751,17 +787,8 @@ int main(int argc, char* argv[]) {
     loadTranslate(locale);
 
     // Check if another instance is running
-    QByteArray hashBytes = QCryptographicHash::hash(wd.absolutePath().toUtf8(), QCryptographicHash::Md5).toBase64(QByteArray::OmitTrailingEquals);
-    hashBytes.replace('+', '0').replace('/', '1');
-    auto serverName = LOCAL_SERVER_PREFIX + QString::fromUtf8(hashBytes);
+    auto serverName = LocalServerNameFor(wd);
     qDebug() << "server name: " << serverName;
-
-    // Control mode: talk to the running instance, print its answer, exit. It
-    // never starts a window of its own, so a failure has to be reported as JSON
-    // on stdout rather than in a dialog nobody would see.
-    if (const int cliAt = a.arguments().indexOf(QStringLiteral("--cli")); cliAt >= 0) {
-        return RunControlClient(serverName, a.arguments().mid(cliAt + 1));
-    }
 
     QLocalSocket socket;
     socket.connectToServer(serverName);

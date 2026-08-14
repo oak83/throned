@@ -179,9 +179,10 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
         button->setCursor(Qt::PointingHandCursor);
         button->setMinimumHeight(36);
         // Designer had these stretch to equal widths, which pushed them edge to
-        // edge and made the row read as one bar. Size them to their labels and
-        // let the row's stretch take the slack instead.
-        button->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+        // edge and made the row read as one bar. Fixed pins each one to its own
+        // label: Maximum would look right until the row runs out of space, and
+        // then silently clip the longer captions instead of widening the dialog.
+        button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     }
     ui->new_route->setObjectName(QStringLiteral("routeSaveButton"));
     ui->new_route->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Add, Qt::white, 17));
@@ -241,7 +242,7 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
     profilesCardLayout->addWidget(ui->route_profiles);
 
     auto *secondaryActions = new QHBoxLayout;
-    secondaryActions->setSpacing(8);
+    secondaryActions->setSpacing(10);
     secondaryActions->addWidget(ui->clone_route);
     secondaryActions->addWidget(ui->import_route);
     secondaryActions->addWidget(ui->export_route);

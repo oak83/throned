@@ -256,7 +256,7 @@ comes back. Every reply is either
 so a failure is always parseable rather than free-form text.
 
 Usage:
-  Throned --cli '{"cmd":"status"}'
+  throned --cli '{"cmd":"status"}'
 
 Commands
 
