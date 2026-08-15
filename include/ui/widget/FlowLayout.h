@@ -21,6 +21,17 @@ public:
         while (QLayoutItem *item = takeAt(0)) delete item;
     }
 
+    // Lay the items out in equal-width columns filled top to bottom, the way a
+    // directory listing prints. A ragged row-major flow is unreadable once a
+    // card holds a few dozen entries: nothing lines up and sorted content runs
+    // sideways, so the eye has no column to follow.
+    void setUniformColumns(bool enabled, int minimumWidth = 150, int maximumWidth = 260) {
+        columnMinimum_ = minimumWidth;
+        columnMaximum_ = maximumWidth;
+        uniformColumns_ = enabled;
+        invalidate();
+    }
+
     void addItem(QLayoutItem *item) override { items_.append(item); }
     int count() const override { return items_.size(); }
     QLayoutItem *itemAt(int index) const override { return items_.value(index); }
@@ -35,6 +46,7 @@ public:
         QSize size;
         for (QLayoutItem *item : items_) size = size.expandedTo(item->minimumSize());
         const QMargins margins = contentsMargins();
+        if (uniformColumns_) size.setWidth(std::min(size.width(), columnMinimum_));
         return size + QSize(margins.left() + margins.right(), margins.top() + margins.bottom());
     }
     void setGeometry(const QRect &rect) override {
@@ -43,7 +55,37 @@ public:
     }
 
 private:
+    int arrangeColumns(const QRect &rect, bool measureOnly) const {
+        const QMargins margins = contentsMargins();
+        const QRect area = rect.adjusted(margins.left(), margins.top(), -margins.right(), -margins.bottom());
+        if (items_.isEmpty()) return margins.top() + margins.bottom();
+
+        int widest = 0;
+        int rowHeight = 0;
+        for (QLayoutItem *item : items_) {
+            widest = std::max(widest, item->sizeHint().width());
+            rowHeight = std::max(rowHeight, item->sizeHint().height());
+        }
+        const int preferred = std::clamp(widest, columnMinimum_, columnMaximum_);
+        const int available = std::max(area.width(), columnMinimum_);
+        const int columns = std::max(1, (available + horizontalSpacing_) / (preferred + horizontalSpacing_));
+        const int columnWidth = (available - (columns - 1) * horizontalSpacing_) / columns;
+        const int rows = (items_.size() + columns - 1) / columns;
+
+        if (!measureOnly) {
+            for (int index = 0; index < items_.size(); ++index) {
+                const int column = index / rows;
+                const int row = index % rows;
+                items_.at(index)->setGeometry(QRect(area.x() + column * (columnWidth + horizontalSpacing_),
+                                                    area.y() + row * (rowHeight + verticalSpacing_),
+                                                    columnWidth, rowHeight));
+            }
+        }
+        return rows * rowHeight + (rows - 1) * verticalSpacing_ + margins.top() + margins.bottom();
+    }
+
     int arrange(const QRect &rect, bool measureOnly) const {
+        if (uniformColumns_) return arrangeColumns(rect, measureOnly);
         const QMargins margins = contentsMargins();
         const QRect area = rect.adjusted(margins.left(), margins.top(), -margins.right(), -margins.bottom());
         int x = area.x();
@@ -66,4 +108,7 @@ private:
     QList<QLayoutItem *> items_;
     int horizontalSpacing_;
     int verticalSpacing_;
+    bool uniformColumns_ = false;
+    int columnMinimum_ = 150;
+    int columnMaximum_ = 260;
 };

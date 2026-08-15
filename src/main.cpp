@@ -25,6 +25,7 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTabBar>
 #include <QTabWidget>
@@ -784,11 +785,41 @@ briefly interrupts traffic.
         // --route-editor-preview --output <file.png> renders the real editor
         // once and exits, so the layout can be checked without a live profile.
         const QStringList args = app.arguments();
+        if (args.contains(QStringLiteral("--paste")))
+            if (auto *paste = dialog.findChild<QPushButton *>(QStringLiteral("routeBulkEditButton")))
+                QTimer::singleShot(200, paste, [paste] { paste->click(); });
+        // A deliberately messy list, so the paste parser can be re-checked
+        // against comments, quotes, sing-box spellings and paths with spaces.
+        if (args.contains(QStringLiteral("--paste-sample")))
+            QTimer::singleShot(400, &dialog, [] {
+                if (auto *modal = QApplication::activeModalWidget())
+                    if (auto *editor = modal->findChild<QPlainTextEdit *>())
+                        editor->setPlainText(QStringLiteral(
+                            "# pasted from a friend\n"
+                            "chatgpt.com\n"
+                            ".example.org\n"
+                            "  \"cdn.example.net\",\n"
+                            "- geosite-openai\n"
+                            "domain_suffix: example.io\n"
+                            "process_name: AyuGram.exe\n"
+                            "C:\\Program Files\\NVIDIA App\\CEF\\NVIDIA Overlay.exe\n"
+                            "198.51.100.0/24\n"
+                            "2001:db8::/32\n"
+                            "rule_set:geoip-cloudflare\n"
+                            "regexp:^cdn[0-9]+\\.example\\.com$\n"
+                            "telemetry\n"
+                            "?? total nonsense here\n"));
+            });
         if (const int outputAt = args.indexOf(QStringLiteral("--output"));
             outputAt >= 0 && outputAt + 1 < args.size()) {
             const QString output = args.at(outputAt + 1);
             QTimer::singleShot(700, &dialog, [&dialog, output, &app] {
-                app.exit(dialog.grab().save(output, "PNG") ? 0 : 2);
+                // A modal child (the paste dialog) is its own top-level window,
+                // so grabbing the editor behind it would capture nothing useful.
+                QWidget *target = QApplication::activeModalWidget();
+                const bool ok = (target ? target : &dialog)->grab().save(output, "PNG");
+                if (target != nullptr) target->close();
+                app.exit(ok ? 0 : 2);
             });
         }
         return app.exec();

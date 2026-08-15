@@ -5525,6 +5525,7 @@ Your local edits are overwritten on each update.</source>
     <message><source>Rule %1</source><translation>Правило %1</translation></message>
     <message><source>All actions are shown in their original global order; unknown JSON fields are preserved.</source><translation>Все действия показаны в исходном порядке; неизвестные поля JSON сохраняются.</translation></message>
     <message><source>No match conditions</source><translation>Без условий совпадения</translation></message>
+    <message><source>+%1 more</source><translation>ещё %1</translation></message>
     <message><source>Move up</source><translation>Поднять выше</translation></message>
     <message><source>Move down</source><translation>Опустить ниже</translation></message>
     <message><source>Edit rule</source><translation>Изменить правило</translation></message>
@@ -5552,10 +5553,12 @@ Your local edits are overwritten on each update.</source>
     <message><source>Also route mixed-in and socks-in traffic through this outbound.</source><translation>Также направлять mixed-in и socks-in через этот outbound.</translation></message>
     <message><source>Applications</source><translation>Приложения</translation></message>
     <message><source>Match by installed app, running process, or executable.</source><translation>Выбор установленной программы, процесса или файла.</translation></message>
-    <message><source>Domains &amp; rule sets</source><translation>Домены и наборы правил</translation></message>
-    <message><source>Match domain names and remote geosite lists.</source><translation>Домены и удалённые списки geosite.</translation></message>
-    <message><source>Processes &amp; IP/CIDR</source><translation>Процессы и IP/CIDR</translation></message>
-    <message><source>Match destination IP addresses and CIDR ranges.</source><translation>IP-адреса назначения и диапазоны CIDR.</translation></message>
+    <message><source>Domains</source><translation>Домены</translation></message>
+    <message><source>Match domain names, suffixes, keywords, and regexes.</source><translation>Домены, суффиксы, ключевые слова и регулярные выражения.</translation></message>
+    <message><source>Rule sets</source><translation>Наборы правил</translation></message>
+    <message><source>Remote geosite lists, matched as a whole.</source><translation>Удалённые списки geosite целиком.</translation></message>
+    <message><source>IP addresses &amp; ranges</source><translation>IP-адреса и диапазоны</translation></message>
+    <message><source>Match destination IP addresses, CIDR ranges, and geoip lists.</source><translation>IP-адреса назначения, диапазоны CIDR и списки geoip.</translation></message>
     <message><source>Advanced / raw rules</source><translation>Расширенные / raw-правила</translation></message>
     <message><source>Ordered conditions, exact priority, and lossless JSON.</source><translation>Вложенные условия, точный приоритет и JSON без потерь.</translation></message>
     <message><source>Direct rules</source><translation>Правила напрямую</translation></message>
@@ -5581,6 +5584,27 @@ Your local edits are overwritten on each update.</source>
     <message><source>One value per line…</source><translation>Одно значение на строку…</translation></message>
     <message><source>Search rule sets…</source><translation>Поиск наборов правил…</translation></message>
     <message><source>Add selected</source><translation>Добавить выбранное</translation></message>
+    <message><source>Filter…</source><translation>Фильтр…</translation></message>
+    <message><source>Nothing matches this filter.</source><translation>Под фильтр ничего не подходит.</translation></message>
+    <message><source>+%1 more</source><translation>ещё %1</translation></message>
+    <message><source>Show less</source><translation>Свернуть</translation></message>
+    <message><source>Paste list</source><translation>Вставить списком</translation></message>
+    <message><source>Edit every rule of this action as plain text.</source><translation>Редактировать все правила этого действия обычным текстом.</translation></message>
+    <message><source>Paste rule list</source><translation>Список правил</translation></message>
+    <message><source>Every rule of “%1”, one per line. Editing here replaces the whole list, and each entry lands in its own card automatically.</source><translation>Все правила «%1», по одному на строку. Список заменяется целиком, а каждая запись сама попадает в нужную карточку.</translation></message>
+    <message><source>Prefixes: domain:  suffix:  keyword:  regex:  ruleset:  ip:  processName:  processPath:
+A line without a prefix is recognised on its own — sing-box spellings (domain_suffix, process_name, rule_set…) are accepted too.</source><translation>Префиксы: domain:  suffix:  keyword:  regex:  ruleset:  ip:  processName:  processPath:
+Строка без префикса распознаётся сама — написание из sing-box (domain_suffix, process_name, rule_set…) тоже принимается.</translation></message>
+    <message><source>Apply list</source><translation>Применить список</translation></message>
+    <message><source>Nothing to add yet.</source><translation>Пока нечего добавлять.</translation></message>
+    <message><source>%1 line(s) will be dropped — add a prefix to keep them: %2</source><translation>Строк будет отброшено: %1 — добавьте префикс, чтобы сохранить: %2</translation></message>
+    <message><source>domains</source><translation>домены</translation></message>
+    <message><source>suffixes</source><translation>суффиксы</translation></message>
+    <message><source>keywords</source><translation>ключевые слова</translation></message>
+    <message><source>regexes</source><translation>регулярные выражения</translation></message>
+    <message><source>rule sets</source><translation>наборы правил</translation></message>
+    <message><source>addresses</source><translation>адреса</translation></message>
+    <message><source>processes</source><translation>процессы</translation></message>
 </context>
 <context>
     <name>SpeedWidget</name>

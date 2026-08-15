@@ -31,6 +31,7 @@ signals:
 private:
     void selectAction(int action);
     void rebuild();
+    void bulkEdit();
     void addApplicationRules();
     void addRule(const QString &section);
     void removeRule(const QString &rule);

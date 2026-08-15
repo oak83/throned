@@ -18,6 +18,8 @@
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QHostAddress>
+#include <QMap>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -146,7 +148,10 @@ public:
         : QAbstractButton(parent), rule_(rule), icon_(icon), removable_(removable) {
         setCursor(removable ? Qt::PointingHandCursor : Qt::ArrowCursor);
         setToolTip(rule);
-        setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        // Preferred, not Fixed: in a uniform-column card the layout hands the
+        // chip a shared width, and a Fixed policy would clamp it back to its
+        // own hint and break the alignment the columns exist for.
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
         setFixedHeight(32);
     }
 
@@ -175,14 +180,23 @@ protected:
             border = QColor("#46402E");
             fill = QColor("#25231D");
         }
+        else if (rule_.startsWith("suffix:") || rule_.startsWith("keyword:") || rule_.startsWith("regex:")) {
+            // A wildcard match is a different animal from a literal domain, and
+            // the two used to be indistinguishable in a card of forty chips.
+            border = QColor("#2B3F4A");
+            fill = QColor("#1A242A");
+        }
         if (underMouse() && removable_) border = QColor("#2F91FF");
         painter.setPen(border);
         painter.setBrush(fill);
         painter.drawRoundedRect(rect().adjusted(0, 0, -1, -1), 5, 5);
         painter.drawPixmap(10, (height() - 17) / 2, icon_.pixmap(17, 17));
         painter.setPen(QColor("#E5E8EB"));
-        painter.drawText(QRect(35, 0, width() - (removable_ ? 56 : 45), height()),
-                         Qt::AlignVCenter | Qt::AlignLeft, ruleDisplayValue(rule_));
+        // The chip is laid out into a shared column width, so it can be handed
+        // less room than it asked for.
+        const QRect textArea(35, 0, width() - (removable_ ? 56 : 45), height());
+        painter.drawText(textArea, Qt::AlignVCenter | Qt::AlignLeft,
+                         painter.fontMetrics().elidedText(ruleDisplayValue(rule_), Qt::ElideRight, textArea.width()));
         if (removable_) {
             painter.setPen(QColor("#A4ABB4"));
             painter.drawText(QRect(width() - 28, 0, 18, height()), Qt::AlignCenter, QStringLiteral("×"));
@@ -198,7 +212,7 @@ private:
 // Past this many chips a card stops being a glanceable summary and turns into a
 // wall, so the rest is folded behind a "+N more" chip and a filter box appears
 // in the header.
-constexpr int kChipPreviewLimit = 14;
+constexpr int kChipPreviewLimit = 24;
 
 class RuleCard final : public QFrame {
 public:
@@ -261,7 +275,7 @@ public:
 
         details_ = new QWidget(this);
         details_->setObjectName("routeTransparent");
-        chips_ = new FlowLayout(details_);
+        chips_ = new FlowLayout(details_, 8, 6);
         chips_->setContentsMargins(32, 2, 0, 0);
         rebuildChips();
         details_->setVisible(expanded);
@@ -287,6 +301,15 @@ private:
         QStringList matching;
         for (const QString &rule : rules_)
             if (needle.isEmpty() || rule.contains(needle, Qt::CaseInsensitive)) matching.append(rule);
+        // Sorted by kind, then by what the chip actually shows. Insertion order
+        // carries no routing meaning inside a card - every entry in it ends up
+        // in the same generated rule - so it only made the list unreadable.
+        std::sort(matching.begin(), matching.end(), [](const QString &left, const QString &right) {
+            const QString leftKind = rulePrefix(left);
+            const QString rightKind = rulePrefix(right);
+            if (leftKind != rightKind) return leftKind < rightKind;
+            return ruleDisplayValue(left).compare(ruleDisplayValue(right), Qt::CaseInsensitive) < 0;
+        });
 
         if (matching.isEmpty()) {
             auto *empty = new QLabel(needle.isEmpty() ? RouteProfileSimpleEditor::tr("No rules added yet.")
@@ -297,6 +320,10 @@ private:
             return;
         }
 
+        // A handful of chips reads better packed; past that the eye needs a
+        // column to follow, and the ragged flow is what made a long card
+        // impossible to skim.
+        chips_->setUniformColumns(matching.size() > 8, 178, 268);
         const bool folded = !showAll_ && matching.size() > kChipPreviewLimit;
         const int shown = folded ? kChipPreviewLimit : matching.size();
         for (int index = 0; index < shown; ++index) {
@@ -336,6 +363,93 @@ private:
     QLineEdit *filter_ = nullptr;
     bool showAll_ = false;
 };
+
+// The canonical prefixes a rule line can carry, plus every spelling of them we
+// are willing to accept on paste. People bring lists out of a sing-box config,
+// out of another client, or out of a chat message, and retyping forty entries
+// to add a prefix is exactly the work this editor exists to avoid.
+const QMap<QString, QString> &ruleLineAliases() {
+    static const QMap<QString, QString> aliases{
+        {QStringLiteral("domain"), QStringLiteral("domain")},
+        {QStringLiteral("full"), QStringLiteral("domain")},
+        {QStringLiteral("suffix"), QStringLiteral("suffix")},
+        {QStringLiteral("domain_suffix"), QStringLiteral("suffix")},
+        {QStringLiteral("keyword"), QStringLiteral("keyword")},
+        {QStringLiteral("domain_keyword"), QStringLiteral("keyword")},
+        {QStringLiteral("regex"), QStringLiteral("regex")},
+        {QStringLiteral("regexp"), QStringLiteral("regex")},
+        {QStringLiteral("domain_regex"), QStringLiteral("regex")},
+        {QStringLiteral("ruleset"), QStringLiteral("ruleset")},
+        {QStringLiteral("rule_set"), QStringLiteral("ruleset")},
+        {QStringLiteral("ip"), QStringLiteral("ip")},
+        {QStringLiteral("ip_cidr"), QStringLiteral("ip")},
+        {QStringLiteral("cidr"), QStringLiteral("ip")},
+        {QStringLiteral("processname"), QStringLiteral("processName")},
+        {QStringLiteral("process_name"), QStringLiteral("processName")},
+        {QStringLiteral("processpath"), QStringLiteral("processPath")},
+        {QStringLiteral("process_path"), QStringLiteral("processPath")},
+    };
+    return aliases;
+}
+
+// Guess the kind of a line that arrived without one. Deliberately conservative:
+// anything that cannot be placed confidently comes back empty so the dialog can
+// report it instead of filing it in the wrong card.
+QString guessRuleKind(const QString &value) {
+    // Paths come first: "C:\Program Files\…\app.exe" is a perfectly good rule
+    // and the only kind allowed to carry spaces.
+    if (value.contains(QLatin1Char('\\')) || value.startsWith(QLatin1Char('/')))
+        return QStringLiteral("processPath");
+    if (value.contains(QLatin1Char(' '))) return {};
+    if (value.startsWith(QStringLiteral("geosite-")) || value.startsWith(QStringLiteral("geoip-")))
+        return QStringLiteral("ruleset");
+    if (value.endsWith(QStringLiteral(".exe"), Qt::CaseInsensitive)) return QStringLiteral("processName");
+    // An address or a range: bare IPs and CIDRs alike, v4 and v6.
+    const QString address = value.section(QLatin1Char('/'), 0, 0);
+    if (!address.isEmpty() && !QHostAddress(address).isNull()) return QStringLiteral("ip");
+    if (value.startsWith(QLatin1Char('.'))) return QStringLiteral("suffix");
+    if (value.startsWith(QStringLiteral("*."))) return QStringLiteral("domain");
+    if (value.contains(QLatin1Char('.'))) return QStringLiteral("domain");
+    return {};
+}
+
+// One pasted line to one canonical "kind:value" rule, or an empty string when
+// the line cannot be understood.
+QString normalizeRuleLine(const QString &line) {
+    QString clean = line.trimmed();
+    if (clean.isEmpty() || clean.startsWith(QLatin1Char('#')) || clean.startsWith(QStringLiteral("//"))) return {};
+    // Tolerate list punctuation from a pasted YAML/JSON fragment.
+    while (clean.startsWith(QLatin1Char('-')) || clean.startsWith(QLatin1Char('"'))) clean = clean.mid(1).trimmed();
+    while (clean.endsWith(QLatin1Char(',')) || clean.endsWith(QLatin1Char('"'))) clean.chop(1);
+    clean = clean.trimmed();
+    if (clean.isEmpty()) return {};
+
+    const int separator = clean.indexOf(QLatin1Char(':'));
+    if (separator > 0) {
+        const QString kind = ruleLineAliases().value(clean.left(separator).trimmed().toLower());
+        const QString value = clean.mid(separator + 1).trimmed();
+        if (!kind.isEmpty() && !value.isEmpty()) {
+            if (kind == QStringLiteral("suffix") && value.startsWith(QLatin1Char('.')))
+                return kind + QLatin1Char(':') + value.mid(1);
+            return kind + QLatin1Char(':') + value;
+        }
+    }
+
+    const QString guess = guessRuleKind(clean);
+    if (guess.isEmpty()) return {};
+    if (guess == QStringLiteral("suffix")) return guess + QLatin1Char(':') + clean.mid(1);
+    return guess + QLatin1Char(':') + clean;
+}
+
+QString ruleKindLabel(const QString &kind) {
+    if (kind == QStringLiteral("domain")) return RouteProfileSimpleEditor::tr("domains");
+    if (kind == QStringLiteral("suffix")) return RouteProfileSimpleEditor::tr("suffixes");
+    if (kind == QStringLiteral("keyword")) return RouteProfileSimpleEditor::tr("keywords");
+    if (kind == QStringLiteral("regex")) return RouteProfileSimpleEditor::tr("regexes");
+    if (kind == QStringLiteral("ruleset")) return RouteProfileSimpleEditor::tr("rule sets");
+    if (kind == QStringLiteral("ip")) return RouteProfileSimpleEditor::tr("addresses");
+    return RouteProfileSimpleEditor::tr("processes");
+}
 
 QStringList cleanedRules(const QString &rules) {
     QStringList result;
@@ -415,6 +529,12 @@ RouteProfileSimpleEditor::RouteProfileSimpleEditor(QWidget *parent) : QWidget(pa
     titles->addWidget(heading_);
     titles->addWidget(description_);
     top->addLayout(titles, 1);
+    auto *bulkEditButton = new QPushButton(tr("Paste list"), content);
+    bulkEditButton->setObjectName("routeBulkEditButton");
+    bulkEditButton->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::List, QColor("#DDE2E7"), 16));
+    bulkEditButton->setToolTip(tr("Edit every rule of this action as plain text."));
+    connect(bulkEditButton, &QPushButton::clicked, this, &RouteProfileSimpleEditor::bulkEdit);
+    top->addWidget(bulkEditButton);
     auto *ruleOrderButton = new QPushButton(tr("Rule order"), content);
     ruleOrderButton->setObjectName("routeSecondaryButton");
     ruleOrderButton->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::SwapVertical, QColor("#DDE2E7"), 16));
@@ -508,6 +628,7 @@ QLabel#routeSideTitle, QLabel#routeSectionTitle { color: #F1F3F5; font-weight: 6
 QLabel#routeHeading { color: #F1F3F5; font-size: 17px; font-weight: 650; }
 QLabel#routeMuted { color: #A4ABB4; font-size: 13px; }
 QLabel#routeEmpty { color: #747C86; font-size: 13px; font-style: italic; }
+QLabel#routeWarning { color: #E8B455; font-size: 13px; }
 QLabel#routeStatsValue { color: #F1F3F5; font-weight: 700; }
 QLabel#routeCountPill {
     color: #DDE2E7; background: #272C33; border: none; border-radius: 5px;
@@ -540,11 +661,12 @@ QPushButton#routePrimaryButton {
     border-radius: 6px; padding: 8px 14px; font-weight: 600;
 }
 QPushButton#routePrimaryButton:hover { background: #2F86F1; }
-QPushButton#routeSecondaryButton {
+QPushButton#routeSecondaryButton, QPushButton#routeBulkEditButton {
     color: #E1E4E8; background: #222529; border: 1px solid #2F3136;
     border-radius: 5px; padding: 7px 11px;
 }
-QPushButton#routeSecondaryButton:hover { background: #292E35; border-color: #4A535E; }
+QPushButton#routeSecondaryButton:hover,
+QPushButton#routeBulkEditButton:hover { background: #292E35; border-color: #4A535E; }
 )"));
 
     selectAction(2);
@@ -886,6 +1008,107 @@ void RouteProfileSimpleEditor::rebuild() {
     cardsLayout_->insertWidget(cardsLayout_->count() - 1,
         new RuleCard(tr("Advanced / raw rules"), tr("Ordered conditions, exact priority, and lossless JSON."), MaterialIcon::Glyph::List,
                       QColor(Cyan), advancedRules_, false, {}, [this] { emit advancedEditorRequested(); }, this));
+}
+
+void RouteProfileSimpleEditor::bulkEdit() {
+    const auto presentation = actionPresentation(selectedAction_);
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Paste rule list"));
+    dialog.setObjectName("routeAddDialog");
+    auto *layout = new QVBoxLayout(&dialog);
+    layout->setSpacing(9);
+
+    auto *hint = new QLabel(tr("Every rule of “%1”, one per line. Editing here replaces the whole list, "
+                               "and each entry lands in its own card automatically.").arg(presentation.title), &dialog);
+    hint->setObjectName("routeMuted");
+    hint->setWordWrap(true);
+    layout->addWidget(hint);
+    auto *legend = new QLabel(tr("Prefixes: domain:  suffix:  keyword:  regex:  ruleset:  ip:  processName:  processPath:\n"
+                                 "A line without a prefix is recognised on its own — sing-box spellings "
+                                 "(domain_suffix, process_name, rule_set…) are accepted too."), &dialog);
+    legend->setObjectName("routeEmpty");
+    legend->setWordWrap(true);
+    layout->addWidget(legend);
+
+    auto *editor = new QPlainTextEdit(&dialog);
+    editor->setPlaceholderText(QStringLiteral("domain:example.com\nsuffix:example.org\nprocessName:Discord.exe\n"
+                                              "ruleset:geosite-openai\nip:198.51.100.0/24"));
+    QStringList sorted = rules_.value(selectedAction_);
+    std::sort(sorted.begin(), sorted.end(), [](const QString &left, const QString &right) {
+        const QString leftKind = rulePrefix(left);
+        const QString rightKind = rulePrefix(right);
+        if (leftKind != rightKind) return leftKind < rightKind;
+        return ruleValue(left).compare(ruleValue(right), Qt::CaseInsensitive) < 0;
+    });
+    editor->setPlainText(sorted.join('\n'));
+    editor->setMinimumSize(560, 300);
+    layout->addWidget(editor, 1);
+
+    auto *summary = new QLabel(&dialog);
+    summary->setObjectName("routeMuted");
+    summary->setWordWrap(true);
+    layout->addWidget(summary);
+    auto *warning = new QLabel(&dialog);
+    warning->setObjectName("routeWarning");
+    warning->setWordWrap(true);
+    warning->hide();
+    layout->addWidget(warning);
+
+    // Parsing on every keystroke is what makes the auto-detection trustworthy:
+    // the count of unrecognised lines is visible before anything is applied.
+    const auto parse = [editor] {
+        QStringList parsed;
+        QStringList rejected;
+        for (const QString &line : editor->toPlainText().split('\n')) {
+            const QString clean = line.trimmed();
+            // Blank lines and comments are not content, so they must not be
+            // reported as something the user is about to lose.
+            if (clean.isEmpty() || clean.startsWith(QLatin1Char('#')) || clean.startsWith(QStringLiteral("//")))
+                continue;
+            const QString rule = normalizeRuleLine(clean);
+            if (rule.isEmpty()) rejected.append(clean);
+            else if (!parsed.contains(rule)) parsed.append(rule);
+        }
+        return std::pair{parsed, rejected};
+    };
+    const auto refreshSummary = [parse, summary, warning] {
+        const auto [parsed, rejected] = parse();
+        QMap<QString, int> counts;
+        for (const QString &rule : parsed) {
+            QString kind = rulePrefix(rule);
+            if (kind == QStringLiteral("processPath")) kind = QStringLiteral("processName");
+            ++counts[kind];
+        }
+        QStringList parts;
+        for (auto it = counts.cbegin(); it != counts.cend(); ++it)
+            parts.append(QStringLiteral("%1: %2").arg(ruleKindLabel(it.key())).arg(it.value()));
+        summary->setText(parts.isEmpty() ? RouteProfileSimpleEditor::tr("Nothing to add yet.")
+                                         : parts.join(QStringLiteral(" · ")));
+        warning->setVisible(!rejected.isEmpty());
+        if (!rejected.isEmpty())
+            warning->setText(RouteProfileSimpleEditor::tr("%1 line(s) will be dropped — add a prefix to keep them: %2")
+                                 .arg(rejected.size()).arg(rejected.mid(0, 3).join(QStringLiteral(", "))));
+    };
+    connect(editor, &QPlainTextEdit::textChanged, &dialog, refreshSummary);
+    refreshSummary();
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel | QDialogButtonBox::Ok);
+    buttons->button(QDialogButtonBox::Ok)->setText(tr("Apply list"));
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    dialog.setStyleSheet(styleSheet());
+    dialog.resize(660, 560);
+    editor->setFocus();
+    if (dialog.exec() != QDialog::Accepted) return;
+
+    const auto [parsed, rejected] = parse();
+    if (parsed == rules_.value(selectedAction_)) return;
+    rules_[selectedAction_] = parsed;
+    updateTotalCount();
+    emit rulesChanged(selectedAction_, rules(selectedAction_));
+    updateActionButtons();
+    rebuild();
 }
 
 void RouteProfileSimpleEditor::addApplicationRules() {
