@@ -319,9 +319,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // a rhythm without wrapping anything in a box.
     struct StatusItem { QLabel *value; MaterialIcon::Glyph glyph; QString caption; int stretch; };
     const QList<StatusItem> statusItems{
-        {ui->label_running, MaterialIcon::Glyph::Public, tr("Connection"), 2},
+        // Connection and Traffic carry the longest readings (a group + profile
+        // name, and two padded rates), so they get the wider share of the strip.
+        {ui->label_running, MaterialIcon::Glyph::Public, tr("Connection"), 4},
         {ui->label_inbound, MaterialIcon::Glyph::Desktop, tr("Inbound"), 3},
-        {ui->label_speed, MaterialIcon::Glyph::SwapVertical, tr("Traffic"), 3},
+        {ui->label_speed, MaterialIcon::Glyph::SwapVertical, tr("Traffic"), 4},
     };
     QList<QPair<QLabel *, MaterialIcon::Glyph>> mutedIcons;
     for (const auto &[value, glyph, caption, stretch] : statusItems) {
@@ -338,12 +340,24 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         text->setSpacing(1);
         auto *captionLabel = new QLabel(caption, cell);
         captionLabel->setObjectName(QStringLiteral("statusCaption"));
+        captionLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         text->addWidget(captionLabel);
+        if (value == ui->label_running) statusConnectionCaption = captionLabel;
         value->setParent(cell);
         value->setObjectName(QStringLiteral("statusValue"));
+        // Ignored, not Preferred: otherwise a long profile name or a fast
+        // traffic reading widens its own cell and drags the neighbouring cells
+        // sideways every time the text changes.
+        value->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        value->installEventFilter(this);
+        statusElidedLabels.append(value);
         text->addWidget(value);
         cellLayout->addLayout(text, 1);
         statusLayout->addWidget(cell, stretch);
+    }
+    if (statusConnectionCaption != nullptr) {
+        statusConnectionCaption->installEventFilter(this);
+        statusElidedLabels.append(statusConnectionCaption);
     }
 
     // Routing segment: a summary of the active profile that opens the quick menu.
@@ -369,6 +383,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     routingText->addWidget(routingCaption);
     auto *routingStatus = new QLabel(routingButton);
     routingStatus->setObjectName(QStringLiteral("routingStatus"));
+    routingStatus->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    routingStatus->installEventFilter(this);
+    statusElidedLabels.append(routingStatus);
+    routingCaption->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     routingText->addWidget(routingStatus);
     routingButtonLayout->addLayout(routingText, 1);
     statusLayout->addWidget(routingButton, 3);
@@ -518,13 +536,13 @@ QFrame#statusCard QLabel#statusCaption {
     color: #747C86; background: transparent; border: none; font-size: 11px;
 }
 QFrame#statusCard QLabel#statusValue {
-    color: #F1F3F5; background: transparent; border: none;
+    color: #F1F3F5; background: transparent; border: none; font-size: 13px;
 }
 QFrame#statusCard QFrame#routingStatusButton {
     background: transparent; border: 1px solid transparent; border-radius: 7px;
 }
 QFrame#statusCard QFrame#routingStatusButton:hover { background: #222529; border-color: #2F3136; }
-QFrame#statusCard QLabel#routingStatus { color: #DDE2E7; background: transparent; border: none; }
+QFrame#statusCard QLabel#routingStatus { color: #DDE2E7; background: transparent; border: none; font-size: 13px; }
 QFrame#selectionCard QLabel#selectionText { color: #F1F3F5; font-weight: 600; }
 QFrame#selectionCard QPushButton#selectionAction {
     background: #222529; border: 1px solid #2F3136; border-radius: 5px; padding: 6px 10px;

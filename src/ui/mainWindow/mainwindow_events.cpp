@@ -180,7 +180,7 @@ void MainWindow::openTraySelector(bool routing) {
 
 void MainWindow::refreshRoutingStatus() {
     if (auto *label = findChild<QLabel *>(QStringLiteral("routingStatus")))
-        label->setText(RoutingQuickMenu::statusSummary());
+        setStatusText(label, RoutingQuickMenu::statusSummary());
 }
 
 void MainWindow::openRoutingQuickMenu(const QPoint &globalPos) {
@@ -269,6 +269,13 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
                 openRoutingQuickMenu(segment->mapToGlobal(QPoint(segment->width() / 2, 0)));
                 return true;
             }
+        }
+    } else if (type == QEvent::Resize) {
+        // Status-bar cells are sized by stretch factors, so the text has to be
+        // re-elided against whatever width the strip just handed them.
+        if (auto *label = qobject_cast<QLabel *>(obj); label && statusElidedLabels.contains(label)) {
+            const QString full = label->property("statusFullText").toString();
+            if (!full.isEmpty()) setStatusText(label, full);
         }
     } else if (type == QEvent::MouseButtonDblClick) {
         if (obj == ui->splitter) {

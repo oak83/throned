@@ -231,6 +231,15 @@ private:
     void openRoutingQuickMenu(const QPoint &globalPos);
     // Refresh the routing segment of the status bar from the active profile.
     void refreshRoutingStatus();
+    // Caption above the connection reading. The exit country lands here rather
+    // than on a second value line: the strip has room for exactly one caption
+    // and one value per cell, and a wrapped country pushed the cell out of the
+    // shared grid.
+    QLabel *statusConnectionCaption = nullptr;
+    // Status-bar values are elided against the width the strip actually gives
+    // them, so they are stored unabridged here and re-elided on every resize.
+    QList<QPointer<QLabel>> statusElidedLabels;
+    void setStatusText(QLabel *label, const QString &text);
     QShortcut *shortcut_esc = new QShortcut(QKeySequence::Cancel, this);
     //
     // Shared by the test sweeps and the batch profile scans (remove-invalid).

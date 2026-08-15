@@ -93,20 +93,40 @@ void MainWindow::applyProfileFilters()
     refresh_proxy_list_column_size();
 }
 
+// Status-bar cells share one strip and are sized by stretch factors, not by
+// their contents, so every value is stored whole and drawn elided. The full
+// string stays available as a tooltip and survives resizes.
+void MainWindow::setStatusText(QLabel *label, const QString &text) {
+    if (label == nullptr) return;
+    label->setProperty("statusFullText", text);
+    const int available = label->width() - 2;
+    const QString elided = available > 8 ? label->fontMetrics().elidedText(text, Qt::ElideRight, available) : text;
+    label->setText(elided);
+    // Only the tooltip we put there ourselves is ours to clear: label_running
+    // carries an explanatory tooltip of its own while select mode is on.
+    if (elided != text) {
+        label->setProperty("statusOwnsToolTip", true);
+        label->setToolTip(text);
+    } else if (label->property("statusOwnsToolTip").toBool()) {
+        label->setProperty("statusOwnsToolTip", false);
+        label->setToolTip({});
+    }
+}
+
 void MainWindow::refresh_status(const QString &traffic_update) {
     const auto* settings = Configs::dataManager->settingsRepo.get();
 
     auto refresh_speed_label = [=,this] {
         if (settings->disable_traffic_stats) {
-            ui->label_speed->setText("");
+            setStatusText(ui->label_speed, "");
         }
         else if (traffic_update_cache == "") {
             // Same shape as the populated state so the status bar does not
             // reflow, but with a placeholder instead of a dangling colon.
-            ui->label_speed->setText(QObject::tr("Proxy %1   ·   Direct %2")
-                                         .arg(QStringLiteral("—"), QStringLiteral("—")));
+            setStatusText(ui->label_speed, QObject::tr("Proxy %1   ·   Direct %2")
+                                               .arg(QStringLiteral("—"), QStringLiteral("—")));
         } else {
-            ui->label_speed->setText(traffic_update_cache);
+            setStatusText(ui->label_speed, traffic_update_cache);
         }
     };
 
@@ -134,24 +154,30 @@ void MainWindow::refresh_status(const QString &traffic_update) {
         QString runningLabelText;
         if (running) {
             runningLabelText = QString("[%1] %2").arg(group_name, running->outbound->DisplayName());
-            if (!running->runningCountryInfo.isEmpty()) {
-                runningLabelText += "\n" + running->runningCountryInfo;
-            }
         } else {
             runningLabelText = tr("Not Running");
         }
-        ui->label_running->setText(runningLabelText);
+        setStatusText(ui->label_running, runningLabelText);
+        // The exit country rides on the caption line. It used to be a second
+        // value line, which made this the only two-line cell in the strip and
+        // pushed the country out of the bar once the bar stopped growing to fit.
+        if (statusConnectionCaption != nullptr) {
+            setStatusText(statusConnectionCaption,
+                          running && !running->runningCountryInfo.isEmpty()
+                              ? tr("Connection") + QStringLiteral(" · ") + running->runningCountryInfo
+                              : tr("Connection"));
+        }
     }
     //
     const auto display_socks = DisplayAddress(settings->inbound_address, settings->inbound_socks_port);
     const auto inbound_disabled = settings->disable_mixed_inbound;
     const auto inbound_txt = QString("Mixed: %1").arg(inbound_disabled ? "Disabled" : display_socks);
-    ui->label_inbound->setText(inbound_txt);
+    setStatusText(ui->label_inbound, inbound_txt);
     //
     ui->checkBox_VPN->setChecked(settings->spmode_vpn);
     ui->checkBox_SystemProxy->setChecked(settings->spmode_system_proxy);
     if (select_mode) {
-        ui->label_running->setText(tr("Select") + " *");
+        setStatusText(ui->label_running, tr("Select") + " *");
         ui->label_running->setToolTip(tr("Select mode, double-click or press Enter to select a profile, press ESC to exit."));
     } else {
         ui->label_running->setToolTip({});
@@ -344,7 +370,7 @@ void MainWindow::refresh_proxy_list_impl_refresh_data(const QList<int>& ids, boo
 // Owns no test session, so unlike the group sweeps it stays out of TestRunner.
 void MainWindow::url_test_current() {
     last_test_time = QDateTime::currentSecsSinceEpoch();
-    ui->label_running->setText(tr("Testing"));
+    setStatusText(ui->label_running, tr("Testing"));
 
     runOnNewThread([=,this] {
         libcore::TestReq req;
@@ -363,9 +389,9 @@ void MainWindow::url_test_current() {
                 MW_show_log(QString("UrlTest error: %1").arg(QString::fromStdString(result.results[0].error.value())));
             }
             if (latency <= 0) {
-                ui->label_running->setText(tr("Test Result") + ": " + tr("Unavailable"));
+                setStatusText(ui->label_running, tr("Test Result") + ": " + tr("Unavailable"));
             } else if (latency > 0) {
-                ui->label_running->setText(tr("Test Result") + ": " + QString("%1 ms").arg(latency));
+                setStatusText(ui->label_running, tr("Test Result") + ": " + QString("%1 ms").arg(latency));
             }
         });
     });

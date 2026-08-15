@@ -16,8 +16,26 @@ namespace Stats {
         double uplink_rate = 0;
     };
 
+    // Rates refresh once a second inside a shared status strip, so each reading
+    // is padded to a constant column count with figure spaces (U+2007, the width
+    // of a digit). Without it "9.99 B" turning into "10.00 KiB" grew the cell and
+    // shoved every neighbouring reading sideways once per second.
+    inline QString PaddedRate(double bytesPerSecond) {
+        static const QStringList units{QStringLiteral("B"), QStringLiteral("KiB"), QStringLiteral("MiB"),
+                                       QStringLiteral("GiB"), QStringLiteral("TiB")};
+        constexpr QChar figureSpace(0x2007);
+        double value = bytesPerSecond;
+        int unit = 0;
+        while (value >= 1024.0 && unit + 1 < units.size()) {
+            value /= 1024.0;
+            ++unit;
+        }
+        return QString::number(value, 'f', 2).rightJustified(7, figureSpace)
+               + QChar(' ') + units.at(unit).leftJustified(3, figureSpace);
+    }
+
     inline QString DisplaySpeed(const std::shared_ptr<TrafficLooperEntry> &entry) {
-        return UNICODE_LRO + QString("%1↑ %2↓").arg(ReadableSize(entry->uplink_rate), ReadableSize(entry->downlink_rate));
+        return UNICODE_LRO + QString("%1↑ %2↓").arg(PaddedRate(entry->uplink_rate), PaddedRate(entry->downlink_rate));
     }
 
     // Runtime view of a TrafficChainGroup: same watchTag + profile list, plus
