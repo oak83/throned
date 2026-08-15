@@ -81,10 +81,10 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     connect(ui->custom_inbound_edit, &QPushButton::clicked, this, [=,this] {
         C_EDIT_JSON_ALLOW_EMPTY(custom_inbound)
     });
-    connect(ui->disable_tray, &QCheckBox::checkStateChanged, this, [=,this](const bool &) {
+    connect(ui->disable_tray, &QCheckBox::stateChanged, this, [=,this](const bool &) {
         CACHE.updateDisableTray = true;
     });
-    connect(ui->random_listen_port, &QCheckBox::checkStateChanged, this, [=,this](const bool &state)
+    connect(ui->random_listen_port, &QCheckBox::stateChanged, this, [=,this](const bool &state)
     {
         if (state)
         {
@@ -121,7 +121,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     ui->connection_statistics->setChecked(Configs::dataManager->settingsRepo->enable_stats);
     ui->disable_traffic_aggregation->setChecked(Configs::dataManager->settingsRepo->disable_traffic_aggregation);
     ui->show_sys_dns->setChecked(Configs::dataManager->settingsRepo->show_system_dns);
-    connect(ui->show_sys_dns, &QCheckBox::checkStateChanged, this, [=]
+    connect(ui->show_sys_dns, &QCheckBox::stateChanged, this, [=]
     {
         CACHE.updateSystemDns = true;
     });
@@ -274,7 +274,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     ui->ntp_port->setText(Int2String(Configs::dataManager->settingsRepo->ntp_server_port));
     ui->ntp_interval->setCurrentText(Configs::dataManager->settingsRepo->ntp_interval);
     ui->ntp_outbound->setCurrentText(Configs::dataManager->settingsRepo->ntp_outbound);
-    connect(ui->ntp_enable, &QCheckBox::checkStateChanged, this, [=,this](const bool &state) {
+    connect(ui->ntp_enable, &QCheckBox::stateChanged, this, [=,this](const bool &state) {
         ui->ntp_server->setEnabled(state);
         ui->ntp_port->setEnabled(state);
         ui->ntp_interval->setEnabled(state);

@@ -24,8 +24,7 @@ bool ProfilesFilterProxyModel::hasActiveFilter() const {
 void ProfilesFilterProxyModel::setSearch(const QString &search) {
     if (m_search == search) return;
     m_search = search;
-    beginFilterChange();
-    endFilterChange(QSortFilterProxyModel::Direction::Rows);
+    invalidateRowsFilter();
 }
 
 void ProfilesFilterProxyModel::setFilters(const QString &type, const QString &address,
@@ -35,8 +34,7 @@ void ProfilesFilterProxyModel::setFilters(const QString &type, const QString &ad
     m_address = address;
     m_name = name;
     m_country = country;
-    beginFilterChange();
-    endFilterChange(QSortFilterProxyModel::Direction::Rows);
+    invalidateRowsFilter();
 }
 
 int ProfilesFilterProxyModel::toSourceRow(int proxyRow) const {

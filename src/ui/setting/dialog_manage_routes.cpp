@@ -376,12 +376,12 @@ QDialog#routeProfileEditor QCheckBox { color: #DDE2E7; spacing: 8px; }
     ui->reverse_mapping->setChecked(Configs::dataManager->settingsRepo->dns_reverse_mapping);
     ui->enable_fakeip->setChecked(Configs::dataManager->settingsRepo->fake_dns);
     //
-    connect(ui->use_dns_object, &QCheckBox::checkStateChanged, this, [=,this](int state) {
+    connect(ui->use_dns_object, &QCheckBox::stateChanged, this, [=,this](int state) {
         auto useDNSObject = state == Qt::Checked;
         ui->simple_dns_box->setDisabled(useDNSObject);
         ui->dns_object->setDisabled(!useDNSObject);
     });
-    ui->use_dns_object->checkStateChanged(Qt::Unchecked); // uncheck to uncheck
+    ui->use_dns_object->stateChanged(Qt::Unchecked); // uncheck to uncheck
     connect(ui->dns_document, &QPushButton::clicked, this, [=,this] {
         MessageBoxInfo("DNS", dnsHelpDocumentUrl);
     });
@@ -464,10 +464,10 @@ QDialog#routeProfileEditor QCheckBox { color: #DDE2E7; spacing: 8px; }
     ui->redirect_listenport->setValidator(QRegExpValidator_Number);
     ui->redirect_listenport->setText(Int2String(Configs::dataManager->settingsRepo->redirect_listen_port));
 
-    connect(ui->dnshijack_enable, &QCheckBox::checkStateChanged, this, [=,this](bool state) {
+    connect(ui->dnshijack_enable, &QCheckBox::stateChanged, this, [=,this](bool state) {
         set_dns_hijack_enability(state);
     });
-    connect(ui->redirect_enable, &QCheckBox::checkStateChanged, this, [=,this](bool state) {
+    connect(ui->redirect_enable, &QCheckBox::stateChanged, this, [=,this](bool state) {
         ui->redirect_listenaddr->setEnabled(state);
         ui->redirect_listenport->setEnabled(state);
     });

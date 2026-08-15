@@ -458,9 +458,10 @@ qt_add_executable(Throned
 # Target
 
 # MSVC defaults to /W1, which hid a dead Qt5-era comparison and two unchecked
-# QFile::open calls. The tree is clean at /W3.
+# QFile::open calls. C4996 stays off: the replacements Qt suggests need 6.7+,
+# and the system-Qt packages build against the 6.2 that Ubuntu ships.
 if (MSVC)
-    target_compile_options(Throned PRIVATE /W3)
+    target_compile_options(Throned PRIVATE /W3 /wd4996)
     set_source_files_properties(
             3rdparty/quirc/decode.c
             3rdparty/quirc/identify.c
