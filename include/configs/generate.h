@@ -92,6 +92,12 @@ namespace Configs
 
     std::shared_ptr<BuildConfigResult> BuildSingBoxConfig(const std::shared_ptr<Profile> &ent);
 
+    // Tun plus a reject and nothing else. Keeping this running in place of a
+    // stopped profile is what makes the kill switch a kill switch: sing-tun's
+    // strict_route filters live and die with the core process, so the moment it
+    // exits the block disappears with it.
+    std::shared_ptr<BuildConfigResult> BuildBlackholeConfig();
+
     bool IsValid(const std::shared_ptr<Profile> &ent);
 
     std::shared_ptr<BuildTestConfigResult> BuildTestConfig(const QList<std::shared_ptr<Profile> > &profiles);

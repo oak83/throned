@@ -2223,6 +2223,47 @@ namespace Configs {
         return ctx.result;
     }
 
+    std::shared_ptr<BuildConfigResult> BuildBlackholeConfig() {
+        const auto &settings = *dataManager->settingsRepo;
+        auto result = std::make_shared<BuildConfigResult>();
+
+        QJsonObject tun{
+            {"tag", tags::tunIn},
+            {"type", "tun"},
+            {"interface_name", genTunName()},
+            {"auto_route", true},
+            {"mtu", settings.vpn_mtu},
+            {"stack", settings.vpn_implementation},
+            {"strict_route", settings.vpn_strict_route},
+        };
+        if (getOS() == Linux && settings.vpn_auto_redirect) tun["auto_redirect"] = true;
+        auto address = QJsonArray{settings.vpn_tun_ipv4_cidr};
+        if (settings.vpn_ipv6) address += settings.vpn_tun_ipv6_cidr;
+        tun["address"] = address;
+
+        // The local network keeps working: a kill switch is meant to stop traffic
+        // leaving the machine, not to cut the printer off.
+        QJsonArray exclude{"127.0.0.0/8", "255.255.255.255/32"};
+        if (!settings.disable_private_range_bypass)
+            for (const auto &range : tunBypassablePrivateRanges()) exclude << range;
+        tun["route_exclude_address"] = exclude;
+
+        result->tunIPv4CIDR = settings.vpn_tun_ipv4_cidr;
+        result->coreConfig = QJsonObject{
+            {"log", QJsonObject{{"level", settings.log_level}, {"timestamp", true}}},
+            {"inbounds", QJsonArray{tun}},
+            // sing-box wants an outbound to exist; the reject rule above it means
+            // nothing ever reaches this one.
+            {"outbounds", QJsonArray{QJsonObject{{"type", "direct"}, {"tag", tags::direct}}}},
+            {"route", QJsonObject{
+                {"rules", QJsonArray{QJsonObject{{"inbound", QJsonArray{tags::tunIn}}, {"action", "reject"}}}},
+                {"final", tags::direct},
+                {"auto_detect_interface", true},
+            }},
+        };
+        return result;
+    }
+
     bool IsValid(const std::shared_ptr<Profile>& ent)
     {
         if (ent->type == "autoselector")
