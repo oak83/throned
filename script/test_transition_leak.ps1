@@ -24,7 +24,7 @@ Profile id to switch to. Defaults to the first profile that is not running.
 powershell -File script/test_transition_leak.ps1
 #>
 param(
-    [string]$Throned = "throned",
+    [string]$Throned = "",
     [int]$To = -1,
     [string]$ProbeHost = "1.1.1.1",
     [int]$ProbePort = 443,
@@ -33,6 +33,35 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+function Resolve-Throned([string]$Explicit) {
+    if ($Explicit) {
+        if (Test-Path $Explicit) { return (Resolve-Path $Explicit).Path }
+        $cmd = Get-Command $Explicit -ErrorAction SilentlyContinue
+        if ($cmd) { return $cmd.Source }
+        throw "not found: $Explicit"
+    }
+    $cmd = Get-Command "throned" -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    # An elevated instance hides its path, so fall back to where the installer
+    # records itself and to the usual install roots.
+    $roots = @(
+        (Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -like "*Throned*" } | Select-Object -ExpandProperty InstallLocation -ErrorAction SilentlyContinue),
+        "$env:LOCALAPPDATA\Throned",
+        "$env:LOCALAPPDATA\Programs\Throned",
+        "$env:ProgramFiles\Throned"
+    )
+    foreach ($root in $roots) {
+        if (-not $root) { continue }
+        $candidate = Join-Path $root "Throned.exe"
+        if (Test-Path $candidate) { return $candidate }
+    }
+    throw "could not find Throned.exe - pass -Throned <path>"
+}
+
+$Throned = Resolve-Throned $Throned
+Write-Host "using: $Throned"
 
 function Invoke-Cli([string]$Json) {
     $out = & $Throned --cli $Json 2>&1 | Out-String
