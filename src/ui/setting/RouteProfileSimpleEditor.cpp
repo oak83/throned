@@ -115,9 +115,17 @@ QString ruleValue(const QString &rule) {
     return rule.mid(rule.indexOf(':') + 1);
 }
 
+// Rule sets carry their family in the name ("geosite-openai"). Inside the card
+// that already says "rule sets" the prefix is noise on every single chip, so it
+// is dropped from the label and kept in the tooltip.
 QString ruleDisplayValue(const QString &rule) {
     const QString value = ruleValue(rule);
-    return rule.startsWith("processPath:") ? QFileInfo(value).fileName() : value;
+    if (rule.startsWith("processPath:")) return QFileInfo(value).fileName();
+    if (rule.startsWith("ruleset:")) {
+        for (const auto &prefix : {QStringLiteral("geosite-"), QStringLiteral("geoip-")})
+            if (value.startsWith(prefix)) return value.mid(prefix.size());
+    }
+    return value;
 }
 
 QIcon iconForRule(const QString &rule, MaterialIcon::Glyph fallback, const QColor &tone) {
@@ -187,13 +195,18 @@ private:
     bool removable_;
 };
 
+// Past this many chips a card stops being a glanceable summary and turns into a
+// wall, so the rest is folded behind a "+N more" chip and a filter box appears
+// in the header.
+constexpr int kChipPreviewLimit = 14;
+
 class RuleCard final : public QFrame {
 public:
     RuleCard(const QString &title, const QString &subtitle, MaterialIcon::Glyph glyph, const QColor &tone,
              const QStringList &rules, bool expanded, const std::function<void(const QString &)> &remove,
              const std::function<void()> &add,
              QWidget *parent = nullptr)
-        : QFrame(parent) {
+        : QFrame(parent), glyph_(glyph), tone_(tone), rules_(rules), remove_(remove) {
         setObjectName("routeRuleCard");
         auto *root = new QVBoxLayout(this);
         root->setContentsMargins(14, 12, 14, 12);
@@ -219,6 +232,17 @@ public:
         subtitleLabel->setObjectName("routeMuted");
         titles->addWidget(subtitleLabel);
         heading->addLayout(titles, 1);
+        if (rules_.size() > kChipPreviewLimit) {
+            filter_ = new QLineEdit(this);
+            filter_->setObjectName("routeCardFilter");
+            filter_->setClearButtonEnabled(true);
+            filter_->setPlaceholderText(RouteProfileSimpleEditor::tr("Filter…"));
+            filter_->addAction(MaterialIcon::icon(MaterialIcon::Glyph::Search, QColor(Muted), 16),
+                               QLineEdit::LeadingPosition);
+            filter_->setFixedWidth(168);
+            QObject::connect(filter_, &QLineEdit::textChanged, this, [this] { rebuildChips(); });
+            heading->addWidget(filter_);
+        }
         if (add) {
             auto *addButton = new QPushButton(RouteProfileSimpleEditor::tr("Add"), this);
             addButton->setObjectName("routeCardAddButton");
@@ -235,36 +259,82 @@ public:
         heading->addWidget(expand);
         root->addLayout(heading);
 
-        auto *details = new QWidget(this);
-        details->setObjectName("routeTransparent");
-        auto *chips = new FlowLayout(details);
-        chips->setContentsMargins(32, 2, 0, 0);
-        if (rules.isEmpty()) {
-            auto *empty = new QLabel(RouteProfileSimpleEditor::tr("No rules added yet."), details);
-            empty->setObjectName("routeEmpty");
-            chips->addWidget(empty);
-        } else {
-            for (const QString &rule : rules) {
-                auto *chip = new RuleChip(rule, iconForRule(rule, glyph, tone), static_cast<bool>(remove), details);
-                // A process rule names an executable, not a path, so its real
-                // icon can only arrive once the name has been resolved.
-                if (rule.startsWith("processName:")) {
-                    ApplicationIcons::resolve(ruleValue(rule), chip, [chip](const QIcon &icon) { chip->setIcon(icon); });
-                }
-                if (remove) QObject::connect(chip, &QAbstractButton::clicked, chip, [remove, rule] { remove(rule); });
-                chips->addWidget(chip);
-            }
-        }
-        details->setVisible(expanded);
+        details_ = new QWidget(this);
+        details_->setObjectName("routeTransparent");
+        chips_ = new FlowLayout(details_);
+        chips_->setContentsMargins(32, 2, 0, 0);
+        rebuildChips();
+        details_->setVisible(expanded);
         subtitleLabel->setVisible(expanded);
-        root->addWidget(details);
-        QObject::connect(expand, &QToolButton::toggled, this, [details, subtitleLabel, expand](bool show) {
-            details->setVisible(show);
+        if (filter_) filter_->setVisible(expanded);
+        root->addWidget(details_);
+        QObject::connect(expand, &QToolButton::toggled, this, [this, subtitleLabel, expand](bool show) {
+            details_->setVisible(show);
             subtitleLabel->setVisible(show);
+            if (filter_) filter_->setVisible(show);
             expand->setIcon(MaterialIcon::icon(show ? MaterialIcon::Glyph::ChevronDown : MaterialIcon::Glyph::ChevronRight,
                                                QColor(Muted), 18));
         });
     }
+
+private:
+    void rebuildChips() {
+        while (QLayoutItem *item = chips_->takeAt(0)) {
+            if (QWidget *widget = item->widget()) widget->deleteLater();
+            delete item;
+        }
+        const QString needle = filter_ ? filter_->text().trimmed() : QString();
+        QStringList matching;
+        for (const QString &rule : rules_)
+            if (needle.isEmpty() || rule.contains(needle, Qt::CaseInsensitive)) matching.append(rule);
+
+        if (matching.isEmpty()) {
+            auto *empty = new QLabel(needle.isEmpty() ? RouteProfileSimpleEditor::tr("No rules added yet.")
+                                                      : RouteProfileSimpleEditor::tr("Nothing matches this filter."),
+                                     details_);
+            empty->setObjectName("routeEmpty");
+            chips_->addWidget(empty);
+            return;
+        }
+
+        const bool folded = !showAll_ && matching.size() > kChipPreviewLimit;
+        const int shown = folded ? kChipPreviewLimit : matching.size();
+        for (int index = 0; index < shown; ++index) {
+            const QString rule = matching.at(index);
+            auto *chip = new RuleChip(rule, iconForRule(rule, glyph_, tone_), static_cast<bool>(remove_), details_);
+            // A process rule names an executable, not a path, so its real
+            // icon can only arrive once the name has been resolved.
+            if (rule.startsWith("processName:")) {
+                ApplicationIcons::resolve(ruleValue(rule), chip, [chip](const QIcon &icon) { chip->setIcon(icon); });
+            }
+            if (remove_) {
+                const auto remove = remove_;
+                QObject::connect(chip, &QAbstractButton::clicked, chip, [remove, rule] { remove(rule); });
+            }
+            chips_->addWidget(chip);
+        }
+        if (folded || showAll_) {
+            auto *toggle = new QPushButton(folded ? RouteProfileSimpleEditor::tr("+%1 more").arg(matching.size() - shown)
+                                                  : RouteProfileSimpleEditor::tr("Show less"),
+                                           details_);
+            toggle->setObjectName("routeChipMore");
+            toggle->setCursor(Qt::PointingHandCursor);
+            QObject::connect(toggle, &QPushButton::clicked, this, [this] {
+                showAll_ = !showAll_;
+                rebuildChips();
+            });
+            chips_->addWidget(toggle);
+        }
+    }
+
+    MaterialIcon::Glyph glyph_;
+    QColor tone_;
+    QStringList rules_;
+    std::function<void(const QString &)> remove_;
+    QWidget *details_ = nullptr;
+    FlowLayout *chips_ = nullptr;
+    QLineEdit *filter_ = nullptr;
+    bool showAll_ = false;
 };
 
 QStringList cleanedRules(const QString &rules) {
@@ -455,6 +525,16 @@ QPushButton#routeCardAddButton {
     border-radius: 5px; padding: 6px 10px;
 }
 QPushButton#routeCardAddButton:hover { background: #292E35; border-color: #4A535E; }
+QLineEdit#routeCardFilter {
+    color: #E5E8EB; background: #171B21; border: 1px solid #2F3136;
+    border-radius: 5px; padding: 5px 8px 5px 4px; font-size: 13px;
+}
+QLineEdit#routeCardFilter:focus { border-color: #237AE9; }
+QPushButton#routeChipMore {
+    color: #9CC7FF; background: #1B2634; border: 1px dashed #34506F;
+    border-radius: 5px; padding: 7px 12px; min-height: 18px;
+}
+QPushButton#routeChipMore:hover { color: #C3DEFF; border-color: #4B7CAB; }
 QPushButton#routePrimaryButton {
     color: white; background: #237AE9; border: 1px solid #3187F3;
     border-radius: 6px; padding: 8px 14px; font-weight: 600;
@@ -646,6 +726,55 @@ QDialog#routeProfileEditor QToolButton#routeAdvancedMoreButton {
 QDialog#routeProfileEditor QToolButton#routeAdvancedMoreButton:hover {
     background: #292E35; border-color: #4A535E;
 }
+/* InstantPopup draws its own arrow next to the glyph, which reads as a second
+   icon stuck to the first. */
+QDialog#routeProfileEditor QToolButton#routeAdvancedMoreButton::menu-indicator {
+    image: none; width: 0; height: 0;
+}
+/* The per-rule JSON button sits inside a card, so it must not claim the wide
+   min-width the dialog's footer buttons use. */
+QDialog#routeProfileEditor QPushButton#routeCardJsonButton {
+    color: #C6CCD4; background: #222529; border: 1px solid #2F3136;
+    border-radius: 5px; padding: 6px 11px; min-width: 0;
+}
+QDialog#routeProfileEditor QPushButton#routeCardJsonButton:hover {
+    background: #292E35; border-color: #4A535E;
+}
+/* The per-rule detail page is still the original Qt Designer layout; card
+   chrome brings its group boxes, list and buttons in line with the rest. */
+QDialog#routeProfileEditor QGroupBox {
+    background: #171B21; border: 1px solid #2F3136; border-radius: 7px;
+    margin-top: 9px; padding: 12px 10px 10px 10px; font-weight: 650;
+}
+QDialog#routeProfileEditor QGroupBox::title {
+    subcontrol-origin: margin; subcontrol-position: top left;
+    left: 12px; padding: 0 5px; color: #F1F3F5; background: #171B21;
+}
+QDialog#routeProfileEditor QWidget#routeAdvancedDetail QPushButton {
+    color: #E1E4E8; background: #222529; border: 1px solid #2F3136;
+    border-radius: 6px; padding: 7px 14px; min-width: 82px;
+}
+QDialog#routeProfileEditor QWidget#routeAdvancedDetail QPushButton:hover {
+    background: #292E35; border-color: #4A535E;
+}
+QDialog#routeProfileEditor QListWidget#route_items { padding: 4px; }
+QDialog#routeProfileEditor QListWidget#route_items::item {
+    padding: 7px 9px; border-radius: 5px; border: none;
+}
+QDialog#routeProfileEditor QListWidget#route_items::item:hover { background: #22272E; }
+QDialog#routeProfileEditor QListWidget#route_items::item:selected {
+    color: white; background: #237AE9;
+}
+QDialog#routeProfileEditor QTabWidget#rule_attr_tabs::pane {
+    background: transparent; border: 1px solid #2F3136; border-radius: 6px; top: -1px;
+}
+QDialog#routeProfileEditor QTabBar#ruleAttrTabBar::tab {
+    color: #A4ABB4; background: #171B21; border: 1px solid #2F3136;
+    border-radius: 5px; padding: 5px 12px; margin-right: 4px; min-width: 0;
+}
+QDialog#routeProfileEditor QTabBar#ruleAttrTabBar::tab:selected {
+    color: white; background: #237AE9; border-color: #3187F3;
+}
 QDialog#routeProfileEditor QPushButton#routeLinkButton {
     color: #4DA3FF; background: transparent; border: none; padding: 4px 6px;
 }
@@ -729,11 +858,16 @@ void RouteProfileSimpleEditor::rebuild() {
 
     QStringList applications;
     QStringList domains;
+    QStringList ruleSets;
     QStringList network;
     for (const QString &rule : rules_.value(selectedAction_)) {
         const QString prefix = rulePrefix(rule);
         if (prefix == "processName" || prefix == "processPath") applications.append(rule);
         else if (prefix == "ip" || (prefix == "ruleset" && ruleValue(rule).startsWith("geoip-"))) network.append(rule);
+        // Rule sets get their own card: a profile typically carries a handful of
+        // them next to dozens of hand-written domains, and mixing the two made
+        // both harder to scan.
+        else if (prefix == "ruleset") ruleSets.append(rule);
         else domains.append(rule);
     }
     const auto remove = [this](const QString &rule) { removeRule(rule); };
@@ -741,10 +875,13 @@ void RouteProfileSimpleEditor::rebuild() {
         new RuleCard(tr("Applications"), tr("Match by installed app, running process, or executable."), MaterialIcon::Glyph::Apps,
                       QColor(Blue), applications, true, remove, [this] { addApplicationRules(); }, this));
     cardsLayout_->insertWidget(cardsLayout_->count() - 1,
-        new RuleCard(tr("Domains & rule sets"), tr("Match domain names and remote geosite lists."), MaterialIcon::Glyph::Public,
+        new RuleCard(tr("Domains"), tr("Match domain names, suffixes, keywords, and regexes."), MaterialIcon::Glyph::Public,
                       QColor(Cyan), domains, true, remove, [this] { addRule(QStringLiteral("domain")); }, this));
     cardsLayout_->insertWidget(cardsLayout_->count() - 1,
-        new RuleCard(tr("Processes & IP/CIDR"), tr("Match destination IP addresses and CIDR ranges."), MaterialIcon::Glyph::Process,
+        new RuleCard(tr("Rule sets"), tr("Remote geosite lists, matched as a whole."), MaterialIcon::Glyph::List,
+                      QColor(Purple), ruleSets, true, remove, [this] { addRule(QStringLiteral("domain")); }, this));
+    cardsLayout_->insertWidget(cardsLayout_->count() - 1,
+        new RuleCard(tr("IP addresses & ranges"), tr("Match destination IP addresses, CIDR ranges, and geoip lists."), MaterialIcon::Glyph::Process,
                       QColor(Green), network, false, remove, [this] { addRule(QStringLiteral("network")); }, this));
     cardsLayout_->insertWidget(cardsLayout_->count() - 1,
         new RuleCard(tr("Advanced / raw rules"), tr("Ordered conditions, exact priority, and lossless JSON."), MaterialIcon::Glyph::List,
