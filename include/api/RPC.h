@@ -40,6 +40,9 @@ namespace API {
         libcore::QueryIPTestResponse QueryIPTest(bool *rpcOK);
 
         QString SetSystemDNS(bool *rpcOK, bool clear) const;
+        // WFP block held across a core restart so the gap between Stop and Start
+        // does not fall through to the physical interface. Windows only.
+        QString SetTransitionGuard(bool *rpcOK, bool enabled) const;
 
         [[nodiscard]] libcore::QueryConnectionsResp QueryConnections() const;
 

@@ -1,4 +1,5 @@
 #include "include/ui/mainwindow.h"
+#include <QScopeGuard>
 
 #include "include/ui/mainWindow/TestRunner.h"
 
@@ -422,6 +423,22 @@ void MainWindow::profile_start(int _id) {
     });
 
     runOnNewThread([=, this] {
+        // The core process outlives Stop/Start, so a filter it holds covers the
+        // gap where no sing-box instance exists and traffic would otherwise take
+        // the physical interface. Released either way: a failed start is visible,
+        // and that is when the user needs the network to fix it.
+        const bool guarded = Configs::dataManager->settingsRepo->spmode_vpn && running != nullptr;
+        // Scoped so no path out of this block can leave the filter installed:
+        // it blocks everything, and a leaked one means no internet.
+        const auto releaseGuard = qScopeGuard([guarded] {
+            if (!guarded) return;
+            bool ok = false;
+            defaultClient->SetTransitionGuard(&ok, false);
+        });
+        if (guarded) {
+            bool ok = false;
+            defaultClient->SetTransitionGuard(&ok, true);
+        }
         // stop current running
         if (running != nullptr) {
             profile_stop(false, false, true);

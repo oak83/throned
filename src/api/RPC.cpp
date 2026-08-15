@@ -469,6 +469,19 @@ namespace API {
         }
     }
 
+    QString Client::SetTransitionGuard(bool *rpcOK, const bool enabled) const {
+        libcore::SetTransitionGuardRequest request{enabled};
+        std::vector<uint8_t> resp;
+        auto status = channel->Call("SetTransitionGuard", spb::pb::serialize<std::string>(request), resp);
+
+        if (status == LocalSocketChannel::CallOK) {
+            *rpcOK = true;
+            return "";
+        }
+        NOT_OK
+        return "IPC error";
+    }
+
     QString Client::SetSystemDNS(bool *rpcOK, const bool clear) const {
         libcore::SetSystemDNSRequest request{clear};
         std::vector<uint8_t> resp;
