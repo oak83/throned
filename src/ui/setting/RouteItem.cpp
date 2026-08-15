@@ -5,6 +5,7 @@
 #include "include/configs/sub/RouteUpdater.hpp"
 #include "include/ui/setting/RouteProfileSimpleEditor.h"
 #include "include/ui/setting/ThemeManager.hpp"
+#include "include/ui/widget/FlowLayout.h"
 #include "include/ui/widget/MaterialIcon.h"
 #include "include/ui/widget/ThronedTitleBar.h"
 #include "include/ui/widget/ThronedWindowResizer.h"
@@ -452,6 +453,17 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     connect(modeTabs, &QTabBar::currentChanged, ui->tabWidget, &QTabWidget::setCurrentIndex);
     connect(ui->tabWidget, &QTabWidget::currentChanged, modeTabs, &QTabBar::setCurrentIndex);
     ui->rule_attr_tabs->setStyleSheet({});
+    // Attribute tabs are one-word field names, so they must not inherit the
+    // wide segmented-control geometry the dialog gives its mode tabs.
+    ui->rule_attr_tabs->tabBar()->setObjectName(QStringLiteral("ruleAttrTabBar"));
+    // The rule list shared its column with the button row and ended up short
+    // enough to cut the last entry in half.
+    ui->route_items->setMinimumHeight(172);
+    // The action combo used to stretch to the far edge, leaving its label
+    // marooned on the other side of the card.
+    ui->rule_action_combo->setMinimumWidth(220);
+    ui->rule_action_combo->setMaximumWidth(320);
+    ui->horizontalLayout_action->addStretch(1);
 
     // Use the exact structural shell from tools/ui-demo/RoutesPreview.  The
     // controls below are the real editor controls; only their old Designer
@@ -774,9 +786,14 @@ void RouteItem::rebuildAdvancedSummary() {
         auto *body = new QVBoxLayout;
         body->setSpacing(7);
         auto *titleRow = new QHBoxLayout;
-        auto *name = new QLabel(rule->name.isEmpty() ? tr("Rule %1").arg(index + 1) : rule->name, card);
+        // Ignored horizontally collapsed the name to nothing, so the row showed
+        // only the action pill; the name is capped and elided by hand instead.
+        const QString ruleName = rule->name.isEmpty() ? tr("Rule %1").arg(index + 1) : rule->name;
+        auto *name = new QLabel(card);
         name->setObjectName(QStringLiteral("routeOrderedTitle"));
-        name->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        name->setText(name->fontMetrics().elidedText(ruleName, Qt::ElideRight, 260));
+        name->setToolTip(ruleName);
+        name->setMaximumWidth(272);
         titleRow->addWidget(name);
         QString actionText = rule->action;
         if (rule->action == QStringLiteral("route")) actionText = get_outbound_name(rule->outboundID);
@@ -787,32 +804,47 @@ void RouteItem::rebuildAdvancedSummary() {
         titleRow->addStretch(1);
         body->addLayout(titleRow);
 
-        auto *conditions = new QHBoxLayout;
-        conditions->setSpacing(6);
+        // Condition pills wrap instead of running in one row. A fixed row of
+        // three 220px pills gave the card a minimum width the scroll area could
+        // not satisfy, and since the viewport has no horizontal scrollbar the
+        // overflow was simply cut off - taking the header buttons with it.
+        auto *conditionHost = new QWidget(card);
+        conditionHost->setObjectName(QStringLiteral("routeTransparent"));
+        auto *conditions = new FlowLayout(conditionHost, 6, 6);
+        conditions->setContentsMargins(0, 0, 0, 0);
         int conditionCount = 0;
-        for (auto it = json.begin(); it != json.end() && conditionCount < 3; ++it) {
+        int hiddenConditions = 0;
+        for (auto it = json.begin(); it != json.end(); ++it) {
             if (it.key() == QStringLiteral("action") || it.key() == QStringLiteral("outbound")) continue;
+            if (conditionCount >= 4) {
+                ++hiddenConditions;
+                continue;
+            }
             const QString conditionText = QStringLiteral("%1  %2").arg(it.key(), compactJsonValue(it.value()));
-            auto *condition = new QLabel(card);
+            auto *condition = new QLabel(conditionHost);
             condition->setObjectName(QStringLiteral("routeConditionPill"));
             condition->setProperty("tone", tone);
-            condition->setText(condition->fontMetrics().elidedText(conditionText, Qt::ElideRight, 205));
+            condition->setText(condition->fontMetrics().elidedText(conditionText, Qt::ElideRight, 170));
             condition->setToolTip(conditionText);
-            condition->setMaximumWidth(220);
+            condition->setMaximumWidth(190);
             conditions->addWidget(condition);
             ++conditionCount;
         }
+        if (hiddenConditions > 0) {
+            auto *more = new QLabel(tr("+%1 more").arg(hiddenConditions), conditionHost);
+            more->setObjectName(QStringLiteral("routeMuted"));
+            conditions->addWidget(more);
+        }
         if (conditionCount == 0) {
-            auto *empty = new QLabel(tr("No match conditions"), card);
+            auto *empty = new QLabel(tr("No match conditions"), conditionHost);
             empty->setObjectName(QStringLiteral("routeMuted"));
             conditions->addWidget(empty);
         }
-        conditions->addStretch(1);
-        body->addLayout(conditions);
+        body->addWidget(conditionHost);
         cardLayout->addLayout(body, 1);
 
         auto *jsonButton = new QPushButton(QStringLiteral("{ }  JSON"), card);
-        jsonButton->setObjectName(QStringLiteral("routeSecondaryButton"));
+        jsonButton->setObjectName(QStringLiteral("routeCardJsonButton"));
         connect(jsonButton, &QPushButton::clicked, this, [this, index] { showAdvancedDetail(index); });
         cardLayout->addWidget(jsonButton);
 
