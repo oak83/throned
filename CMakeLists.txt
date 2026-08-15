@@ -457,6 +457,19 @@ qt_add_executable(Throned
 
 # Target
 
+# MSVC defaults to /W1, which hid a dead Qt5-era comparison and two unchecked
+# QFile::open calls. The tree is clean at /W3.
+if (MSVC)
+    target_compile_options(Throned PRIVATE /W3)
+    set_source_files_properties(
+            3rdparty/quirc/decode.c
+            3rdparty/quirc/identify.c
+            3rdparty/quirc/quirc.c
+            3rdparty/quirc/version_db.c
+            3rdparty/SQLiteCpp/src/sqlite3.c
+            PROPERTIES COMPILE_OPTIONS /W0)
+endif ()
+
 set_property(TARGET Throned PROPERTY AUTOUIC ON)
 set_property(TARGET Throned PROPERTY AUTOMOC ON)
 set_property(TARGET Throned PROPERTY AUTORCC ON)

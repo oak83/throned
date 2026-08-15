@@ -57,7 +57,7 @@ namespace Configs {
         sql += ")";
         try {
             db.exec(sql);
-            maybeCheckpoint(ids.size());
+            maybeCheckpoint(static_cast<int>(ids.size()));
         } catch (std::exception& e) {
             std::cerr << "DB Error: " << e.what() << std::endl;
         }
@@ -98,7 +98,7 @@ namespace Configs {
                 stmt.bind(static_cast<int>(i + 1), pairs[i]);
             }
             stmt.exec();
-            maybeCheckpoint(pairs.size() / 2);
+            maybeCheckpoint(static_cast<int>(pairs.size() / 2));
         } catch (std::exception& e) {
             std::cerr << "DB Error: " << e.what() << std::endl;
         }

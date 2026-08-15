@@ -215,7 +215,7 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
         if (!group) continue;
         for (int profileID : group->profiles) {
             if (!idToName.contains(profileID)) continue;
-            outboundMap[outboundMap.size()] = profileID;
+            outboundMap[static_cast<int>(outboundMap.size())] = profileID;
             outbounds << QString("[" + group->name + "] ") + idToName[profileID];
         }
     }

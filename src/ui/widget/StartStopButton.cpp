@@ -160,7 +160,7 @@ QColor StartStopButton::idleRingColor() const {
     // Almost invisible: while nothing is running the glyph carries the look and
     // the ring recedes to a faint hint.
     QColor c = palette().color(QPalette::WindowText);
-    c.setAlphaF(0.12);
+    c.setAlphaF(0.12f);
     return c;
 }
 
@@ -260,7 +260,7 @@ void StartStopButton::paintEvent(QPaintEvent *) {
         // Faint full track with a bright round-capped arc sweeping over it.
         p.setBrush(Qt::NoBrush);
         QColor track = m_ringColor;
-        track.setAlphaF(0.20);
+        track.setAlphaF(0.20f);
         QPen trackPen(track, penW);
         p.setPen(trackPen);
         p.drawEllipse(c, R, R);
@@ -277,7 +277,7 @@ void StartStopButton::paintEvent(QPaintEvent *) {
         const qreal glowR = R + penW * 2.4;
         const qreal ringStop = R / glowR;
         QColor gPeak = m_ringColor;
-        gPeak.setAlphaF(0.20 + 0.40 * kSteadyGlow);
+        gPeak.setAlphaF(static_cast<float>(0.20 + 0.40 * kSteadyGlow));
         QColor gEdge = m_ringColor;
         gEdge.setAlphaF(0.0);
         // Outward only: the interior stays clear (the inner stops are transparent,
@@ -295,7 +295,7 @@ void StartStopButton::paintEvent(QPaintEvent *) {
         // Crisp core ring on top.
         p.setBrush(Qt::NoBrush);
         QColor base = m_ringColor.lighter(static_cast<int>(101 + 9 * kSteadyGlow));
-        base.setAlphaF(0.95); // a touch dimmer than the full mode colour
+        base.setAlphaF(0.95f); // a touch dimmer than the full mode colour
         QConicalGradient cg(c, 90.0);
         cg.setColorAt(0.0, base.lighter(116));
         cg.setColorAt(0.5, base);
