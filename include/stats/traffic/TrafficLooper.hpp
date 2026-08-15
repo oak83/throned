@@ -28,10 +28,6 @@ namespace Stats {
         return QString::number(value, 'f', 2) + QChar(' ') + units.at(unit);
     }
 
-    // Each arrow sits right against its own number; the padding goes between the
-    // two halves instead, out to the width of the widest possible reading
-    // ("1023.99 KiB"). That keeps the down half from sliding around once a second
-    // without opening a gap inside either reading.
     inline QString DisplaySpeed(const std::shared_ptr<TrafficLooperEntry> &entry) {
         constexpr QChar figureSpace(0x2007);
         return UNICODE_LRO + QString("↑ %1 ↓ %2")

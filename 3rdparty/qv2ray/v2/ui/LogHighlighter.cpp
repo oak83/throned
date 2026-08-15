@@ -116,10 +116,6 @@ namespace Qv2ray::ui {
         // Keep long process paths readable: the path remains neutral and only
         // the executable/binary name receives the purple process accent used
         // by MainPreview.
-        //
-        // The name runs to the end of the line rather than to the next space:
-        // "…\NVIDIA App\CEF\NVIDIA Overlay.exe" is one executable, and stopping
-        // at the space left half of it unhighlighted.
         processNameFormat.setForeground(QColor(195, 151, 255));
         processNameFormat.setFontWeight(QFont::DemiBold);
         rule.pattern = QRegularExpression(

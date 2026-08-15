@@ -284,21 +284,10 @@ void MessageBoxScrollable(const QString &title, const QString &text);
 
 int MessageBoxCheck(const QString &title, const QString &text, const QString &checkBoxText, bool &isChecked);
 
-// A window has to fit the screen it opens on. A minimum size larger than the
-// available desktop area cannot be resized away by the user, so the bottom of
-// the window - and with it whatever buttons live there - is simply unreachable.
-// This clamps both the minimum and the initial size to what the screen actually
-// offers, and is meant to replace bare setMinimumSize()/resize() calls on
-// top-level windows. `preferred` may be null, in which case only the minimum is
-// clamped.
 void FitWindowToScreen(QWidget *window, QSize preferred = {});
 
 enum class UpdatePromptChoice { Dismissed, Update, OpenInBrowser };
 
-// The "an update is available" prompt. Its own function rather than a message
-// box because a release note has no length limit: the text scrolls inside a
-// window bounded by the screen, so the buttons stay reachable no matter how
-// much was written.
 UpdatePromptChoice ShowUpdatePrompt(QWidget *parent, const QString &title, const QString &assetName,
                                     const QString &releaseNote, bool allowUpdater);
 

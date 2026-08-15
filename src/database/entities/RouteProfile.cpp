@@ -600,8 +600,6 @@ namespace Configs {
             if (item == nullptr || item->action != "route" || item->outboundID != outbound) continue;
             if (item->process_name.isEmpty() && item->process_path.isEmpty() && item->process_path_regex.isEmpty())
                 continue;
-            // Every other matcher has to be untouched, otherwise the rule is an
-            // AND of process and something else and cannot be mirrored as-is.
             const bool onlyProcess = item->ip_version.isEmpty() && item->network.isEmpty()
                 && item->protocol.isEmpty() && item->inbound.isEmpty() && item->domain.isEmpty()
                 && item->domain_suffix.isEmpty() && item->domain_keyword.isEmpty()

@@ -317,17 +317,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // shape - one of them was two lines - and the strip was sized by whichever
     // was tallest, leaving the rest floating. A caption/value grid gives the bar
     // a rhythm without wrapping anything in a box.
-    // Proxy and direct rates get a cell each. Cramming both into one reading
-    // meant four numbers and two words on a single line, which nobody could
-    // read at a glance - and the labels belong on the caption line anyway,
-    // which is what every other cell in the strip already does. "Proxy" and
-    // "direct" stay untranslated: they are the outbound tags themselves.
     statusDirectSpeed = new QLabel(statusCard);
     struct StatusItem { QLabel *value; MaterialIcon::Glyph glyph; QString caption; int stretch; };
     const QList<StatusItem> statusItems{
-        // Shares chosen so that the two rate cells still hold a full reading at
-        // the window's minimum width; routing gives way first because its
-        // summary is the one that degrades gracefully.
         {ui->label_running, MaterialIcon::Glyph::Public, tr("Connection"), 5},
         {ui->label_inbound, MaterialIcon::Glyph::Desktop, tr("Inbound"), 4},
         {ui->label_speed, MaterialIcon::Glyph::Shield, QStringLiteral("Proxy"), 5},
@@ -353,9 +345,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         if (value == ui->label_running) statusConnectionCaption = captionLabel;
         value->setParent(cell);
         value->setObjectName(QStringLiteral("statusValue"));
-        // Ignored, not Preferred: otherwise a long profile name or a fast
-        // traffic reading widens its own cell and drags the neighbouring cells
-        // sideways every time the text changes.
+        // Ignored: a long value must not widen its cell and shove the neighbours.
         value->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         value->installEventFilter(this);
         statusElidedLabels.append(value);

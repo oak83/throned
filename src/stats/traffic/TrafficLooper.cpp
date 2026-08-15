@@ -130,9 +130,6 @@ namespace Stats {
             runOnUiThread([=,this] {
                 auto m = GetMainWindow();
                 if (proxy != nullptr) {
-                    // Two readings, one per status cell. The unit separator is a
-                    // transport detail between here and refresh_status; it never
-                    // reaches the screen.
                     m->refresh_status(DisplaySpeed(proxy) + QChar(0x001F) + DisplaySpeed(direct));
                     m->update_traffic_graph(proxy->downlink_rate, proxy->uplink_rate, direct->downlink_rate, direct->uplink_rate);
                 }

@@ -48,9 +48,6 @@ void MainWindow::setupConnectionList()
 }
 
 namespace {
-    // The rule this connection would need, one candidate per column of evidence
-    // the row carries. Ordered widest-blast-radius last so the safest option is
-    // the first thing under the cursor.
     struct RuleCandidate {
         QString label;
         QString entry;
@@ -63,8 +60,6 @@ namespace {
         if (!host.isEmpty()) {
             candidates.append({MainWindow::tr("This domain — %1").arg(host),
                                QStringLiteral("domain:") + host});
-            // A bare host as a suffix also covers its subdomains, which is what
-            // "route this site" nearly always means.
             candidates.append({MainWindow::tr("Domain and subdomains — *.%1").arg(host),
                                QStringLiteral("suffix:") + host});
         }
@@ -98,8 +93,6 @@ namespace {
     }
 } // namespace
 
-// Where an entry already sits in the active profile, so the menu can say so
-// instead of silently adding a second copy.
 QString MainWindow::existingRuleAction(const QString &entry) const
 {
     const auto profile = Configs::dataManager->routesRepo->GetRouteProfile(
@@ -111,9 +104,6 @@ QString MainWindow::existingRuleAction(const QString &entry) const
     return {};
 }
 
-// Append one simple rule to the active routing profile and put it into effect.
-// Same path the quick menu uses: a routing change only reaches the core when the
-// running profile is regenerated.
 void MainWindow::addRuleFromConnection(const QString &entry, int action)
 {
     auto profile = Configs::dataManager->routesRepo->GetRouteProfile(
@@ -155,8 +145,6 @@ void MainWindow::showConnectionMenu(const QPoint &pos)
     const QString outbound = anchor->data(Stats::OUTBOUNDKEY).toString();
 
     QMenu menu(this);
-    // The verdict this connection actually got. The table already answers
-    // "where does this go" - the menu just makes it the subject of the action.
     auto *verdict = menu.addAction(tr("%1 → %2")
         .arg(domain.isEmpty() ? dest : domain, outbound.isEmpty() ? tr("unknown") : outbound));
     verdict->setEnabled(false);
@@ -270,8 +258,6 @@ void MainWindow::UpdateConnectionList(const QMap<QString, Stats::ConnectionMetad
 
         // C3: Outbound
         ui->connections->item(row, 3)->setText(conn.outbound);
-        // The verdict is what the row is asked about, and it can change while
-        // the connection is open.
         ui->connections->item(row, 0)->setData(Stats::OUTBOUNDKEY, conn.outbound);
         ui->connections->item(row, 0)->setData(Stats::DOMAINKEY, conn.domain);
 

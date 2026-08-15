@@ -629,9 +629,6 @@ briefly interrupts traffic.
         return ok ? 0 : 1;
     }
 
-    // --route-editor-preview --advanced brings up the real RouteItem dialog on a
-    // throwaway database, which is the only way to see the ordered rule list and
-    // the per-rule detail page without touching the user's own profiles.
     int RunAdvancedRouteEditorPreview(QApplication &app) {
         QTemporaryDir workdir;
         if (!workdir.isValid()) return 2;
@@ -689,8 +686,6 @@ briefly interrupts traffic.
         QApplication::sendEvent(target, &release);
     }
 
-    // Sample connections, a filled status strip, and the connection context
-    // menu, captured from the real main window on a throwaway configuration.
     void RunMainWindowPreview(const QString &prefix) {
         auto *window = GetMainWindow();
         if (window == nullptr) {
@@ -751,11 +746,8 @@ briefly interrupts traffic.
         direct->uplink_rate = 912;
         direct->downlink_rate = 4410;
         window->refresh_status(Stats::DisplaySpeed(proxy) + QChar(0x001F) + Stats::DisplaySpeed(direct));
-        // A reading from the traffic loop short-circuits the rest of the strip,
-        // so the plain refresh has to follow it to fill the other cells.
         window->refresh_status();
 
-        // The tab widget is renamed during setup, so it is found by content.
         for (auto *tabs : window->findChildren<QTabWidget *>())
             for (int tab = 0; tab < tabs->count(); ++tab)
                 if (tabs->widget(tab)->findChild<QTableWidget *>(QStringLiteral("connections")) != nullptr)
@@ -768,8 +760,6 @@ briefly interrupts traffic.
                 qApp->exit(0);
                 return;
             }
-            // The menu opens in its own nested loop, so the capture of it has to
-            // come from a timer armed before the event is delivered.
             const QPoint point = table->visualItemRect(table->item(0, 0)).center();
             QTimer::singleShot(400, window, [prefix, window] {
                 auto *popup = QApplication::activePopupWidget();
@@ -778,15 +768,11 @@ briefly interrupts traffic.
                     return;
                 }
                 popup->grab().save(prefix + QStringLiteral("-menu.png"), "PNG");
-                // Also composite the popup back onto the window, because a menu
-                // is only legible next to the row it was opened from.
                 QPixmap composed = window->grab();
                 QPainter painter(&composed);
                 painter.drawPixmap(window->mapFromGlobal(popup->mapToGlobal(QPoint(0, 0))), popup->grab());
                 painter.end();
                 composed.save(prefix + QStringLiteral("-menu-in-place.png"), "PNG");
-                // Walk into the first target's submenu so the action choice is
-                // captured as well; it opens as its own popup window.
                 QTest_keyClick(popup, Qt::Key_Down);
                 QTest_keyClick(popup, Qt::Key_Down);
                 QTest_keyClick(popup, Qt::Key_Right);
@@ -802,8 +788,6 @@ briefly interrupts traffic.
         });
     }
 
-    // No settings database is open in preview mode, so the theme comes off the
-    // command line. Graphite is the default the documentation is rendered with.
     void ApplyPreviewTheme(const QApplication &app) {
         QString requested = QStringLiteral("Throned Graphite");
         if (const int themeAt = app.arguments().indexOf(QStringLiteral("-theme"));
@@ -879,9 +863,6 @@ briefly interrupts traffic.
         auto *editor = new RouteProfileSimpleEditor;
         editor->setRules(0, "domain:updates.example.com\n");
         editor->setRules(1, "domain:ads.example\nip:198.51.100.0/24\n");
-        // A deliberately crowded proxy list: the chip cards have to stay
-        // readable at the size a real profile reaches, not just at the size of
-        // a handful of demo entries.
         editor->setRules(2,
             "processPath:C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe\n"
             "processName:Discord.exe\nprocessName:Code.exe\n"
@@ -924,14 +905,10 @@ briefly interrupts traffic.
         QObject::connect(save, &QPushButton::clicked, &dialog, &QDialog::accept);
         root->addWidget(buttons);
         dialog.show();
-        // --route-editor-preview --output <file.png> renders the real editor
-        // once and exits, so the layout can be checked without a live profile.
         const QStringList args = app.arguments();
         if (args.contains(QStringLiteral("--paste")))
             if (auto *paste = dialog.findChild<QPushButton *>(QStringLiteral("routeBulkEditButton")))
                 QTimer::singleShot(200, paste, [paste] { paste->click(); });
-        // A deliberately messy list, so the paste parser can be re-checked
-        // against comments, quotes, sing-box spellings and paths with spaces.
         if (args.contains(QStringLiteral("--paste-sample")))
             QTimer::singleShot(400, &dialog, [] {
                 if (auto *modal = QApplication::activeModalWidget())
@@ -956,8 +933,6 @@ briefly interrupts traffic.
             outputAt >= 0 && outputAt + 1 < args.size()) {
             const QString output = args.at(outputAt + 1);
             QTimer::singleShot(700, &dialog, [&dialog, output, &app] {
-                // A modal child (the paste dialog) is its own top-level window,
-                // so grabbing the editor behind it would capture nothing useful.
                 QWidget *target = QApplication::activeModalWidget();
                 const bool ok = (target ? target : &dialog)->grab().save(output, "PNG");
                 if (target != nullptr) target->close();
@@ -984,9 +959,6 @@ int main(int argc, char* argv[]) {
     QApplication::setQuitOnLastWindowClosed(false);
     QApplication a(argc, argv);
 
-    // --update-prompt-preview [--notes <file>] opens the "update available"
-    // dialog on a synthetic release note, so its behaviour with a long one can
-    // be checked without waiting for a release.
     if (a.arguments().contains(QStringLiteral("--update-prompt-preview"))) {
         ApplyPreviewTheme(a);
         QString note;
@@ -1008,8 +980,6 @@ int main(int argc, char* argv[]) {
     }
 
     if (a.arguments().contains(QStringLiteral("--route-editor-preview"))) {
-        // No database has been opened yet, so the language comes straight off
-        // the command line rather than out of the settings.
         if (const int langAt = a.arguments().indexOf(QStringLiteral("-lang"));
             langAt >= 0 && langAt + 1 < a.arguments().size()) {
             static const QMap<QString, QString> locales{
@@ -1166,8 +1136,6 @@ int main(int argc, char* argv[]) {
     // dataManager->settingsRepo & Flags
     if (Configs::dataManager->settingsRepo->start_minimal) Configs::dataManager->settingsRepo->flag_tray = true;
 
-    // -theme and -lang override the stored choices for one launch, which is what
-    // the documentation screenshots are rendered with.
     if (const int themeAt = arguments.indexOf(QStringLiteral("-theme"));
         themeAt >= 0 && themeAt + 1 < arguments.size()) {
         const QString requested = arguments.at(themeAt + 1);
@@ -1346,10 +1314,6 @@ int main(int argc, char* argv[]) {
 
     UI_InitMainWindow();
 
-    // -ui-preview <prefix> fills the connection list with sample rows, writes
-    // <prefix>-window.png and <prefix>-menu.png, and quits. It exists because
-    // the main window cannot otherwise be inspected without a live profile and
-    // the user's real configuration.
     if (const int previewAt = arguments.indexOf(QStringLiteral("-ui-preview"));
         previewAt >= 0 && previewAt + 1 < arguments.size()) {
         const QString prefix = arguments.at(previewAt + 1);

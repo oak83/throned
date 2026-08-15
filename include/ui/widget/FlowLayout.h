@@ -21,10 +21,6 @@ public:
         while (QLayoutItem *item = takeAt(0)) delete item;
     }
 
-    // Lay the items out in equal-width columns filled top to bottom, the way a
-    // directory listing prints. A ragged row-major flow is unreadable once a
-    // card holds a few dozen entries: nothing lines up and sorted content runs
-    // sideways, so the eye has no column to follow.
     void setUniformColumns(bool enabled, int minimumWidth = 150, int maximumWidth = 260) {
         columnMinimum_ = minimumWidth;
         columnMaximum_ = maximumWidth;

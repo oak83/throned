@@ -118,9 +118,6 @@ QString ruleValue(const QString &rule) {
     return rule.mid(rule.indexOf(':') + 1);
 }
 
-// Rule sets carry their family in the name ("geosite-openai"). Inside the card
-// that already says "rule sets" the prefix is noise on every single chip, so it
-// is dropped from the label and kept in the tooltip.
 QString ruleDisplayValue(const QString &rule) {
     const QString value = ruleValue(rule);
     if (rule.startsWith("processPath:")) return QFileInfo(value).fileName();
@@ -149,9 +146,7 @@ public:
         : QAbstractButton(parent), rule_(rule), icon_(icon), removable_(removable) {
         setCursor(removable ? Qt::PointingHandCursor : Qt::ArrowCursor);
         setToolTip(rule);
-        // Preferred, not Fixed: in a uniform-column card the layout hands the
-        // chip a shared width, and a Fixed policy would clamp it back to its
-        // own hint and break the alignment the columns exist for.
+        // Fixed would clamp the chip back to its own hint and break the columns.
         setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
         setFixedHeight(32);
     }
@@ -182,8 +177,6 @@ protected:
             fill = QColor("#25231D");
         }
         else if (rule_.startsWith("suffix:") || rule_.startsWith("keyword:") || rule_.startsWith("regex:")) {
-            // A wildcard match is a different animal from a literal domain, and
-            // the two used to be indistinguishable in a card of forty chips.
             border = QColor("#2B3F4A");
             fill = QColor("#1A242A");
         }
@@ -193,8 +186,6 @@ protected:
         painter.drawRoundedRect(rect().adjusted(0, 0, -1, -1), 5, 5);
         painter.drawPixmap(10, (height() - 17) / 2, icon_.pixmap(17, 17));
         painter.setPen(QColor("#E5E8EB"));
-        // The chip is laid out into a shared column width, so it can be handed
-        // less room than it asked for.
         const QRect textArea(35, 0, width() - (removable_ ? 56 : 45), height());
         painter.drawText(textArea, Qt::AlignVCenter | Qt::AlignLeft,
                          painter.fontMetrics().elidedText(ruleDisplayValue(rule_), Qt::ElideRight, textArea.width()));
@@ -210,9 +201,6 @@ private:
     bool removable_;
 };
 
-// Past this many chips a card stops being a glanceable summary and turns into a
-// wall, so the rest is folded behind a "+N more" chip and a filter box appears
-// in the header.
 constexpr int kChipPreviewLimit = 24;
 constexpr int kChipFilterLimit = 12;
 
@@ -248,8 +236,6 @@ public:
         subtitleLabel->setObjectName("routeMuted");
         titles->addWidget(subtitleLabel);
         heading->addLayout(titles, 1);
-        // The filter earns its place well before the card grows big enough to
-        // need folding, so it has a threshold of its own.
         if (rules_.size() > kChipFilterLimit) {
             filter_ = new QLineEdit(this);
             filter_->setObjectName("routeCardFilter");
@@ -305,9 +291,6 @@ private:
         QStringList matching;
         for (const QString &rule : rules_)
             if (needle.isEmpty() || rule.contains(needle, Qt::CaseInsensitive)) matching.append(rule);
-        // Sorted by kind, then by what the chip actually shows. Insertion order
-        // carries no routing meaning inside a card - every entry in it ends up
-        // in the same generated rule - so it only made the list unreadable.
         std::sort(matching.begin(), matching.end(), [](const QString &left, const QString &right) {
             const QString leftKind = rulePrefix(left);
             const QString rightKind = rulePrefix(right);
@@ -324,17 +307,12 @@ private:
             return;
         }
 
-        // A handful of chips reads better packed; past that the eye needs a
-        // column to follow, and the ragged flow is what made a long card
-        // impossible to skim.
         chips_->setUniformColumns(matching.size() > 8, 178, 268);
         const bool folded = !showAll_ && matching.size() > kChipPreviewLimit;
         const int shown = folded ? kChipPreviewLimit : matching.size();
         for (int index = 0; index < shown; ++index) {
             const QString rule = matching.at(index);
             auto *chip = new RuleChip(rule, iconForRule(rule, glyph_, tone_), static_cast<bool>(remove_), details_);
-            // A process rule names an executable, not a path, so its real
-            // icon can only arrive once the name has been resolved.
             if (rule.startsWith("processName:")) {
                 ApplicationIcons::resolve(ruleValue(rule), chip, [chip](const QIcon &icon) { chip->setIcon(icon); });
             }
@@ -368,10 +346,6 @@ private:
     bool showAll_ = false;
 };
 
-// The canonical prefixes a rule line can carry, plus every spelling of them we
-// are willing to accept on paste. People bring lists out of a sing-box config,
-// out of another client, or out of a chat message, and retyping forty entries
-// to add a prefix is exactly the work this editor exists to avoid.
 const QMap<QString, QString> &ruleLineAliases() {
     static const QMap<QString, QString> aliases{
         {QStringLiteral("domain"), QStringLiteral("domain")},
@@ -396,19 +370,14 @@ const QMap<QString, QString> &ruleLineAliases() {
     return aliases;
 }
 
-// Guess the kind of a line that arrived without one. Deliberately conservative:
-// anything that cannot be placed confidently comes back empty so the dialog can
-// report it instead of filing it in the wrong card.
 QString guessRuleKind(const QString &value) {
-    // Paths come first: "C:\Program Files\…\app.exe" is a perfectly good rule
-    // and the only kind allowed to carry spaces.
+    // Paths first: the only kind allowed to contain spaces.
     if (value.contains(QLatin1Char('\\')) || value.startsWith(QLatin1Char('/')))
         return QStringLiteral("processPath");
     if (value.contains(QLatin1Char(' '))) return {};
     if (value.startsWith(QStringLiteral("geosite-")) || value.startsWith(QStringLiteral("geoip-")))
         return QStringLiteral("ruleset");
     if (value.endsWith(QStringLiteral(".exe"), Qt::CaseInsensitive)) return QStringLiteral("processName");
-    // An address or a range: bare IPs and CIDRs alike, v4 and v6.
     const QString address = value.section(QLatin1Char('/'), 0, 0);
     if (!address.isEmpty() && !QHostAddress(address).isNull()) return QStringLiteral("ip");
     if (value.startsWith(QLatin1Char('.'))) return QStringLiteral("suffix");
@@ -417,12 +386,9 @@ QString guessRuleKind(const QString &value) {
     return {};
 }
 
-// One pasted line to one canonical "kind:value" rule, or an empty string when
-// the line cannot be understood.
 QString normalizeRuleLine(const QString &line) {
     QString clean = line.trimmed();
     if (clean.isEmpty() || clean.startsWith(QLatin1Char('#')) || clean.startsWith(QStringLiteral("//"))) return {};
-    // Tolerate list punctuation from a pasted YAML/JSON fragment.
     while (clean.startsWith(QLatin1Char('-')) || clean.startsWith(QLatin1Char('"'))) clean = clean.mid(1).trimmed();
     while (clean.endsWith(QLatin1Char(',')) || clean.endsWith(QLatin1Char('"'))) clean.chop(1);
     clean = clean.trimmed();
@@ -990,9 +956,6 @@ void RouteProfileSimpleEditor::rebuild() {
         const QString prefix = rulePrefix(rule);
         if (prefix == "processName" || prefix == "processPath") applications.append(rule);
         else if (prefix == "ip" || (prefix == "ruleset" && ruleValue(rule).startsWith("geoip-"))) network.append(rule);
-        // Rule sets get their own card: a profile typically carries a handful of
-        // them next to dozens of hand-written domains, and mixing the two made
-        // both harder to scan.
         else if (prefix == "ruleset") ruleSets.append(rule);
         else domains.append(rule);
     }
@@ -1058,15 +1021,11 @@ void RouteProfileSimpleEditor::bulkEdit() {
     warning->hide();
     layout->addWidget(warning);
 
-    // Parsing on every keystroke is what makes the auto-detection trustworthy:
-    // the count of unrecognised lines is visible before anything is applied.
     const auto parse = [editor] {
         QStringList parsed;
         QStringList rejected;
         for (const QString &line : editor->toPlainText().split('\n')) {
             const QString clean = line.trimmed();
-            // Blank lines and comments are not content, so they must not be
-            // reported as something the user is about to lose.
             if (clean.isEmpty() || clean.startsWith(QLatin1Char('#')) || clean.startsWith(QStringLiteral("//")))
                 continue;
             const QString rule = normalizeRuleLine(clean);

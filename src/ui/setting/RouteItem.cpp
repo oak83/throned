@@ -453,14 +453,8 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     connect(modeTabs, &QTabBar::currentChanged, ui->tabWidget, &QTabWidget::setCurrentIndex);
     connect(ui->tabWidget, &QTabWidget::currentChanged, modeTabs, &QTabBar::setCurrentIndex);
     ui->rule_attr_tabs->setStyleSheet({});
-    // Attribute tabs are one-word field names, so they must not inherit the
-    // wide segmented-control geometry the dialog gives its mode tabs.
     ui->rule_attr_tabs->tabBar()->setObjectName(QStringLiteral("ruleAttrTabBar"));
-    // The rule list shared its column with the button row and ended up short
-    // enough to cut the last entry in half.
     ui->route_items->setMinimumHeight(172);
-    // The action combo used to stretch to the far edge, leaving its label
-    // marooned on the other side of the card.
     ui->rule_action_combo->setMinimumWidth(220);
     ui->rule_action_combo->setMaximumWidth(320);
     ui->horizontalLayout_action->addStretch(1);
@@ -786,8 +780,6 @@ void RouteItem::rebuildAdvancedSummary() {
         auto *body = new QVBoxLayout;
         body->setSpacing(7);
         auto *titleRow = new QHBoxLayout;
-        // Ignored horizontally collapsed the name to nothing, so the row showed
-        // only the action pill; the name is capped and elided by hand instead.
         const QString ruleName = rule->name.isEmpty() ? tr("Rule %1").arg(index + 1) : rule->name;
         auto *name = new QLabel(card);
         name->setObjectName(QStringLiteral("routeOrderedTitle"));
@@ -804,10 +796,6 @@ void RouteItem::rebuildAdvancedSummary() {
         titleRow->addStretch(1);
         body->addLayout(titleRow);
 
-        // Condition pills wrap instead of running in one row. A fixed row of
-        // three 220px pills gave the card a minimum width the scroll area could
-        // not satisfy, and since the viewport has no horizontal scrollbar the
-        // overflow was simply cut off - taking the header buttons with it.
         auto *conditionHost = new QWidget(card);
         conditionHost->setObjectName(QStringLiteral("routeTransparent"));
         auto *conditions = new FlowLayout(conditionHost, 6, 6);

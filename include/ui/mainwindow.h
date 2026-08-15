@@ -231,22 +231,10 @@ private:
     void openRoutingQuickMenu(const QPoint &globalPos);
     // Refresh the routing segment of the status bar from the active profile.
     void refreshRoutingStatus();
-    // Caption above the connection reading. The exit country lands here rather
-    // than on a second value line: the strip has room for exactly one caption
-    // and one value per cell, and a wrapped country pushed the cell out of the
-    // shared grid.
     QLabel *statusConnectionCaption = nullptr;
-    // The direct half of the traffic reading. ui->label_speed carries the proxy
-    // half; they are two cells because two numbers each is the most a status
-    // strip can be read at a glance.
     QLabel *statusDirectSpeed = nullptr;
-    // Status-bar values are elided against the width the strip actually gives
-    // them, so they are stored unabridged here and re-elided on every resize.
     QList<QPointer<QLabel>> statusElidedLabels;
     void setStatusText(QLabel *label, const QString &text);
-    // Right-clicking a live connection offers to turn it into a routing rule:
-    // the row already shows which outbound it took, so the fix belongs there
-    // rather than three screens away in the profile editor.
     void showConnectionMenu(const QPoint &pos);
     void addRuleFromConnection(const QString &entry, int action);
     [[nodiscard]] QString existingRuleAction(const QString &entry) const;
@@ -326,10 +314,6 @@ private:
     QWaitCondition logWaiter;
     Qv2ray::ui::SyntaxHighlighter *logHighlighter = nullptr;
 
-    // Text waiting to reach the log view, with at most one flush in flight. The
-    // log thread used to post every batch to the UI thread on its own, so a
-    // spamming core could queue faster than the view could repaint and the
-    // backlog grew without bound.
     QMutex logPendingMutex;
     QString logPendingText;
     bool logFlushScheduled = false;
@@ -351,7 +335,6 @@ private:
 
     void log_process_loop();
 
-    // UI thread only: drains logPendingText into the view.
     void flush_log_batch();
 
     bool should_print_log(const QString &log, const LogFilter &filter);

@@ -187,13 +187,13 @@ QList<int> QStringList2QListInt(const QList<QString> &list) {
 
 QByteArray ReadFile(const QString &path) {
     QFile file(path);
-    file.open(QFile::ReadOnly);
+    if (!file.open(QFile::ReadOnly)) return {};
     return file.readAll();
 }
 
 QString ReadFileText(const QString &path) {
     QFile file(path);
-    file.open(QFile::ReadOnly | QFile::Text);
+    if (!file.open(QFile::ReadOnly | QFile::Text)) return {};
     QTextStream stream(&file);
     return stream.readAll();
 }
@@ -340,8 +340,6 @@ void FitWindowToScreen(QWidget *window, QSize preferred) {
     if (window == nullptr) return;
     const QScreen *screen = window->screen() != nullptr ? window->screen() : QGuiApplication::primaryScreen();
     if (screen == nullptr) return;
-    // Leave room for the window frame and the task bar's own shadow rather than
-    // filling the last pixel of the work area.
     const QSize available = screen->availableGeometry().size() - QSize(40, 60);
     if (available.width() <= 0 || available.height() <= 0) return;
 
@@ -361,8 +359,6 @@ UpdatePromptChoice ShowUpdatePrompt(QWidget *parent, const QString &title, const
 
     auto *notes = new QTextBrowser(&box);
     notes->setOpenExternalLinks(true);
-    // Release notes are written in Markdown; rendering them beats showing the
-    // reader the ## and ** they were written with.
     if (releaseNote.trimmed().isEmpty()) notes->setPlainText(QObject::tr("No release note."));
     else notes->setMarkdown(releaseNote);
     layout->addWidget(notes, 1);
@@ -421,9 +417,6 @@ void runOnUiThread(const std::function<void()> &callback, bool wait) {
         callback();
         return;
     }
-    // Fire-and-forget needs no timer at all: a queued invocation already runs the
-    // callback on the target thread. The timer per call was what let a spamming
-    // producer pile allocations onto the event queue.
     if (!wait) {
         QMetaObject::invokeMethod(app, callback, Qt::QueuedConnection);
         return;

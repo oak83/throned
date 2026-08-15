@@ -30,9 +30,6 @@ void MainWindow::applyTopBarMetrics() {
         button->updateGeometry();
     }
     setMinimumSize(designMinimumSize);
-    // The designed floor is only a floor on a screen large enough to hold it;
-    // a bigger font or a longer translation must not push the window past the
-    // bottom of a small display, where it cannot be dragged back.
     FitWindowToScreen(this);
 }
 
@@ -97,17 +94,13 @@ void MainWindow::applyProfileFilters()
     refresh_proxy_list_column_size();
 }
 
-// Status-bar cells share one strip and are sized by stretch factors, not by
-// their contents, so every value is stored whole and drawn elided. The full
-// string stays available as a tooltip and survives resizes.
 void MainWindow::setStatusText(QLabel *label, const QString &text) {
     if (label == nullptr) return;
     label->setProperty("statusFullText", text);
     const int available = label->width() - 2;
     const QString elided = available > 8 ? label->fontMetrics().elidedText(text, Qt::ElideRight, available) : text;
     label->setText(elided);
-    // Only the tooltip we put there ourselves is ours to clear: label_running
-    // carries an explanatory tooltip of its own while select mode is on.
+    // Only clear a tooltip we set: label_running has its own in select mode.
     if (elided != text) {
         label->setProperty("statusOwnsToolTip", true);
         label->setToolTip(text);
@@ -132,7 +125,6 @@ void MainWindow::refresh_status(const QString &traffic_update) {
             setStatusText(ui->label_speed, idle);
             setStatusText(statusDirectSpeed, idle);
         } else {
-            // Proxy and direct arrive as one string from the traffic loop.
             const QStringList halves = traffic_update_cache.split(QChar(0x001F));
             setStatusText(ui->label_speed, halves.value(0));
             setStatusText(statusDirectSpeed, halves.value(1));
@@ -167,9 +159,6 @@ void MainWindow::refresh_status(const QString &traffic_update) {
             runningLabelText = tr("Not Running");
         }
         setStatusText(ui->label_running, runningLabelText);
-        // The exit country rides on the caption line. It used to be a second
-        // value line, which made this the only two-line cell in the strip and
-        // pushed the country out of the bar once the bar stopped growing to fit.
         if (statusConnectionCaption != nullptr) {
             setStatusText(statusConnectionCaption,
                           running && !running->runningCountryInfo.isEmpty()
