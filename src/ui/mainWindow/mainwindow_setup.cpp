@@ -319,11 +319,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // a rhythm without wrapping anything in a box.
     struct StatusItem { QLabel *value; MaterialIcon::Glyph glyph; QString caption; int stretch; };
     const QList<StatusItem> statusItems{
-        // Connection and Traffic carry the longest readings (a group + profile
-        // name, and two padded rates), so they get the wider share of the strip.
+        // Traffic carries four live numbers and Connection a group plus a profile
+        // name, so those two get the wider share; Inbound is a fixed-length
+        // address and never needs more than its own text.
         {ui->label_running, MaterialIcon::Glyph::Public, tr("Connection"), 4},
         {ui->label_inbound, MaterialIcon::Glyph::Desktop, tr("Inbound"), 3},
-        {ui->label_speed, MaterialIcon::Glyph::SwapVertical, tr("Traffic"), 4},
+        {ui->label_speed, MaterialIcon::Glyph::SwapVertical, tr("Traffic"), 6},
     };
     QList<QPair<QLabel *, MaterialIcon::Glyph>> mutedIcons;
     for (const auto &[value, glyph, caption, stretch] : statusItems) {

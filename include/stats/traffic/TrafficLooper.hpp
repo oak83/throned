@@ -16,13 +16,15 @@ namespace Stats {
         double uplink_rate = 0;
     };
 
-    // Rates refresh once a second inside a shared status strip, so each reading
-    // is padded to a constant column count with figure spaces (U+2007, the width
-    // of a digit). Without it "9.99 B" turning into "10.00 KiB" grew the cell and
-    // shoved every neighbouring reading sideways once per second.
+    // Four live rates share one cell of the status strip, so the reading is kept
+    // short - one decimal, a single-letter unit - and padded to a constant column
+    // count with figure spaces (U+2007, the width of a digit). Without the padding
+    // "9.9K" turning into "10.1M" shifted every neighbouring number once a second;
+    // without the shortening the whole reading did not fit the cell at all. The
+    // exact byte counts live in the traffic graph and the connection list.
     inline QString PaddedRate(double bytesPerSecond) {
-        static const QStringList units{QStringLiteral("B"), QStringLiteral("KiB"), QStringLiteral("MiB"),
-                                       QStringLiteral("GiB"), QStringLiteral("TiB")};
+        static const QStringList units{QStringLiteral("B"), QStringLiteral("K"), QStringLiteral("M"),
+                                       QStringLiteral("G"), QStringLiteral("T")};
         constexpr QChar figureSpace(0x2007);
         double value = bytesPerSecond;
         int unit = 0;
@@ -30,8 +32,7 @@ namespace Stats {
             value /= 1024.0;
             ++unit;
         }
-        return QString::number(value, 'f', 2).rightJustified(7, figureSpace)
-               + QChar(' ') + units.at(unit).leftJustified(3, figureSpace);
+        return QString::number(value, 'f', 1).rightJustified(5, figureSpace) + units.at(unit);
     }
 
     inline QString DisplaySpeed(const std::shared_ptr<TrafficLooperEntry> &entry) {

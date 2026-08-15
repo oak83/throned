@@ -132,7 +132,7 @@ namespace Stats {
                 if (proxy != nullptr) {
                     // One line: this shares a status bar with single-line cells,
                     // and a two-line reading here stretched the whole strip.
-                    m->refresh_status(QObject::tr("Proxy %1   ·   Direct %2").arg(DisplaySpeed(proxy), DisplaySpeed(direct)));
+                    m->refresh_status(QObject::tr("Proxy %1 · Direct %2").arg(DisplaySpeed(proxy), DisplaySpeed(direct)));
                     m->update_traffic_graph(proxy->downlink_rate, proxy->uplink_rate, direct->downlink_rate, direct->uplink_rate);
                 }
                 // One batched refresh: a 300-member auto-selector pool would
