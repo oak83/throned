@@ -326,6 +326,14 @@ private:
     QWaitCondition logWaiter;
     Qv2ray::ui::SyntaxHighlighter *logHighlighter = nullptr;
 
+    // Text waiting to reach the log view, with at most one flush in flight. The
+    // log thread used to post every batch to the UI thread on its own, so a
+    // spamming core could queue faster than the view could repaint and the
+    // backlog grew without bound.
+    QMutex logPendingMutex;
+    QString logPendingText;
+    bool logFlushScheduled = false;
+
     // Immutable snapshot of the log filter fields. The log thread copies these
     // under logMutex (Qt containers are copy-on-write, so it's O(1)) and then
     // filters without holding the lock, so producers calling append_log() are
@@ -342,6 +350,9 @@ private:
     void append_log(const QString &log);
 
     void log_process_loop();
+
+    // UI thread only: drains logPendingText into the view.
+    void flush_log_batch();
 
     bool should_print_log(const QString &log, const LogFilter &filter);
 

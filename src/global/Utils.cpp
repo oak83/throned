@@ -367,6 +367,13 @@ void runOnUiThread(const std::function<void()> &callback, bool wait) {
         callback();
         return;
     }
+    // Fire-and-forget needs no timer at all: a queued invocation already runs the
+    // callback on the target thread. The timer per call was what let a spamming
+    // producer pile allocations onto the event queue.
+    if (!wait) {
+        QMetaObject::invokeMethod(app, callback, Qt::QueuedConnection);
+        return;
+    }
     auto *timer = new QTimer();
     timer->moveToThread(thread);
     timer->setSingleShot(true);

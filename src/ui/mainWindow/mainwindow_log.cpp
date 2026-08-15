@@ -13,6 +13,8 @@
 #include "3rdparty/qv2ray/v2/ui/LogHighlighter.hpp"
 
 namespace {
+    constexpr qsizetype MAX_PENDING_LOG_CHARS = 2 * 1024 * 1024;
+
     // Bypasses QTextEdit::append()'s per-call layout/scroll work, which dominates
     // when the core spams lines; one edit block per batch instead.
     inline void FastAppendTextDocument(const QString &message, QTextDocument *doc) {
@@ -81,26 +83,50 @@ void MainWindow::log_process_loop() {
             }
         }
 
-        if (!batchToPrint.isEmpty()) {
-            QString trimmedBatch = batchToPrint.trimmed();
-            runOnUiThread([trimmedBatch = std::move(trimmedBatch), this] {
-                auto bar = ui->masterLogBrowser->verticalScrollBar();
-                if (Configs::dataManager->settingsRepo->log_auto_scroll) {
-                    FastAppendTextDocument(trimmedBatch, qvLogDocument);
-                    bar->setValue(bar->maximum());
-                } else {
-                    auto layout = qvLogDocument->documentLayout();
-                    // Anchor to the block at the top of the viewport; if the append
-                    // shifts its document-Y, replay the original sub-block offset.
-                    QTextBlock anchorBlock = ui->masterLogBrowser->cursorForPosition(QPoint(0, 0)).block();
-                    int viewportOffset = bar->value() - static_cast<int>(layout->blockBoundingRect(anchorBlock).y());
-                    FastAppendTextDocument(trimmedBatch, qvLogDocument);
-                    if (anchorBlock.isValid()) {
-                        int newY = static_cast<int>(layout->blockBoundingRect(anchorBlock).y());
-                        bar->setValue(newY + viewportOffset);
-                    }
-                }
-            });
+        const QString trimmedBatch = batchToPrint.trimmed();
+        if (trimmedBatch.isEmpty()) continue;
+
+        bool needsPost;
+        {
+            QMutexLocker pendingLocker(&logPendingMutex);
+            if (!logPendingText.isEmpty()) logPendingText += '\n';
+            logPendingText += trimmedBatch;
+            if (logPendingText.size() > MAX_PENDING_LOG_CHARS) {
+                const auto cut = logPendingText.indexOf('\n', logPendingText.size() - MAX_PENDING_LOG_CHARS);
+                logPendingText = cut < 0 ? QString() : logPendingText.mid(cut + 1);
+            }
+            needsPost = !logFlushScheduled;
+            logFlushScheduled = true;
+        }
+        // At most one flush in flight; anything produced meanwhile is picked up by
+        // the flush that is already pending, so the UI event queue cannot grow.
+        if (needsPost) runOnUiThread([this] { flush_log_batch(); });
+    }
+}
+
+void MainWindow::flush_log_batch() {
+    QString batch;
+    {
+        QMutexLocker pendingLocker(&logPendingMutex);
+        batch.swap(logPendingText);
+        logFlushScheduled = false;
+    }
+    if (batch.isEmpty()) return;
+
+    auto bar = ui->masterLogBrowser->verticalScrollBar();
+    if (Configs::dataManager->settingsRepo->log_auto_scroll) {
+        FastAppendTextDocument(batch, qvLogDocument);
+        bar->setValue(bar->maximum());
+    } else {
+        auto layout = qvLogDocument->documentLayout();
+        // Anchor to the block at the top of the viewport; if the append
+        // shifts its document-Y, replay the original sub-block offset.
+        QTextBlock anchorBlock = ui->masterLogBrowser->cursorForPosition(QPoint(0, 0)).block();
+        int viewportOffset = bar->value() - static_cast<int>(layout->blockBoundingRect(anchorBlock).y());
+        FastAppendTextDocument(batch, qvLogDocument);
+        if (anchorBlock.isValid()) {
+            int newY = static_cast<int>(layout->blockBoundingRect(anchorBlock).y());
+            bar->setValue(newY + viewportOffset);
         }
     }
 }
@@ -144,6 +170,11 @@ void MainWindow::on_masterLogBrowser_customContextMenuRequested(const QPoint &po
     auto action_clear = new QAction(this);
     action_clear->setText(tr("Clear"));
     connect(action_clear, &QAction::triggered, this, [=,this] {
+        {
+            // Otherwise a flush already in flight repaints what was just cleared.
+            QMutexLocker pendingLocker(&logPendingMutex);
+            logPendingText.clear();
+        }
         qvLogDocument->clear();
         ui->masterLogBrowser->clear();
     });
