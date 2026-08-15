@@ -25,6 +25,8 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMap>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QContextMenuEvent>
@@ -769,13 +771,20 @@ briefly interrupts traffic.
             // The menu opens in its own nested loop, so the capture of it has to
             // come from a timer armed before the event is delivered.
             const QPoint point = table->visualItemRect(table->item(0, 0)).center();
-            QTimer::singleShot(400, window, [prefix] {
+            QTimer::singleShot(400, window, [prefix, window] {
                 auto *popup = QApplication::activePopupWidget();
                 if (popup == nullptr) {
                     qApp->exit(0);
                     return;
                 }
                 popup->grab().save(prefix + QStringLiteral("-menu.png"), "PNG");
+                // Also composite the popup back onto the window, because a menu
+                // is only legible next to the row it was opened from.
+                QPixmap composed = window->grab();
+                QPainter painter(&composed);
+                painter.drawPixmap(window->mapFromGlobal(popup->mapToGlobal(QPoint(0, 0))), popup->grab());
+                painter.end();
+                composed.save(prefix + QStringLiteral("-menu-in-place.png"), "PNG");
                 // Walk into the first target's submenu so the action choice is
                 // captured as well; it opens as its own popup window.
                 QTest_keyClick(popup, Qt::Key_Down);
@@ -793,7 +802,23 @@ briefly interrupts traffic.
         });
     }
 
+    // No settings database is open in preview mode, so the theme comes off the
+    // command line. Graphite is the default the documentation is rendered with.
+    void ApplyPreviewTheme(const QApplication &app) {
+        QString requested = QStringLiteral("Throned Graphite");
+        if (const int themeAt = app.arguments().indexOf(QStringLiteral("-theme"));
+            themeAt >= 0 && themeAt + 1 < app.arguments().size()) {
+            const QString name = app.arguments().at(themeAt + 1);
+            for (const QString &theme : ThronedPalette::ThemeNames())
+                if (theme.compare(name, Qt::CaseInsensitive) == 0
+                    || theme.compare(QStringLiteral("Throned ") + name, Qt::CaseInsensitive) == 0)
+                    requested = theme;
+        }
+        themeManager->ApplyTheme(requested);
+    }
+
     int RunRouteEditorPreview(QApplication &app) {
+        ApplyPreviewTheme(app);
         if (app.arguments().contains(QStringLiteral("--advanced"))) return RunAdvancedRouteEditorPreview(app);
         QDialog dialog;
         dialog.setObjectName("routeProfileEditor");
@@ -818,14 +843,14 @@ briefly interrupts traffic.
         auto *headerLayout = new QHBoxLayout(header);
         headerLayout->setContentsMargins(12, 10, 12, 10);
         auto *nameLayout = new QVBoxLayout;
-        auto *nameLabel = new QLabel(QObject::tr("Name"));
+        auto *nameLabel = new QLabel(QCoreApplication::translate("RouteItem", "Name"));
         nameLabel->setObjectName("routeFieldLabel");
         auto *name = new QLineEdit(QObject::tr("Development"));
         nameLayout->addWidget(nameLabel);
         nameLayout->addWidget(name);
         headerLayout->addLayout(nameLayout, 1);
         auto *outboundLayout = new QVBoxLayout;
-        auto *outboundLabel = new QLabel(QObject::tr("Default outbound"));
+        auto *outboundLabel = new QLabel(QCoreApplication::translate("RouteItem", "Default outbound"));
         outboundLabel->setObjectName("routeFieldLabel");
         auto *outbound = new QComboBox;
         outbound->setObjectName("def_out");
@@ -835,12 +860,12 @@ briefly interrupts traffic.
         outboundLayout->addWidget(outbound);
         headerLayout->addLayout(outboundLayout, 1);
         auto *modeLayout = new QVBoxLayout;
-        auto *modeLabel = new QLabel(QObject::tr("Mode"));
+        auto *modeLabel = new QLabel(QCoreApplication::translate("RouteItem", "Mode"));
         modeLabel->setObjectName("routeFieldLabel");
         auto *mode = new QTabBar;
         mode->setObjectName("routeModeTabs");
-        mode->addTab(QObject::tr("Simple"));
-        mode->addTab(QObject::tr("Advanced"));
+        mode->addTab(QCoreApplication::translate("RouteItem", "Simple"));
+        mode->addTab(QCoreApplication::translate("RouteItem", "Advanced"));
         mode->setUsesScrollButtons(false);
         mode->setExpanding(true);
         mode->setMinimumWidth(220);
@@ -881,10 +906,10 @@ briefly interrupts traffic.
             QStringLiteral("geoip-private"), QStringLiteral("geoip-telegram"),
         });
         editor->setLocalProxyTrafficEnabled(true);
-        tabs->addTab(editor, QObject::tr("Simple"));
+        tabs->addTab(editor, QCoreApplication::translate("RouteItem", "Simple"));
         auto *advanced = new QLabel(QObject::tr("The existing lossless advanced editor remains available here."));
         advanced->setAlignment(Qt::AlignCenter);
-        tabs->addTab(advanced, QObject::tr("Advanced"));
+        tabs->addTab(advanced, QCoreApplication::translate("RouteItem", "Advanced"));
         tabs->tabBar()->hide();
         QObject::connect(mode, &QTabBar::currentChanged, tabs, &QTabWidget::setCurrentIndex);
         QObject::connect(tabs, &QTabWidget::currentChanged, mode, &QTabBar::setCurrentIndex);
@@ -893,7 +918,7 @@ briefly interrupts traffic.
         auto *buttons = new QDialogButtonBox;
         auto *cancel = buttons->addButton(QDialogButtonBox::Cancel);
         cancel->setObjectName("routeSecondaryButton");
-        auto *save = buttons->addButton(QObject::tr("Save profile"), QDialogButtonBox::AcceptRole);
+        auto *save = buttons->addButton(QCoreApplication::translate("RouteItem", "Save profile"), QDialogButtonBox::AcceptRole);
         save->setObjectName("routeSaveButton");
         QObject::connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
         QObject::connect(save, &QPushButton::clicked, &dialog, &QDialog::accept);
@@ -960,6 +985,16 @@ int main(int argc, char* argv[]) {
     QApplication a(argc, argv);
 
     if (a.arguments().contains(QStringLiteral("--route-editor-preview"))) {
+        // No database has been opened yet, so the language comes straight off
+        // the command line rather than out of the settings.
+        if (const int langAt = a.arguments().indexOf(QStringLiteral("-lang"));
+            langAt >= 0 && langAt + 1 < a.arguments().size()) {
+            static const QMap<QString, QString> locales{
+                {"zh", "zh_CN"}, {"fa", "fa_IR"}, {"ru", "ru_RU"}};
+            if (const QString locale = locales.value(a.arguments().at(langAt + 1).toLower());
+                !locale.isEmpty())
+                loadTranslate(locale);
+        }
         return RunRouteEditorPreview(a);
     }
 
@@ -1108,7 +1143,22 @@ int main(int argc, char* argv[]) {
     // dataManager->settingsRepo & Flags
     if (Configs::dataManager->settingsRepo->start_minimal) Configs::dataManager->settingsRepo->flag_tray = true;
 
-    // Translate
+    // -theme and -lang override the stored choices for one launch, which is what
+    // the documentation screenshots are rendered with.
+    if (const int themeAt = arguments.indexOf(QStringLiteral("-theme"));
+        themeAt >= 0 && themeAt + 1 < arguments.size()) {
+        const QString requested = arguments.at(themeAt + 1);
+        for (const QString &theme : ThronedPalette::ThemeNames())
+            if (theme.compare(requested, Qt::CaseInsensitive) == 0
+                || theme.compare(QStringLiteral("Throned ") + requested, Qt::CaseInsensitive) == 0)
+                Configs::dataManager->settingsRepo->theme = theme;
+    }
+    if (const int langAt = arguments.indexOf(QStringLiteral("-lang"));
+        langAt >= 0 && langAt + 1 < arguments.size()) {
+        static const QMap<QString, int> languages{{"en", 1}, {"zh", 2}, {"fa", 3}, {"ru", 4}};
+        if (const int choice = languages.value(arguments.at(langAt + 1).toLower(), 0); choice > 0)
+            Configs::dataManager->settingsRepo->language = choice;
+    }
     QString locale;
     switch (Configs::dataManager->settingsRepo->language) {
         case 1: // English

@@ -44,13 +44,14 @@ The preview renders any of them with `--theme midnight|graphite|ocean|violet|emb
 
 ![Simple routing preview](ui-preview/routes-ru.png)
 
-Compact review target at 1085 × 761 with the 14 px base type scale:
-
-![Compact routing preview](ui-preview/routes-1085x761.png)
-
 ### Routing — Advanced
 
 ![Advanced routing preview](ui-preview/routes-advanced-en.png)
+
+The per-rule detail page keeps the original lossless editor behind the ordered
+list:
+
+![Rule detail preview](ui-preview/routes-detail-en.png)
 
 ## Interaction model
 
@@ -91,3 +92,26 @@ be implemented as one global stylesheet pasted over every legacy `.ui` file.
 5. Add an application picker backed by recently observed processes, running processes, installed apps, and manual executable selection on Windows and Linux.
 
 The standalone preview remains useful throughout the migration: CI builds a runnable Windows executable and renders EN/RU screenshots without bringing up networking side effects.
+
+## Rendering the shipped screens
+
+The screenshots above of routing and the main window come from the application
+itself, not from the mockup, so a layout regression shows up in them. Both modes
+exit after writing their PNGs.
+
+```sh
+# routing editor, real widgets, throwaway in-memory profile
+throned --route-editor-preview [--advanced] [--detail] [--paste] \
+        [-lang ru] [-theme graphite] --output routes.png
+
+# main window on an isolated configuration, with sample connections
+throned -appdata <empty dir> -lang en -theme graphite -ui-preview <prefix>
+```
+
+`-ui-preview` writes `<prefix>-window.png`, `<prefix>-menu.png`,
+`<prefix>-menu-in-place.png` and `<prefix>-submenu.png`. Pre-create
+`<dir>/config/throne.db` as an empty file first: without it the launch treats
+the directory as a fresh install and copies the real configuration into it.
+
+`-lang` and `-theme` also work on a normal launch and override the stored
+choices for that run only.

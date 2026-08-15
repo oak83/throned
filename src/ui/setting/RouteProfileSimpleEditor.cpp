@@ -213,6 +213,7 @@ private:
 // wall, so the rest is folded behind a "+N more" chip and a filter box appears
 // in the header.
 constexpr int kChipPreviewLimit = 24;
+constexpr int kChipFilterLimit = 12;
 
 class RuleCard final : public QFrame {
 public:
@@ -246,7 +247,9 @@ public:
         subtitleLabel->setObjectName("routeMuted");
         titles->addWidget(subtitleLabel);
         heading->addLayout(titles, 1);
-        if (rules_.size() > kChipPreviewLimit) {
+        // The filter earns its place well before the card grows big enough to
+        // need folding, so it has a threshold of its own.
+        if (rules_.size() > kChipFilterLimit) {
             filter_ = new QLineEdit(this);
             filter_->setObjectName("routeCardFilter");
             filter_->setClearButtonEnabled(true);

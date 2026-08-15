@@ -42,12 +42,19 @@ one set of semantic color tokens shared by every screen.
   <img src="docs/ui-preview/main-en.png" width="820" alt="Throned main window">
 </p>
 
-Routing gets a **Simple** mode that groups rules into application, domain,
-process and network cards, and an **Advanced** mode that exposes the real
+The status strip is a caption/value grid: connection and exit country, inbound
+address, proxy and direct rates, and the active routing profile.
+
+<p align="center">
+  <img src="docs/ui-preview/status-bar.png" width="820" alt="Status bar">
+</p>
+
+Routing has a **Simple** mode that sorts rules into application, domain,
+rule-set and address cards, and an **Advanced** mode that exposes the real
 ordered rule list where the first match wins.
 
 <p align="center">
-  <img src="docs/ui-preview/routes-1085x761.png" width="820" alt="Routing profile editor">
+  <img src="docs/ui-preview/routes-simple-en.png" width="820" alt="Routing profile editor">
 </p>
 
 Settings are grouped into sections with inline help instead of a dense grid of
@@ -57,9 +64,10 @@ checkboxes.
   <img src="docs/ui-preview/settings-en.png" width="820" alt="Settings">
 </p>
 
-> Screens are rendered by the bundled preview harness (`tools/ui-demo`). They
-> show the shipped layout and palette; every server, host and path in them is
-> placeholder data using the reserved documentation ranges from RFC 5737.
+> Screens are rendered from the application itself; the settings screen and the
+> theme swatches come from the bundled harness (`tools/ui-demo`). Every server,
+> host and path is placeholder data using the reserved documentation ranges from
+> RFC 5737.
 
 ### Themes
 
@@ -82,55 +90,84 @@ low luminance contrast reads as slightly out of focus.
 
 ### Windows TUN self-loop fix
 
-Throned addresses an intermittent Windows TUN self-loop. After a
-network-interface change, an internal sing-tun system-stack connection could
-fall through to `direct`, get captured by the same TUN again, and repeat
-indefinitely. Typical symptoms:
+After a network-interface change, an internal sing-tun system-stack connection
+could fall through to `direct`, get captured by the same TUN again, and repeat
+indefinitely — voice chat cutting out, repeated `ThronedCore.exe -> 172.19.0.2`
+log lines, rising CPU, recovering only until the next restart of TUN mode.
 
-- Discord or in-game voice chat suddenly stopping;
-- repeated `ThronedCore.exe -> 172.19.0.2:<port>` log entries
-  (`ThroneCore.exe` on builds before `1.1.0`);
-- increased CPU or memory use;
-- temporarily recovering after restarting TUN mode.
-
-Throned updates sing-tun with the upstream interface-monitor fix and adds an
-early peer guard calculated from the configured TUN subnet, so custom TUN ranges
-are protected too. DNS requests to the peer remain hijacked normally; other
-recaptured peer traffic is dropped before sniffing, user rules, or a direct
-outbound can loop it again.
+Throned carries the upstream interface-monitor fix plus an early peer guard
+calculated from the configured TUN subnet, so custom ranges are covered too. DNS
+to the peer stays hijacked; other recaptured peer traffic is dropped before
+sniffing, user rules, or a direct outbound can loop it again.
 
 ### Rule-set downloads that follow the proxy
 
-Remote sing-box rule sets and Throned's own route/GeoIP/GeoSite downloads use
-the active proxy through a dedicated authenticated local inbound. They no longer
-depend on a routing profile's `final` outbound being set to `proxy`.
+Remote sing-box rule sets and Throned's own route/GeoIP/GeoSite downloads go
+through the active proxy over a dedicated authenticated local inbound, instead
+of depending on a routing profile's `final` outbound being `proxy`.
+
+### Rules from the connection list
+
+Right-click a live connection to turn it into a routing rule. The menu opens
+with the verdict that connection actually got, then offers every rule the row
+can produce — domain, domain and subdomains, process, executable, address —
+each routable to proxy, direct or block. A candidate that already exists in the
+active profile says so instead of adding a duplicate.
+
+<p align="center">
+  <img src="docs/ui-preview/connection-rule-menu.png" width="700" alt="Rule from a connection">
+</p>
 
 ### Routing editor
 
 - Simple and Advanced modes over one shared rule document; switching modes never
   deletes, regroups, or silently reorders rules.
+- Rules are sorted into application, domain, rule-set and address cards, laid out
+  in even columns filled top to bottom, sorted by kind and name. Large cards get
+  an inline filter and fold past 24 entries.
+- **Paste list** edits every rule of one action as plain text. Bare lines are
+  recognised on their own, and sing-box spellings (`domain_suffix`,
+  `process_name`, `rule_set`) are accepted, so a list from a config or a chat
+  message can be pasted whole.
 - An application picker backed by installed applications, running processes, and
   manual executable selection.
-- Process rules ask the core to resolve the owning process on their own. They
-  used to work only while traffic statistics happened to be enabled, and turning
-  those off made every process rule stop matching without saying so.
-- Unknown imported fields stay as opaque JSON in their original position and get
-  a visible `Preserved JSON` marker.
+- Unknown imported fields stay as opaque JSON in their original position, marked
+  `Preserved JSON`.
+
+<p align="center">
+  <img src="docs/ui-preview/routes-paste-en.png" width="620" alt="Paste rule list">
+</p>
+
+<p align="center">
+  <img src="docs/ui-preview/routes-advanced-en.png" width="820" alt="Advanced routing">
+</p>
+
+### Process rules that actually match
+
+- Process lookup is switched on by any profile that uses process rules. It used
+  to ride on traffic statistics, so turning those off silently stopped every
+  process rule from matching.
+- A rule that matches only on a process now gets a mirrored DNS rule. sing-box
+  routes DNS through a separate list, so an application pulled onto the proxy by
+  name still resolved its hostnames through the direct resolver — which is why a
+  process rule alone often needed the domains listed by hand as well.
 
 ### Routing quick menu
 
-The routing segment of the status bar opens a small panel over the window: it
-shows the active profile, switches between sending unmatched traffic direct or
-through the proxy, and turns the profile's own rules off entirely when you want
-everything to follow that default. Throned's internal rules — TUN DNS hijack,
-sniffing, the peer guard, the local-proxy option — keep applying either way.
+The routing segment of the status bar opens a panel over the window: active
+profile, whether unmatched traffic goes direct or through the proxy, and a
+switch that turns the profile's own rules off entirely. Throned's internal rules
+— TUN DNS hijack, sniffing, the peer guard, the local-proxy option — keep
+applying either way.
 
 ### Main window workflow
 
 - Selecting several rows reveals batch actions — URL test, speed test, and
   outbound-IP resolution operate on the preserved selection.
 - Logs wrap at the window edge with a hanging timestamp/level gutter, a level
-  filter, and auto-scroll.
+  filter, and auto-scroll. Process paths are highlighted whole, spaces included.
+- Status-bar readings are elided to their cell and padded to fixed columns, so
+  a long profile name or a fast transfer no longer shoves the strip around.
 
 ### Update checks
 
@@ -142,9 +179,9 @@ interval lives in *Settings → Subscription* and can be switched off.
 ### Control interface
 
 A running Throned can be driven from the command line, by a person or by a
-program. It is a thin client: the command travels to the open window over a
-local socket, runs against the same database the interface uses, and the answer
-comes back on stdout.
+program. The command travels to the open window over a local socket, runs
+against the same database the interface uses, and the answer comes back on
+stdout.
 
 ```sh
 throned --cli status
@@ -154,41 +191,36 @@ throned --cli route rules            # the ordered rule list; first match wins
 ```
 
 Every command is also addressable as JSON, and replies are always
-`{"ok":true,"data":{…}}` or `{"ok":false,"error":"…"}`, so a failure stays
-parseable:
+`{"ok":true,"data":{…}}` or `{"ok":false,"error":"…"}`:
 
 ```sh
 throned --cli '{"cmd":"routing.set_default","outbound":"proxy"}'
 throned --cli '{"cmd":"logs","lines":50,"contains":"reject"}'
 ```
 
-For automated use, `routing.export` hands over the whole profile as a lossless
-document — every rule with every field, in evaluation order — and
-`routing.import` takes an edited one back. `{"cmd":"schema"}` describes the
-command surface *and* the rule format, both generated from the code that
-dispatches and parses them, so the reference cannot quietly drift from what the
-app accepts.
+`routing.export` hands over the whole profile as a lossless document — every
+rule with every field, in evaluation order — and `routing.import` takes an
+edited one back. `{"cmd":"schema"}` describes the command surface *and* the rule
+format, both generated from the code that dispatches and parses them, so the
+reference cannot drift from what the app accepts.
 
-Routing edits normally restart the core so they take effect. Pass
-`"apply": false` to batch several of them and finish with `routing.apply`, which
-interrupts traffic once instead of once per edit.
+Routing edits restart the core so they take effect. Pass `"apply": false` to
+batch several and finish with `routing.apply`, interrupting traffic once instead
+of once per edit.
 
 The socket is restricted to the current user. Anything able to reach it can
 change where traffic goes, so it is not a public interface.
-
 `throned --cli help` prints the whole reference.
 
 > The examples are lowercase because Windows resolves executable names without
-> regard to case. The Linux binary is named `Throned`, and there the case
-> matters.
+> regard to case. The Linux binary is named `Throned`, and there case matters.
 
 ### Naming and migration
 
 The application, core process, installer, Linux bundle, and TUN interface all
-use the Throned name. On first launch, an existing Throne configuration is
-copied into Throned when no Throned database exists yet. The legacy `throne://`
-link scheme remains supported, so old subscriptions and shared profiles keep
-opening.
+use the Throned name. On first launch an existing Throne configuration is copied
+in when no Throned database exists yet. The legacy `throne://` link scheme
+remains supported, so old subscriptions and shared profiles keep opening.
 
 ---
 
@@ -256,8 +288,10 @@ cmake -S tools/ui-demo -B build-ui
 cmake --build build-ui
 ```
 
-See [docs/ui-redesign.md](docs/ui-redesign.md) for its options and the design
-notes behind the redesign.
+The application itself can also render its real screens headlessly
+(`--route-editor-preview`, `-ui-preview`), which is how the screenshots above
+are produced. See [docs/ui-redesign.md](docs/ui-redesign.md) for both and for
+the design notes behind the redesign.
 
 ---
 
