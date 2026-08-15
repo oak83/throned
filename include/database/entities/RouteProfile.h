@@ -109,6 +109,24 @@ namespace Configs {
 
         QStringList get_proxy_sites();
 
+        // Process matchers aimed at one outbound by rules that match on nothing
+        // else. sing-box routes DNS through its own rule list, so a process rule
+        // alone moves an app's connections while leaving its lookups on the
+        // default resolver - which is why an app matched purely by process name
+        // still needed every one of its domains listed by hand. Rules that also
+        // match on a domain or an address are skipped: their conditions are an
+        // AND, and mirroring only the process half would route more than the
+        // rule itself does.
+        struct ProcessSelectors {
+            QStringList names;
+            QStringList paths;
+            QStringList pathRegexes;
+            [[nodiscard]] bool isEmpty() const {
+                return names.isEmpty() && paths.isEmpty() && pathRegexes.isEmpty();
+            }
+        };
+        [[nodiscard]] ProcessSelectors get_process_selectors(int outbound) const;
+
         QStringList get_direct_ips();
 
         // Raw destination IP CIDRs the profile pulls away from a plain direct exit

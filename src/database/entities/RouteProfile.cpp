@@ -594,6 +594,34 @@ namespace Configs {
         return res;
     }
 
+    RouteProfile::ProcessSelectors RouteProfile::get_process_selectors(int outbound) const {
+        ProcessSelectors res;
+        for (const auto& item: Rules) {
+            if (item == nullptr || item->action != "route" || item->outboundID != outbound) continue;
+            if (item->process_name.isEmpty() && item->process_path.isEmpty() && item->process_path_regex.isEmpty())
+                continue;
+            // Every other matcher has to be untouched, otherwise the rule is an
+            // AND of process and something else and cannot be mirrored as-is.
+            const bool onlyProcess = item->ip_version.isEmpty() && item->network.isEmpty()
+                && item->protocol.isEmpty() && item->inbound.isEmpty() && item->domain.isEmpty()
+                && item->domain_suffix.isEmpty() && item->domain_keyword.isEmpty()
+                && item->domain_regex.isEmpty() && item->source_ip_cidr.isEmpty()
+                && item->ip_cidr.isEmpty() && item->source_port.isEmpty()
+                && item->source_port_range.isEmpty() && item->port.isEmpty()
+                && item->port_range.isEmpty() && item->wifi_ssid.isEmpty()
+                && item->wifi_bssid.isEmpty() && item->rule_set.isEmpty()
+                && !item->source_ip_is_private && !item->ip_is_private && !item->invert;
+            if (!onlyProcess) continue;
+            res.names += item->process_name;
+            res.paths += item->process_path;
+            res.pathRegexes += item->process_path_regex;
+        }
+        res.names.removeDuplicates();
+        res.paths.removeDuplicates();
+        res.pathRegexes.removeDuplicates();
+        return res;
+    }
+
     QStringList RouteProfile::get_direct_ips()
     {
         auto res = QStringList();

@@ -134,6 +134,12 @@ namespace Configs {
             DomainSelectors direct;
             bool needProxyDnsRules = false;
             DomainSelectors proxy;
+            // Mirrors of the profile's process-only rules. Without these an app
+            // pulled onto the proxy purely by process name still resolved its
+            // names through the direct resolver, so a poisoned answer broke it
+            // before any connection was attempted.
+            RouteProfile::ProcessSelectors directProcess;
+            RouteProfile::ProcessSelectors proxyProcess;
         };
 
         struct TunDeps {
@@ -355,6 +361,28 @@ namespace Configs {
                     {"domain_suffix", selectors.suffixes},
                     {"domain_keyword", selectors.keywords},
                     {"domain_regex", selectors.regexes},
+                    {"action", "route"},
+                    {"strategy", strategy},
+                    {"server", server},
+                };
+            }
+        }
+
+        // A process rule's DNS twin. sing-box ORs the values inside one field and
+        // ANDs across fields, so the three process matchers go into a single rule
+        // only because a selector set never fills more than one of them for the
+        // same profile - each is appended separately to keep that true.
+        void appendProcessDnsRules(QJsonArray &rules, const RouteProfile::ProcessSelectors &selectors,
+                                   const QString &strategy, const QString &server) {
+            const std::pair<QLatin1String, const QStringList *> fields[] = {
+                {QLatin1String("process_name"), &selectors.names},
+                {QLatin1String("process_path"), &selectors.paths},
+                {QLatin1String("process_path_regex"), &selectors.pathRegexes},
+            };
+            for (const auto &[field, values] : fields) {
+                if (values->isEmpty()) continue;
+                rules += QJsonObject{
+                    {QString(field), QJsonArray::fromStringList(*values)},
                     {"action", "route"},
                     {"strategy", strategy},
                     {"server", server},
@@ -631,6 +659,9 @@ namespace Configs {
                 auto proxySets = routeChain->get_proxy_sites();
                 parseSelectorList(proxySets, sinkFor(preReqs.dns.proxy));
                 if (!proxySets.isEmpty()) preReqs.dns.needProxyDnsRules = true;
+
+                preReqs.dns.directProcess = routeChain->get_process_selectors(directID);
+                preReqs.dns.proxyProcess = routeChain->get_process_selectors(proxyID);
             }
             if (auto entAddrs = getEntDomains({ctx.ent->id}, ctx.error); !entAddrs.isEmpty())
             {
@@ -982,11 +1013,19 @@ namespace Configs {
             if (dns.needDirectDnsRules) {
                 appendDnsRoutingRules(rules, dns.direct, settings.direct_dns_strategy, tags::dnsDirect);
             }
+            if (!dns.directProcess.isEmpty()) {
+                appendProcessDnsRules(rules, dns.directProcess, settings.direct_dns_strategy, tags::dnsDirect);
+            }
 
             const bool useDirectFinalDNS = settings.dns_final_out == tags::direct;
 
             if (dns.needProxyDnsRules && useDirectFinalDNS) {
                 appendDnsRoutingRules(rules, dns.proxy, settings.remote_dns_strategy, tags::dnsRemote);
+            }
+            // Only meaningful when the fallback resolver is the direct one:
+            // otherwise every unmatched query already goes remote.
+            if (useDirectFinalDNS && !dns.proxyProcess.isEmpty()) {
+                appendProcessDnsRules(rules, dns.proxyProcess, settings.remote_dns_strategy, tags::dnsRemote);
             }
 
             // final rule: proxy
