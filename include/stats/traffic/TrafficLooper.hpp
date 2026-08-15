@@ -16,26 +16,27 @@ namespace Stats {
         double uplink_rate = 0;
     };
 
-    // A live rate refreshes once a second, so the number is right-aligned into a
-    // fixed column with figure spaces (U+2007, the width of a digit) and the unit
-    // left-aligned into another. Without that, "9.99 B" becoming "10.00 KiB" made
-    // everything after it hop sideways every second.
-    inline QString PaddedRate(double bytesPerSecond) {
+    inline QString Rate(double bytesPerSecond) {
         static const QStringList units{QStringLiteral("B"), QStringLiteral("KiB"), QStringLiteral("MiB"),
                                        QStringLiteral("GiB"), QStringLiteral("TiB")};
-        constexpr QChar figureSpace(0x2007);
         double value = bytesPerSecond;
         int unit = 0;
         while (value >= 1024.0 && unit + 1 < units.size()) {
             value /= 1024.0;
             ++unit;
         }
-        return QString::number(value, 'f', 2).rightJustified(7, figureSpace)
-               + QChar(' ') + units.at(unit).leftJustified(3, figureSpace);
+        return QString::number(value, 'f', 2) + QChar(' ') + units.at(unit);
     }
 
+    // Each arrow sits right against its own number; the padding goes between the
+    // two halves instead, out to the width of the widest possible reading
+    // ("1023.99 KiB"). That keeps the down half from sliding around once a second
+    // without opening a gap inside either reading.
     inline QString DisplaySpeed(const std::shared_ptr<TrafficLooperEntry> &entry) {
-        return UNICODE_LRO + QString("↑ %1   ↓ %2").arg(PaddedRate(entry->uplink_rate), PaddedRate(entry->downlink_rate));
+        constexpr QChar figureSpace(0x2007);
+        return UNICODE_LRO + QString("↑ %1 ↓ %2")
+                                 .arg(Rate(entry->uplink_rate).leftJustified(11, figureSpace),
+                                      Rate(entry->downlink_rate));
     }
 
     // Runtime view of a TrafficChainGroup: same watchTag + profile list, plus
