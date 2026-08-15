@@ -24,6 +24,8 @@
 #include <QScreen>
 #include <QLabel>
 #include <QTextBrowser>
+#include <QAbstractButton>
+#include <QPushButton>
 #include <QDialogButtonBox>
 #include <QDialog>
 
