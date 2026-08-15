@@ -554,7 +554,7 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     setWindowFlag(Qt::FramelessWindowHint, true);
     new ThronedWindowResizer(this);
     setMinimumSize(960, 680);
-    resize(1085, 761);
+    FitWindowToScreen(this, QSize(1085, 761));
 
     connect(ui->tabWidget->tabBar(), &QTabBar::currentChanged, this, [=, this]() {
         if (ui->tabWidget->tabBar()->currentIndex() == 1) {
@@ -697,7 +697,7 @@ void RouteItem::rebuildAdvancedSummary() {
     connect(sourceButton, &QPushButton::clicked, this, [this] {
         QDialog dialog(this);
         dialog.setWindowTitle(tr("Full routing source"));
-        dialog.resize(760, 560);
+        FitWindowToScreen(&dialog, QSize(760, 560));
         themeManager->RegisterStyle(&dialog, RouteProfileSimpleEditor::dialogStyleSheet());
         auto *layout = new QVBoxLayout(&dialog);
         auto *source = new QPlainTextEdit(&dialog);
@@ -1001,7 +1001,7 @@ void RouteItem::fetchRemote(bool applyToChain) {
                 connect(buttons, &QDialogButtonBox::rejected, dlg, &QDialog::reject);
                 connect(buttons, &QDialogButtonBox::accepted, dlg, &QDialog::accept);
                 lay->addWidget(buttons);
-                dlg->resize(560, 460);
+                FitWindowToScreen(dlg, QSize(560, 460));
                 dlg->show();
             }
         });

@@ -1,3 +1,4 @@
+#include "include/global/Utils.hpp"
 #include "include/ui/setting/RouteProfileSimpleEditor.h"
 
 #include "include/ui/setting/ApplicationPickerDialog.h"
@@ -1101,7 +1102,7 @@ void RouteProfileSimpleEditor::bulkEdit() {
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
     dialog.setStyleSheet(styleSheet());
-    dialog.resize(660, 560);
+    FitWindowToScreen(&dialog, QSize(660, 560));
     editor->setFocus();
     if (dialog.exec() != QDialog::Accepted) return;
 

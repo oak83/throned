@@ -1,3 +1,4 @@
+#include "include/global/Utils.hpp"
 #include "include/ui/setting/ApplicationPickerDialog.h"
 
 #include "include/ui/widget/MaterialIcon.h"
@@ -408,8 +409,8 @@ public:
 ApplicationPickerDialog::ApplicationPickerDialog(QWidget *parent) : QDialog(parent), d(new Private(this)) {
     setObjectName(QStringLiteral("routeProfileEditor"));
     setWindowTitle(tr("Choose applications"));
-    resize(760, 500);
     setMinimumSize(660, 440);
+    FitWindowToScreen(this, QSize(760, 500));
 
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(16, 16, 16, 14);

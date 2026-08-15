@@ -91,7 +91,7 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
     setWindowFlag(Qt::FramelessWindowHint, true);
     new ThronedWindowResizer(this);
     setMinimumSize(900, 620);
-    resize(1000, 700);
+    FitWindowToScreen(this, QSize(1000, 700));
     ui->tabWidget->setStyleSheet({});
     ui->tabWidget->tabBar()->setUsesScrollButtons(false);
     ui->tabWidget->tabBar()->hide();

@@ -444,6 +444,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     setWindowFlag(Qt::FramelessWindowHint, true);
     new ThronedWindowResizer(this);
     setMinimumSize(960, 680);
+    FitWindowToScreen(this);
     ui->centralwidget = redesignedCentral;
     setCentralWidget(redesignedCentral);
 

@@ -834,7 +834,7 @@ QDialog#basicSettingsDialog QWidget#settingsLegacyPage QPushButton:hover {
     )");
     themeManager->RegisterStyle(this, settingsStyleTemplate);
     setMinimumSize(900, 620);
-    resize(1000, 700);
+    FitWindowToScreen(this, QSize(1000, 700));
 }
 
 DialogBasicSettings::~DialogBasicSettings() {

@@ -284,6 +284,15 @@ void MessageBoxScrollable(const QString &title, const QString &text);
 
 int MessageBoxCheck(const QString &title, const QString &text, const QString &checkBoxText, bool &isChecked);
 
+// A window has to fit the screen it opens on. A minimum size larger than the
+// available desktop area cannot be resized away by the user, so the bottom of
+// the window - and with it whatever buttons live there - is simply unreachable.
+// This clamps both the minimum and the initial size to what the screen actually
+// offers, and is meant to replace bare setMinimumSize()/resize() calls on
+// top-level windows. `preferred` may be null, in which case only the minimum is
+// clamped.
+void FitWindowToScreen(QWidget *window, QSize preferred = {});
+
 void ActivateWindow(QWidget *w);
 
 void HideWindow(QWidget *w);

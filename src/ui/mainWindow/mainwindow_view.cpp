@@ -30,6 +30,10 @@ void MainWindow::applyTopBarMetrics() {
         button->updateGeometry();
     }
     setMinimumSize(designMinimumSize);
+    // The designed floor is only a floor on a screen large enough to hold it;
+    // a bigger font or a longer translation must not push the window past the
+    // bottom of a small display, where it cannot be dragged back.
+    FitWindowToScreen(this);
 }
 
 void MainWindow::UpdateDataView(bool force)

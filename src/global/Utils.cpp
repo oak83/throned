@@ -21,6 +21,7 @@
 #include <QLayout>
 #include <QVBoxLayout>
 #include <QPlainTextEdit>
+#include <QScreen>
 #include <QDialogButtonBox>
 #include <QDialog>
 
@@ -331,6 +332,20 @@ int MessageBoxCheck(const QString &title, const QString &text, const QString &ch
     isChecked = checkBox->isChecked();
 
     return result;
+}
+
+void FitWindowToScreen(QWidget *window, QSize preferred) {
+    if (window == nullptr) return;
+    const QScreen *screen = window->screen() != nullptr ? window->screen() : QGuiApplication::primaryScreen();
+    if (screen == nullptr) return;
+    // Leave room for the window frame and the task bar's own shadow rather than
+    // filling the last pixel of the work area.
+    const QSize available = screen->availableGeometry().size() - QSize(40, 60);
+    if (available.width() <= 0 || available.height() <= 0) return;
+
+    const QSize minimum = window->minimumSize().boundedTo(available);
+    window->setMinimumSize(minimum);
+    if (!preferred.isEmpty()) window->resize(preferred.boundedTo(available).expandedTo(minimum));
 }
 
 void ActivateWindow(QWidget *w) {
