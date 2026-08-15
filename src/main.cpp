@@ -27,7 +27,9 @@
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QContextMenuEvent>
 #include <QTabBar>
+#include <QTableWidget>
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QVBoxLayout>
@@ -38,6 +40,7 @@
 #include "include/global/Logger.hpp"
 
 #include "include/ui/mainwindow_interface.h"
+#include "include/stats/traffic/TrafficLooper.hpp"
 #include "include/stats/traffic/TrafficStatsManager.hpp"
 #include "include/api/RPC.h"
 #include "include/ui/setting/RouteItem.h"
@@ -676,6 +679,121 @@ briefly interrupts traffic.
         return app.exec();
     }
 
+    // Qt Test is not linked here, and one synthetic key press does not justify it.
+    void QTest_keyClick(QWidget *target, Qt::Key key) {
+        QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier);
+        QApplication::sendEvent(target, &press);
+        QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier);
+        QApplication::sendEvent(target, &release);
+    }
+
+    // Sample connections, a filled status strip, and the connection context
+    // menu, captured from the real main window on a throwaway configuration.
+    void RunMainWindowPreview(const QString &prefix) {
+        auto *window = GetMainWindow();
+        if (window == nullptr) {
+            qApp->exit(2);
+            return;
+        }
+        window->resize(1180, 780);
+
+        QList<Stats::ConnectionMetadata> connections;
+        const struct {
+            const char *dest;
+            const char *domain;
+            const char *process;
+            const char *processPath;
+            const char *outbound;
+            const char *network;
+            const char *protocol;
+            long long up;
+            long long down;
+        } samples[] = {
+            {"104.18.32.1:443", "chatgpt.com", "AyuGram.exe", "C:\\Users\\me\\AppData\\Roaming\\AyuGram\\AyuGram.exe",
+             "proxy", "tcp", "tls", 18422, 918233},
+            {"142.250.74.110:443", "accounts.google.com", "chrome.exe", "C:\\Program Files\\Google\\Chrome\\chrome.exe",
+             "proxy", "tcp", "tls", 4211, 88231},
+            {"192.168.1.1:53", "", "svchost.exe", "C:\\Windows\\System32\\svchost.exe",
+             "direct", "udp", "dns", 128, 344},
+            {"140.82.121.6:443", "github.com", "Code.exe", "C:\\Program Files\\Microsoft VS Code\\Code.exe",
+             "direct", "tcp", "tls", 9120, 240113},
+            {"3.233.158.24:443", "daily-code-pa.googleapis.com", "agy.exe",
+             "C:\\Users\\me\\AppData\\Local\\Programs\\agy\\agy.exe", "direct", "tcp", "tls", 2211, 51002},
+            {"239.255.255.250:1900", "", "NVIDIA Overlay.exe",
+             "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\CEF\\NVIDIA Overlay.exe",
+             "direct", "udp", "", 640, 0},
+        };
+        int index = 0;
+        for (const auto &sample : samples) {
+            Stats::ConnectionMetadata conn;
+            conn.id = QString::number(++index);
+            conn.dest = QString::fromLatin1(sample.dest);
+            conn.domain = QString::fromLatin1(sample.domain);
+            conn.process = QString::fromLatin1(sample.process);
+            conn.processPath = QString::fromLatin1(sample.processPath);
+            conn.outbound = QString::fromLatin1(sample.outbound);
+            conn.network = QString::fromLatin1(sample.network);
+            conn.protocol = QString::fromLatin1(sample.protocol);
+            conn.upload = sample.up;
+            conn.download = sample.down;
+            conn.uploadSpeed = sample.up / 8;
+            conn.downloadSpeed = sample.down / 8;
+            connections.append(conn);
+        }
+        window->UpdateConnectionListWithRecreate(connections);
+
+        auto proxy = std::make_shared<Stats::TrafficLooperEntry>();
+        proxy->uplink_rate = 84213;
+        proxy->downlink_rate = 1348221;
+        auto direct = std::make_shared<Stats::TrafficLooperEntry>();
+        direct->uplink_rate = 912;
+        direct->downlink_rate = 4410;
+        window->refresh_status(QObject::tr("Proxy %1 · Direct %2")
+                                   .arg(Stats::DisplaySpeed(proxy), Stats::DisplaySpeed(direct)));
+        // A reading from the traffic loop short-circuits the rest of the strip,
+        // so the plain refresh has to follow it to fill the other cells.
+        window->refresh_status();
+
+        // The tab widget is renamed during setup, so it is found by content.
+        for (auto *tabs : window->findChildren<QTabWidget *>())
+            for (int tab = 0; tab < tabs->count(); ++tab)
+                if (tabs->widget(tab)->findChild<QTableWidget *>(QStringLiteral("connections")) != nullptr)
+                    tabs->setCurrentIndex(tab);
+
+        QTimer::singleShot(500, window, [window, prefix] {
+            window->grab().save(prefix + QStringLiteral("-window.png"), "PNG");
+            auto *table = window->findChild<QTableWidget *>(QStringLiteral("connections"));
+            if (table == nullptr || table->rowCount() == 0) {
+                qApp->exit(0);
+                return;
+            }
+            // The menu opens in its own nested loop, so the capture of it has to
+            // come from a timer armed before the event is delivered.
+            const QPoint point = table->visualItemRect(table->item(0, 0)).center();
+            QTimer::singleShot(400, window, [prefix] {
+                auto *popup = QApplication::activePopupWidget();
+                if (popup == nullptr) {
+                    qApp->exit(0);
+                    return;
+                }
+                popup->grab().save(prefix + QStringLiteral("-menu.png"), "PNG");
+                // Walk into the first target's submenu so the action choice is
+                // captured as well; it opens as its own popup window.
+                QTest_keyClick(popup, Qt::Key_Down);
+                QTest_keyClick(popup, Qt::Key_Down);
+                QTest_keyClick(popup, Qt::Key_Right);
+                QTimer::singleShot(300, popup, [prefix, popup] {
+                    if (auto *submenu = QApplication::activePopupWidget(); submenu && submenu != popup)
+                        submenu->grab().save(prefix + QStringLiteral("-submenu.png"), "PNG");
+                    popup->close();
+                    qApp->exit(0);
+                });
+            });
+            QContextMenuEvent event(QContextMenuEvent::Mouse, point, table->viewport()->mapToGlobal(point));
+            QApplication::sendEvent(table->viewport(), &event);
+        });
+    }
+
     int RunRouteEditorPreview(QApplication &app) {
         if (app.arguments().contains(QStringLiteral("--advanced"))) return RunAdvancedRouteEditorPreview(app);
         QDialog dialog;
@@ -1155,6 +1273,16 @@ int main(int argc, char* argv[]) {
     a.setFont(appFont);
 
     UI_InitMainWindow();
+
+    // -ui-preview <prefix> fills the connection list with sample rows, writes
+    // <prefix>-window.png and <prefix>-menu.png, and quits. It exists because
+    // the main window cannot otherwise be inspected without a live profile and
+    // the user's real configuration.
+    if (const int previewAt = arguments.indexOf(QStringLiteral("-ui-preview"));
+        previewAt >= 0 && previewAt + 1 < arguments.size()) {
+        const QString prefix = arguments.at(previewAt + 1);
+        QTimer::singleShot(1200, qApp, [prefix] { RunMainWindowPreview(prefix); });
+    }
 
     Configs::dataManager->RunDeferredMaintenance();
 
