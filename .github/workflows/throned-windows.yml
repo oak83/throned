@@ -238,6 +238,32 @@ jobs:
           ninja
           cd ..
           ./script/deploy_linux64_system_qt.sh
+      # Packaged here rather than in `release`: each matrix entry already holds
+      # its own build, so four jobs do in parallel what one job used to do
+      # serially after installing fpm.
+      - name: Pack deb and rpm
+        if: github.ref_type == 'tag'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm ruby-dev build-essential
+          sudo gem install -n /usr/local/bin --no-document fpm
+          mkdir -p packages
+          SYSTEMQT=""
+          NAME_SUFFIX=""
+          if [[ "${{ matrix.system_qt }}" == "true" ]]; then
+            SYSTEMQT="systemqt"
+            NAME_SUFFIX="-system-qt"
+          fi
+          (cd deployment && bash ../script/pack_debian.sh "$GITHUB_REF_NAME" "${{ matrix.arch }}" $SYSTEMQT)
+          mv deployment/Throned.deb "packages/Throned-${GITHUB_REF_NAME}-debian-${{ matrix.arch }}${NAME_SUFFIX}.deb"
+          rm -rf deployment/Throned
+          (cd deployment && bash ../script/pack_rpm.sh "$GITHUB_REF_NAME" "${{ matrix.arch }}" $SYSTEMQT)
+          mv deployment/Throned.rpm "packages/Throned-${GITHUB_REF_NAME}-${{ matrix.arch }}${NAME_SUFFIX}.rpm"
+      - uses: actions/upload-artifact@v7.0.1
+        if: github.ref_type == 'tag'
+        with:
+          name: throned-${{ github.sha }}-packages-${{ env.DEST_SUFFIX }}
+          path: packages
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: throned-${{ github.sha }}-${{ env.DEST_SUFFIX }}
@@ -262,6 +288,11 @@ jobs:
           pattern: throned-${{ github.sha }}-linux-*
           path: deployment
           merge-multiple: false
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: throned-${{ github.sha }}-packages-*
+          path: packages
+          merge-multiple: true
       - name: Pack release files
         run: |
           for artifact in deployment/throned-${GITHUB_SHA}-linux-*; do
@@ -274,20 +305,8 @@ jobs:
           cd package/windows
           zip -9 -r "../../Throned-${GITHUB_REF_NAME}-windows64.zip" Throned
           cd ../..
-          sudo apt-get update
-          sudo apt-get install -y rpm ruby-dev build-essential
-          sudo gem install -n /usr/local/bin --no-document fpm
+          mv packages/* . 2>/dev/null || true
           for arch in amd64 arm64; do
-            (cd deployment && bash ../script/pack_debian.sh "$GITHUB_REF_NAME" "$arch")
-            mv deployment/Throned.deb "Throned-${GITHUB_REF_NAME}-debian-${arch}.deb"
-            rm -rf deployment/Throned
-            (cd deployment && bash ../script/pack_debian.sh "$GITHUB_REF_NAME" "$arch" systemqt)
-            mv deployment/Throned.deb "Throned-${GITHUB_REF_NAME}-debian-${arch}-system-qt.deb"
-            rm -rf deployment/Throned
-            (cd deployment && bash ../script/pack_rpm.sh "$GITHUB_REF_NAME" "$arch")
-            mv deployment/Throned.rpm "Throned-${GITHUB_REF_NAME}-${arch}.rpm"
-            (cd deployment && bash ../script/pack_rpm.sh "$GITHUB_REF_NAME" "$arch" systemqt)
-            mv deployment/Throned.rpm "Throned-${GITHUB_REF_NAME}-${arch}-system-qt.rpm"
             mkdir -p "package/linux-${arch}/Throned"
             cp -a "deployment/linux-${arch}/." "package/linux-${arch}/Throned/"
             rm -f "package/linux-${arch}/Throned/Throned.debug"
