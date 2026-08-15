@@ -14,6 +14,7 @@ service LibcoreService {
   rpc QueryConnections(EmptyReq) returns (QueryConnectionsResp);
   //
   rpc SetSystemDNS(SetSystemDNSRequest) returns (EmptyResp);
+  rpc SetTransitionGuard(SetTransitionGuardRequest) returns (ErrorResp);
   //
   rpc IsPrivileged(EmptyReq) returns (IsPrivilegedResponse);
   //
@@ -125,6 +126,10 @@ message ConnectionMetaData {
   optional string process_path = 11 [default = ""]; // full path (icon lookup etc.)
   repeated string chain = 12;                        // outbound chain, for later use
   optional int64 closed_at = 13 [default = 0];       // 0 while live
+}
+
+message SetTransitionGuardRequest {
+  optional bool enabled = 1 [default = false];
 }
 
 message SetSystemDNSRequest {
