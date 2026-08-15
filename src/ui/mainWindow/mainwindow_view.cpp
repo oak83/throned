@@ -119,14 +119,19 @@ void MainWindow::refresh_status(const QString &traffic_update) {
     auto refresh_speed_label = [=,this] {
         if (settings->disable_traffic_stats) {
             setStatusText(ui->label_speed, "");
+            setStatusText(statusDirectSpeed, "");
         }
         else if (traffic_update_cache == "") {
             // Same shape as the populated state so the status bar does not
-            // reflow, but with a placeholder instead of a dangling colon.
-            setStatusText(ui->label_speed, QObject::tr("Proxy %1 · Direct %2")
-                                               .arg(QStringLiteral("—"), QStringLiteral("—")));
+            // reflow, but with a placeholder instead of a dangling number.
+            const QString idle = QStringLiteral("↑ —   ↓ —");
+            setStatusText(ui->label_speed, idle);
+            setStatusText(statusDirectSpeed, idle);
         } else {
-            setStatusText(ui->label_speed, traffic_update_cache);
+            // Proxy and direct arrive as one string from the traffic loop.
+            const QStringList halves = traffic_update_cache.split(QChar(0x001F));
+            setStatusText(ui->label_speed, halves.value(0));
+            setStatusText(statusDirectSpeed, halves.value(1));
         }
     };
 

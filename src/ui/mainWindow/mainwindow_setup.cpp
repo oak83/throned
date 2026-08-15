@@ -317,14 +317,21 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // shape - one of them was two lines - and the strip was sized by whichever
     // was tallest, leaving the rest floating. A caption/value grid gives the bar
     // a rhythm without wrapping anything in a box.
+    // Proxy and direct rates get a cell each. Cramming both into one reading
+    // meant four numbers and two words on a single line, which nobody could
+    // read at a glance - and the labels belong on the caption line anyway,
+    // which is what every other cell in the strip already does. "Proxy" and
+    // "direct" stay untranslated: they are the outbound tags themselves.
+    statusDirectSpeed = new QLabel(statusCard);
     struct StatusItem { QLabel *value; MaterialIcon::Glyph glyph; QString caption; int stretch; };
     const QList<StatusItem> statusItems{
-        // Traffic carries four live numbers and Connection a group plus a profile
-        // name, so those two get the wider share; Inbound is a fixed-length
-        // address and never needs more than its own text.
-        {ui->label_running, MaterialIcon::Glyph::Public, tr("Connection"), 4},
-        {ui->label_inbound, MaterialIcon::Glyph::Desktop, tr("Inbound"), 3},
-        {ui->label_speed, MaterialIcon::Glyph::SwapVertical, tr("Traffic"), 6},
+        // Shares chosen so that the two rate cells still hold a full reading at
+        // the window's minimum width; routing gives way first because its
+        // summary is the one that degrades gracefully.
+        {ui->label_running, MaterialIcon::Glyph::Public, tr("Connection"), 5},
+        {ui->label_inbound, MaterialIcon::Glyph::Desktop, tr("Inbound"), 4},
+        {ui->label_speed, MaterialIcon::Glyph::Shield, QStringLiteral("Proxy"), 5},
+        {statusDirectSpeed, MaterialIcon::Glyph::Direct, QStringLiteral("Direct"), 5},
     };
     QList<QPair<QLabel *, MaterialIcon::Glyph>> mutedIcons;
     for (const auto &[value, glyph, caption, stretch] : statusItems) {

@@ -4761,7 +4761,6 @@ Name: %1</source>
 </context>
 <context>
     <name>QObject</name>
-    <message><source>Proxy %1 · Direct %2</source><translation>Прокси %1 · Напрямую %2</translation></message>
     <message>
         <source>Request with proxy but no profile started.</source>
         <translation>Запрос через прокси, но профиль не запущен.</translation>

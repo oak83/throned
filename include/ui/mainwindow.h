@@ -236,6 +236,10 @@ private:
     // and one value per cell, and a wrapped country pushed the cell out of the
     // shared grid.
     QLabel *statusConnectionCaption = nullptr;
+    // The direct half of the traffic reading. ui->label_speed carries the proxy
+    // half; they are two cells because two numbers each is the most a status
+    // strip can be read at a glance.
+    QLabel *statusDirectSpeed = nullptr;
     // Status-bar values are elided against the width the strip actually gives
     // them, so they are stored unabridged here and re-elided on every resize.
     QList<QPointer<QLabel>> statusElidedLabels;

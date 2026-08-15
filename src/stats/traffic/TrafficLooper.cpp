@@ -130,9 +130,10 @@ namespace Stats {
             runOnUiThread([=,this] {
                 auto m = GetMainWindow();
                 if (proxy != nullptr) {
-                    // One line: this shares a status bar with single-line cells,
-                    // and a two-line reading here stretched the whole strip.
-                    m->refresh_status(QObject::tr("Proxy %1 · Direct %2").arg(DisplaySpeed(proxy), DisplaySpeed(direct)));
+                    // Two readings, one per status cell. The unit separator is a
+                    // transport detail between here and refresh_status; it never
+                    // reaches the screen.
+                    m->refresh_status(DisplaySpeed(proxy) + QChar(0x001F) + DisplaySpeed(direct));
                     m->update_traffic_graph(proxy->downlink_rate, proxy->uplink_rate, direct->downlink_rate, direct->uplink_rate);
                 }
                 // One batched refresh: a 300-member auto-selector pool would

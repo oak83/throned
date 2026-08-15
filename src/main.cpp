@@ -748,8 +748,7 @@ briefly interrupts traffic.
         auto direct = std::make_shared<Stats::TrafficLooperEntry>();
         direct->uplink_rate = 912;
         direct->downlink_rate = 4410;
-        window->refresh_status(QObject::tr("Proxy %1 · Direct %2")
-                                   .arg(Stats::DisplaySpeed(proxy), Stats::DisplaySpeed(direct)));
+        window->refresh_status(Stats::DisplaySpeed(proxy) + QChar(0x001F) + Stats::DisplaySpeed(direct));
         // A reading from the traffic loop short-circuits the rest of the strip,
         // so the plain refresh has to follow it to fill the other cells.
         window->refresh_status();

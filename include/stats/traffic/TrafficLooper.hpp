@@ -16,15 +16,13 @@ namespace Stats {
         double uplink_rate = 0;
     };
 
-    // Four live rates share one cell of the status strip, so the reading is kept
-    // short - one decimal, a single-letter unit - and padded to a constant column
-    // count with figure spaces (U+2007, the width of a digit). Without the padding
-    // "9.9K" turning into "10.1M" shifted every neighbouring number once a second;
-    // without the shortening the whole reading did not fit the cell at all. The
-    // exact byte counts live in the traffic graph and the connection list.
+    // A live rate refreshes once a second, so the number is right-aligned into a
+    // fixed column with figure spaces (U+2007, the width of a digit) and the unit
+    // left-aligned into another. Without that, "9.99 B" becoming "10.00 KiB" made
+    // everything after it hop sideways every second.
     inline QString PaddedRate(double bytesPerSecond) {
-        static const QStringList units{QStringLiteral("B"), QStringLiteral("K"), QStringLiteral("M"),
-                                       QStringLiteral("G"), QStringLiteral("T")};
+        static const QStringList units{QStringLiteral("B"), QStringLiteral("KiB"), QStringLiteral("MiB"),
+                                       QStringLiteral("GiB"), QStringLiteral("TiB")};
         constexpr QChar figureSpace(0x2007);
         double value = bytesPerSecond;
         int unit = 0;
@@ -32,11 +30,12 @@ namespace Stats {
             value /= 1024.0;
             ++unit;
         }
-        return QString::number(value, 'f', 1).rightJustified(5, figureSpace) + units.at(unit);
+        return QString::number(value, 'f', 2).rightJustified(7, figureSpace)
+               + QChar(' ') + units.at(unit).leftJustified(3, figureSpace);
     }
 
     inline QString DisplaySpeed(const std::shared_ptr<TrafficLooperEntry> &entry) {
-        return UNICODE_LRO + QString("%1↑ %2↓").arg(PaddedRate(entry->uplink_rate), PaddedRate(entry->downlink_rate));
+        return UNICODE_LRO + QString("↑ %1   ↓ %2").arg(PaddedRate(entry->uplink_rate), PaddedRate(entry->downlink_rate));
     }
 
     // Runtime view of a TrafficChainGroup: same watchTag + profile list, plus
