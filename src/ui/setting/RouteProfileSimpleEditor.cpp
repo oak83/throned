@@ -1,4 +1,5 @@
 #include "include/global/Utils.hpp"
+#include "include/database/entities/RouteProfile.h"
 #include "include/ui/setting/RouteProfileSimpleEditor.h"
 
 #include "include/ui/setting/ApplicationPickerDialog.h"
@@ -346,70 +347,6 @@ private:
     bool showAll_ = false;
 };
 
-const QMap<QString, QString> &ruleLineAliases() {
-    static const QMap<QString, QString> aliases{
-        {QStringLiteral("domain"), QStringLiteral("domain")},
-        {QStringLiteral("full"), QStringLiteral("domain")},
-        {QStringLiteral("suffix"), QStringLiteral("suffix")},
-        {QStringLiteral("domain_suffix"), QStringLiteral("suffix")},
-        {QStringLiteral("keyword"), QStringLiteral("keyword")},
-        {QStringLiteral("domain_keyword"), QStringLiteral("keyword")},
-        {QStringLiteral("regex"), QStringLiteral("regex")},
-        {QStringLiteral("regexp"), QStringLiteral("regex")},
-        {QStringLiteral("domain_regex"), QStringLiteral("regex")},
-        {QStringLiteral("ruleset"), QStringLiteral("ruleset")},
-        {QStringLiteral("rule_set"), QStringLiteral("ruleset")},
-        {QStringLiteral("ip"), QStringLiteral("ip")},
-        {QStringLiteral("ip_cidr"), QStringLiteral("ip")},
-        {QStringLiteral("cidr"), QStringLiteral("ip")},
-        {QStringLiteral("processname"), QStringLiteral("processName")},
-        {QStringLiteral("process_name"), QStringLiteral("processName")},
-        {QStringLiteral("processpath"), QStringLiteral("processPath")},
-        {QStringLiteral("process_path"), QStringLiteral("processPath")},
-    };
-    return aliases;
-}
-
-QString guessRuleKind(const QString &value) {
-    // Paths first: the only kind allowed to contain spaces.
-    if (value.contains(QLatin1Char('\\')) || value.startsWith(QLatin1Char('/')))
-        return QStringLiteral("processPath");
-    if (value.contains(QLatin1Char(' '))) return {};
-    if (value.startsWith(QStringLiteral("geosite-")) || value.startsWith(QStringLiteral("geoip-")))
-        return QStringLiteral("ruleset");
-    if (value.endsWith(QStringLiteral(".exe"), Qt::CaseInsensitive)) return QStringLiteral("processName");
-    const QString address = value.section(QLatin1Char('/'), 0, 0);
-    if (!address.isEmpty() && !QHostAddress(address).isNull()) return QStringLiteral("ip");
-    if (value.startsWith(QLatin1Char('.'))) return QStringLiteral("suffix");
-    if (value.startsWith(QStringLiteral("*."))) return QStringLiteral("domain");
-    if (value.contains(QLatin1Char('.'))) return QStringLiteral("domain");
-    return {};
-}
-
-QString normalizeRuleLine(const QString &line) {
-    QString clean = line.trimmed();
-    if (clean.isEmpty() || clean.startsWith(QLatin1Char('#')) || clean.startsWith(QStringLiteral("//"))) return {};
-    while (clean.startsWith(QLatin1Char('-')) || clean.startsWith(QLatin1Char('"'))) clean = clean.mid(1).trimmed();
-    while (clean.endsWith(QLatin1Char(',')) || clean.endsWith(QLatin1Char('"'))) clean.chop(1);
-    clean = clean.trimmed();
-    if (clean.isEmpty()) return {};
-
-    const int separator = clean.indexOf(QLatin1Char(':'));
-    if (separator > 0) {
-        const QString kind = ruleLineAliases().value(clean.left(separator).trimmed().toLower());
-        const QString value = clean.mid(separator + 1).trimmed();
-        if (!kind.isEmpty() && !value.isEmpty()) {
-            if (kind == QStringLiteral("suffix") && value.startsWith(QLatin1Char('.')))
-                return kind + QLatin1Char(':') + value.mid(1);
-            return kind + QLatin1Char(':') + value;
-        }
-    }
-
-    const QString guess = guessRuleKind(clean);
-    if (guess.isEmpty()) return {};
-    if (guess == QStringLiteral("suffix")) return guess + QLatin1Char(':') + clean.mid(1);
-    return guess + QLatin1Char(':') + clean;
-}
 
 QString ruleKindLabel(const QString &kind) {
     if (kind == QStringLiteral("domain")) return RouteProfileSimpleEditor::tr("domains");
@@ -1028,7 +965,7 @@ void RouteProfileSimpleEditor::bulkEdit() {
             const QString clean = line.trimmed();
             if (clean.isEmpty() || clean.startsWith(QLatin1Char('#')) || clean.startsWith(QStringLiteral("//")))
                 continue;
-            const QString rule = normalizeRuleLine(clean);
+            const QString rule = Configs::NormalizeRuleLine(clean);
             if (rule.isEmpty()) rejected.append(clean);
             else if (!parsed.contains(rule)) parsed.append(rule);
         }

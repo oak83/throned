@@ -163,6 +163,13 @@ const QList<Command> &commandTable() {
            "domain:, suffix:, keyword:, regex:, ruleset:, ip:, processName: and processPath: "
            "are kept as given"}},
          "action, domains (the resulting list)"},
+        {"routing.paste", "Replace one routing list wholesale with a free-form list.",
+         {{"action", "string", true, "proxy, direct, block", "which list to replace"},
+          {"lines", "string[]", true, "",
+           "one entry per line in any accepted spelling: the typed prefixes, the sing-box "
+           "ones (domain_suffix, process_name, rule_set, ip_cidr), or a bare value whose "
+           "kind is unambiguous. Comments and list punctuation are ignored"}},
+         "action, domains (the resulting list), rejected (lines that could not be placed)"},
         {"routing.remove_domains", "Remove entries from one of the three routing lists.",
          {{"action", "string", true, "proxy, direct, block", "which list to edit"},
           {"domains", "string[]", true, "", "accepts the bare form or the stored one"}},
@@ -535,6 +542,36 @@ QJsonObject Execute(const QJsonObject &request) {
         return saveAndApply(profile, QJsonObject{
             {"action", request.value(QStringLiteral("action")).toString()},
             {"apps", QJsonArray::fromStringList(processEntries)},
+        }, request);
+    }
+
+    if (cmd == QStringLiteral("routing.paste")) {
+        const auto profile = activeProfile();
+        if (!profile) return fail(QStringLiteral("no active routing profile"));
+        if (profile->isRaw) return fail(QStringLiteral("a raw profile is edited as JSON, not as domain lists"));
+        Configs::simpleAction action = Configs::proxy;
+        if (!actionFromName(request.value(QStringLiteral("action")).toString(), &action))
+            return fail(QStringLiteral("\"action\" must be proxy, direct or block"));
+
+        QStringList parsed;
+        QStringList rejected;
+        for (const QString &line : requestedStrings(request, QStringLiteral("lines"))) {
+            for (const QString &part : line.split('\n')) {
+                const QString clean = part.trimmed();
+                if (clean.isEmpty() || clean.startsWith(QLatin1Char('#')) || clean.startsWith(QStringLiteral("//")))
+                    continue;
+                const QString rule = Configs::NormalizeRuleLine(clean);
+                if (rule.isEmpty()) rejected << clean;
+                else if (!parsed.contains(rule)) parsed << rule;
+            }
+        }
+
+        const QString error = profile->UpdateSimpleRules(parsed.join('\n'), action);
+        if (!error.isEmpty()) return fail(error);
+        return saveAndApply(profile, QJsonObject{
+            {"action", request.value(QStringLiteral("action")).toString()},
+            {"domains", QJsonArray::fromStringList(parsed)},
+            {"rejected", QJsonArray::fromStringList(rejected)},
         }, request);
     }
 

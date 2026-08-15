@@ -37,6 +37,11 @@ namespace Configs {
         return {"invalid"};
     }
 
+    // One free-form line to a canonical "kind:value" rule, or empty when the
+    // line cannot be placed. Accepts the typed prefixes, their sing-box
+    // spellings, and bare values whose kind is unambiguous.
+    QString NormalizeRuleLine(const QString& line);
+
     class RouteProfile {
     public:
         int id = -1;
