@@ -984,6 +984,29 @@ int main(int argc, char* argv[]) {
     QApplication::setQuitOnLastWindowClosed(false);
     QApplication a(argc, argv);
 
+    // --update-prompt-preview [--notes <file>] opens the "update available"
+    // dialog on a synthetic release note, so its behaviour with a long one can
+    // be checked without waiting for a release.
+    if (a.arguments().contains(QStringLiteral("--update-prompt-preview"))) {
+        ApplyPreviewTheme(a);
+        QString note;
+        if (const int at = a.arguments().indexOf(QStringLiteral("--notes"));
+            at >= 0 && at + 1 < a.arguments().size())
+            note = ReadFileText(a.arguments().at(at + 1));
+        if (note.isEmpty()) {
+            QStringList lines{QStringLiteral("Synthetic release note for layout checking.")};
+            for (int section = 1; section <= 8; ++section) {
+                lines << QString() << QStringLiteral("## Section %1").arg(section) << QString();
+                for (int item = 1; item <= 6; ++item)
+                    lines << QStringLiteral("- Item %1.%2 — a line of about the length a real release "
+                                            "note entry runs to, so the wrapping is realistic.").arg(section).arg(item);
+            }
+            note = lines.join(QChar('\n'));
+        }
+        ShowUpdatePrompt(nullptr, QObject::tr("Update"), QStringLiteral("Throned-1.3.1-windows64.zip"), note, true);
+        return 0;
+    }
+
     if (a.arguments().contains(QStringLiteral("--route-editor-preview"))) {
         // No database has been opened yet, so the language comes straight off
         // the command line rather than out of the settings.

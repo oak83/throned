@@ -22,6 +22,8 @@
 #include <QVBoxLayout>
 #include <QPlainTextEdit>
 #include <QScreen>
+#include <QLabel>
+#include <QTextBrowser>
 #include <QDialogButtonBox>
 #include <QDialog>
 
@@ -346,6 +348,43 @@ void FitWindowToScreen(QWidget *window, QSize preferred) {
     const QSize minimum = window->minimumSize().boundedTo(available);
     window->setMinimumSize(minimum);
     if (!preferred.isEmpty()) window->resize(preferred.boundedTo(available).expandedTo(minimum));
+}
+
+UpdatePromptChoice ShowUpdatePrompt(QWidget *parent, const QString &title, const QString &assetName,
+                                    const QString &releaseNote, bool allowUpdater) {
+    QDialog box(parent);
+    box.setWindowTitle(title);
+    auto *layout = new QVBoxLayout(&box);
+    auto *heading = new QLabel(QObject::tr("Update found: %1").arg(assetName), &box);
+    heading->setWordWrap(true);
+    layout->addWidget(heading);
+
+    auto *notes = new QTextBrowser(&box);
+    notes->setOpenExternalLinks(true);
+    // Release notes are written in Markdown; rendering them beats showing the
+    // reader the ## and ** they were written with.
+    if (releaseNote.trimmed().isEmpty()) notes->setPlainText(QObject::tr("No release note."));
+    else notes->setMarkdown(releaseNote);
+    layout->addWidget(notes, 1);
+
+    auto *buttons = new QDialogButtonBox(&box);
+    QAbstractButton *updateButton = allowUpdater
+        ? buttons->addButton(QObject::tr("Update"), QDialogButtonBox::AcceptRole) : nullptr;
+    QAbstractButton *browserButton = buttons->addButton(QObject::tr("Open in browser"), QDialogButtonBox::AcceptRole);
+    buttons->addButton(QObject::tr("Close"), QDialogButtonBox::RejectRole);
+    QAbstractButton *clicked = nullptr;
+    QObject::connect(buttons, &QDialogButtonBox::clicked, &box, [&clicked, &box](QAbstractButton *button) {
+        clicked = button;
+        box.accept();
+    });
+    layout->addWidget(buttons);
+
+    FitWindowToScreen(&box, QSize(640, 560));
+    box.exec();
+
+    if (updateButton != nullptr && clicked == updateButton) return UpdatePromptChoice::Update;
+    if (clicked == browserButton) return UpdatePromptChoice::OpenInBrowser;
+    return UpdatePromptChoice::Dismissed;
 }
 
 void ActivateWindow(QWidget *w) {

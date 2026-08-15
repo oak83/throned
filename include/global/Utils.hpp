@@ -293,6 +293,15 @@ int MessageBoxCheck(const QString &title, const QString &text, const QString &ch
 // clamped.
 void FitWindowToScreen(QWidget *window, QSize preferred = {});
 
+enum class UpdatePromptChoice { Dismissed, Update, OpenInBrowser };
+
+// The "an update is available" prompt. Its own function rather than a message
+// box because a release note has no length limit: the text scrolls inside a
+// window bounded by the screen, so the buttons stay reachable no matter how
+// much was written.
+UpdatePromptChoice ShowUpdatePrompt(QWidget *parent, const QString &title, const QString &assetName,
+                                    const QString &releaseNote, bool allowUpdater);
+
 void ActivateWindow(QWidget *w);
 
 void HideWindow(QWidget *w);
