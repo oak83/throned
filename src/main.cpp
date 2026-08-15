@@ -26,7 +26,9 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QTabBar>
 #include <QTabWidget>
+#include <QTemporaryDir>
 #include <QVBoxLayout>
 #include <3rdparty/WinCommander.hpp>
 
@@ -37,6 +39,7 @@
 #include "include/ui/mainwindow_interface.h"
 #include "include/stats/traffic/TrafficStatsManager.hpp"
 #include "include/api/RPC.h"
+#include "include/ui/setting/RouteItem.h"
 #include "include/ui/setting/RouteProfileSimpleEditor.h"
 #include "include/ui/setting/ThemeManager.hpp"
 #include "include/control/ThronedControl.h"
@@ -620,7 +623,60 @@ briefly interrupts traffic.
         return ok ? 0 : 1;
     }
 
+    // --route-editor-preview --advanced brings up the real RouteItem dialog on a
+    // throwaway database, which is the only way to see the ordered rule list and
+    // the per-rule detail page without touching the user's own profiles.
+    int RunAdvancedRouteEditorPreview(QApplication &app) {
+        QTemporaryDir workdir;
+        if (!workdir.isValid()) return 2;
+        QDir::setCurrent(workdir.path());
+        Configs::initDB(QDir(workdir.path()).absoluteFilePath("preview.db").toStdString());
+
+        auto profile = std::make_shared<Configs::RouteProfile>();
+        profile->name = QStringLiteral("Default");
+        profile->defaultOutboundID = Configs::directID;
+        const auto rule = [](const QString &name, const QJsonObject &fields) {
+            QString error;
+            auto parsed = Configs::RouteProfile::parseJsonArray(QJsonArray{fields}, &error);
+            if (!parsed.isEmpty()) parsed.first()->name = name;
+            return parsed;
+        };
+        profile->Rules += rule(QStringLiteral("Simple Address Proxy"), QJsonObject{
+            {"domain", QJsonArray{"chatgpt.com", "openrouter.example", "deepgram.example"}},
+            {"domain_suffix", QJsonArray{"example.org", "example.net", "apis.example.com"}},
+            {"rule_set", QJsonArray{"geosite-anthropic", "geosite-openai", "geosite-telegram"}},
+            {"outbound", QStringLiteral("proxy")},
+        });
+        profile->Rules += rule(QStringLiteral("Simple Process Name Proxy"), QJsonObject{
+            {"process_name", QJsonArray{"Discord.exe", "Code.exe", "brave.exe"}},
+            {"outbound", QStringLiteral("proxy")},
+        });
+        profile->Rules += rule(QString::fromLatin1(Configs::LocalProxyRuleName), QJsonObject{
+            {"inbound", QJsonArray{"mixed-in", "socks-in"}},
+            {"outbound", QStringLiteral("proxy")},
+        });
+
+        auto *dialog = new RouteItem(nullptr, profile);
+        dialog->resize(1120, 720);
+        dialog->show();
+        if (auto *modeTabs = dialog->findChild<QTabBar *>(QStringLiteral("routeModeTabs")))
+            modeTabs->setCurrentIndex(1);
+        if (app.arguments().contains(QStringLiteral("--detail")))
+            if (auto *json = dialog->findChild<QPushButton *>(QStringLiteral("routeCardJsonButton")))
+                json->click();
+        const QStringList args = app.arguments();
+        if (const int outputAt = args.indexOf(QStringLiteral("--output"));
+            outputAt >= 0 && outputAt + 1 < args.size()) {
+            const QString output = args.at(outputAt + 1);
+            QTimer::singleShot(900, dialog, [dialog, output, &app] {
+                app.exit(dialog->grab().save(output, "PNG") ? 0 : 2);
+            });
+        }
+        return app.exec();
+    }
+
     int RunRouteEditorPreview(QApplication &app) {
+        if (app.arguments().contains(QStringLiteral("--advanced"))) return RunAdvancedRouteEditorPreview(app);
         QDialog dialog;
         dialog.setObjectName("routeProfileEditor");
         dialog.setWindowTitle(QObject::tr("Throned — Route profile preview"));
@@ -680,10 +736,24 @@ briefly interrupts traffic.
         auto *editor = new RouteProfileSimpleEditor;
         editor->setRules(0, "domain:updates.example.com\n");
         editor->setRules(1, "domain:ads.example\nip:198.51.100.0/24\n");
+        // A deliberately crowded proxy list: the chip cards have to stay
+        // readable at the size a real profile reaches, not just at the size of
+        // a handful of demo entries.
         editor->setRules(2,
             "processPath:C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe\n"
-            "processName:Discord.exe\ndomain:chatgpt.com\nruleset:geosite-telegram\n"
-            "ruleset:geosite-anthropic\nip:172.64.0.0/16\n");
+            "processName:Discord.exe\nprocessName:Code.exe\n"
+            "domain:chatgpt.com\ndomain:openrouter.example\ndomain:deepgram.example\n"
+            "domain:audioshake.example\ndomain:*.openslr.example\ndomain:daily-code-pa.example.com\n"
+            "domain:code-pa.example.com\ndomain:oauth2.example.com\ndomain:accounts.example.com\n"
+            "domain:apis.example.com\ndomain:example.com\ndomain:usercontent.example.com\n"
+            "domain:static.example.com\ndomain:antigravity.example\ndomain:forge.example\n"
+            "domain:usercontent.forge.example\nsuffix:example.org\nsuffix:example.net\n"
+            "keyword:telemetry\nregex:^cdn[0-9]+\\.example\\.com$\n"
+            "ruleset:geosite-telegram\nruleset:geosite-anthropic\nruleset:geosite-openai\n"
+            "ruleset:geosite-google\nruleset:geosite-github\nruleset:geosite-docker\n"
+            "ruleset:geosite-jetbrains\nruleset:geosite-huggingface\nruleset:geosite-kaggle\n"
+            "ruleset:geosite-mojang\nruleset:geosite-curseforge\nruleset:geosite-qt\n"
+            "ip:172.64.0.0/16\nip:198.51.100.0/24\nruleset:geoip-cloudflare\n");
         editor->setRules(3, {});
         editor->setAdvancedRules({QObject::tr("regional-routing"), QObject::tr("fallback-policy")});
         editor->setRuleSetCatalog({
@@ -711,6 +781,16 @@ briefly interrupts traffic.
         QObject::connect(save, &QPushButton::clicked, &dialog, &QDialog::accept);
         root->addWidget(buttons);
         dialog.show();
+        // --route-editor-preview --output <file.png> renders the real editor
+        // once and exits, so the layout can be checked without a live profile.
+        const QStringList args = app.arguments();
+        if (const int outputAt = args.indexOf(QStringLiteral("--output"));
+            outputAt >= 0 && outputAt + 1 < args.size()) {
+            const QString output = args.at(outputAt + 1);
+            QTimer::singleShot(700, &dialog, [&dialog, output, &app] {
+                app.exit(dialog.grab().save(output, "PNG") ? 0 : 2);
+            });
+        }
         return app.exec();
     }
 } // namespace
