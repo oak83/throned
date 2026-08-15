@@ -7,7 +7,13 @@
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QLabel>
 #include <QMessageBox>
+#include <QScreen>
+#include <QTextBrowser>
+#include <QVBoxLayout>
 
 #include "3rdparty/qv2ray/v2/proxy/QvProxyConfigurator.hpp"
 #include "include/global/HTTPRequestHelper.hpp"
@@ -462,18 +468,46 @@ void MainWindow::CheckUpdate(bool silent) {
 
     const auto showUpdatePrompt = [=,this] {
         auto allow_updater = !Configs::dataManager->settingsRepo->flag_use_appdata;
-        QMessageBox box(QMessageBox::Question, QObject::tr("Update") + note_pre_release,
-                        QObject::tr("Update found: %1\nRelease note:\n%2").arg(assets_name, release_note));
-        //
+
+        // A release note runs to whatever length the release notes run to.
+        // QMessageBox has no scroll area and simply grows to fit its text, so on
+        // a small screen the buttons ended up below the bottom edge and the
+        // prompt could not be answered at all.
+        QDialog box(this);
+        box.setWindowTitle(QObject::tr("Update") + note_pre_release);
+        auto *layout = new QVBoxLayout(&box);
+        auto *heading = new QLabel(QObject::tr("Update found: %1").arg(assets_name), &box);
+        heading->setWordWrap(true);
+        layout->addWidget(heading);
+        auto *notes = new QTextBrowser(&box);
+        notes->setOpenExternalLinks(true);
+        // Release notes are written in Markdown; rendering them beats showing
+        // the reader the ## and ** they were written with.
+        if (release_note.trimmed().isEmpty()) notes->setPlainText(QObject::tr("No release note."));
+        else notes->setMarkdown(release_note);
+        layout->addWidget(notes, 1);
+
+        auto *buttons = new QDialogButtonBox(&box);
         QAbstractButton *btn1 = nullptr;
         if (allow_updater) {
-            btn1 = box.addButton(QObject::tr("Update"), QMessageBox::AcceptRole);
+            btn1 = buttons->addButton(QObject::tr("Update"), QDialogButtonBox::AcceptRole);
         }
-        QAbstractButton *btn2 = box.addButton(QObject::tr("Open in browser"), QMessageBox::AcceptRole);
-        box.addButton(QObject::tr("Close"), QMessageBox::RejectRole);
+        QAbstractButton *btn2 = buttons->addButton(QObject::tr("Open in browser"), QDialogButtonBox::AcceptRole);
+        buttons->addButton(QObject::tr("Close"), QDialogButtonBox::RejectRole);
+        QAbstractButton *clicked = nullptr;
+        connect(buttons, &QDialogButtonBox::clicked, &box, [&clicked, &box](QAbstractButton *button) {
+            clicked = button;
+            box.accept();
+        });
+        layout->addWidget(buttons);
+
+        // Bounded by the screen it opens on, not by how much text it was handed.
+        const QScreen *screen = this->screen() != nullptr ? this->screen() : QGuiApplication::primaryScreen();
+        const QRect available = screen != nullptr ? screen->availableGeometry() : QRect(0, 0, 1024, 768);
+        box.resize(std::min(640, available.width() - 80), std::min(560, available.height() - 120));
         box.exec();
         //
-        if (btn1 == box.clickedButton() && allow_updater) {
+        if (btn1 != nullptr && clicked == btn1 && allow_updater) {
             // Download Update
             runOnNewThread([=,this] {
                 if (!mu_download_update.tryLock()) {
@@ -504,7 +538,7 @@ void MainWindow::CheckUpdate(bool silent) {
                     }
                 });
             });
-        } else if (btn2 == box.clickedButton()) {
+        } else if (clicked == btn2) {
             QDesktopServices::openUrl(QUrl(release_url));
         }
     };
