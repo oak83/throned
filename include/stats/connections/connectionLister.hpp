@@ -11,6 +11,15 @@ namespace Stats
 {
     constexpr int IDKEY = 242315;
 
+    // The connection row carries enough of its own metadata to build a routing
+    // rule from it without going back to the lister, which keeps the context
+    // menu independent of whether the connection is still open.
+    constexpr int DESTKEY = 242316;
+    constexpr int DOMAINKEY = 242317;
+    constexpr int PROCESSKEY = 242318;
+    constexpr int PROCESSPATHKEY = 242319;
+    constexpr int OUTBOUNDKEY = 242320;
+
     enum ConnectionSort
     {
         Default,

@@ -3739,6 +3739,28 @@ https://matsuridayo.github.io/n-configuration/#vpn-tun</translation>
 </context>
 <context>
     <name>MainWindow</name>
+    <message><source>Connection</source><translation>Соединение</translation></message>
+    <message><source>Inbound</source><translation>Входящие</translation></message>
+    <message><source>Routing</source><translation>Маршруты</translation></message>
+    <message><source>%1 → %2</source><translation>%1 → %2</translation></message>
+    <message><source>unknown</source><translation>неизвестно</translation></message>
+    <message><source>Nothing to build a rule from</source><translation>Не из чего собрать правило</translation></message>
+    <message><source>This domain — %1</source><translation>Этот домен — %1</translation></message>
+    <message><source>Domain and subdomains — *.%1</source><translation>Домен и поддомены — *.%1</translation></message>
+    <message><source>This process — %1</source><translation>Этот процесс — %1</translation></message>
+    <message><source>This executable — %1</source><translation>Этот исполняемый файл — %1</translation></message>
+    <message><source>This address — %1</source><translation>Этот адрес — %1</translation></message>
+    <message><source>%1  ·  already %2</source><translation>%1  ·  уже %2</translation></message>
+    <message><source>Through proxy</source><translation>Через прокси</translation></message>
+    <message><source>Directly</source><translation>Напрямую</translation></message>
+    <message><source>Block</source><translation>Блокировать</translation></message>
+    <message><source>Copy executable path</source><translation>Скопировать путь к файлу</translation></message>
+    <message><source>Copy destination</source><translation>Скопировать назначение</translation></message>
+    <message><source>No routing profile</source><translation>Нет профиля маршрутизации</translation></message>
+    <message><source>There is no active routing profile to add the rule to.</source><translation>Нет активного профиля маршрутизации, куда добавить правило.</translation></message>
+    <message><source>Raw routing profile</source><translation>Raw-профиль маршрутизации</translation></message>
+    <message><source>“%1” is a raw profile and is edited as JSON, so a rule cannot be appended to it here.</source><translation>«%1» — raw-профиль, он редактируется как JSON, поэтому дописать правило отсюда нельзя.</translation></message>
+    <message><source>Rule not added</source><translation>Правило не добавлено</translation></message>
     <message>
         <source>Program</source>
         <translation>Программа</translation>
@@ -4739,6 +4761,7 @@ Name: %1</source>
 </context>
 <context>
     <name>QObject</name>
+    <message><source>Proxy %1 · Direct %2</source><translation>Прокси %1 · Напрямую %2</translation></message>
     <message>
         <source>Request with proxy but no profile started.</source>
         <translation>Запрос через прокси, но профиль не запущен.</translation>

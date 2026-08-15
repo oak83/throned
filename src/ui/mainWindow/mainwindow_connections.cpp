@@ -3,12 +3,17 @@
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QClipboard>
+#include <QFileInfo>
 #include <QHeaderView>
+#include <QHostAddress>
 #include <QMenu>
 #include <QTableWidget>
 #include <QTimer>
 #include <QToolTip>
 #include <memory>
+
+#include "include/database/RoutesRepo.h"
+#include "include/database/DatabaseManager.h"
 
 void MainWindow::setupConnectionList()
 {
@@ -21,6 +26,8 @@ void MainWindow::setupConnectionList()
     ui->connections->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
     ui->connections->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
     ui->connections->verticalHeader()->hide();
+    ui->connections->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->connections, &QWidget::customContextMenuRequested, this, &MainWindow::showConnectionMenu);
     setupConnectionSortMenu();
     connect(ui->connections, &QTableWidget::cellClicked, this, [=,this](int row, int column)
     {
@@ -38,6 +45,156 @@ void MainWindow::setupConnectionList()
             QToolTip::hideText();
         });
     });
+}
+
+namespace {
+    // The rule this connection would need, one candidate per column of evidence
+    // the row carries. Ordered widest-blast-radius last so the safest option is
+    // the first thing under the cursor.
+    struct RuleCandidate {
+        QString label;
+        QString entry;
+    };
+
+    QList<RuleCandidate> candidatesFor(const QString &dest, const QString &domain,
+                                       const QString &process, const QString &processPath) {
+        QList<RuleCandidate> candidates;
+        const QString host = domain.isEmpty() ? QString() : domain;
+        if (!host.isEmpty()) {
+            candidates.append({MainWindow::tr("This domain — %1").arg(host),
+                               QStringLiteral("domain:") + host});
+            // A bare host as a suffix also covers its subdomains, which is what
+            // "route this site" nearly always means.
+            candidates.append({MainWindow::tr("Domain and subdomains — *.%1").arg(host),
+                               QStringLiteral("suffix:") + host});
+        }
+        if (!process.isEmpty())
+            candidates.append({MainWindow::tr("This process — %1").arg(process),
+                               QStringLiteral("processName:") + process});
+        if (!processPath.isEmpty())
+            candidates.append({MainWindow::tr("This executable — %1").arg(QFileInfo(processPath).fileName()),
+                               QStringLiteral("processPath:") + processPath});
+        // dest is host:port, and a port makes a poor routing rule on its own.
+        const QString address = dest.contains(QLatin1Char(']'))
+            ? dest.section(QLatin1Char(']'), 0, 0).mid(1)
+            : dest.section(QLatin1Char(':'), 0, 0);
+        if (!address.isEmpty() && !QHostAddress(address).isNull())
+            candidates.append({MainWindow::tr("This address — %1").arg(address),
+                               QStringLiteral("ip:") + address});
+        return candidates;
+    }
+
+    struct RuleTarget {
+        Configs::simpleAction action;
+        QString label;
+    };
+
+    QList<RuleTarget> ruleTargets() {
+        return {
+            {Configs::proxy, MainWindow::tr("Through proxy")},
+            {Configs::bypass, MainWindow::tr("Directly")},
+            {Configs::block, MainWindow::tr("Block")},
+        };
+    }
+} // namespace
+
+// Where an entry already sits in the active profile, so the menu can say so
+// instead of silently adding a second copy.
+QString MainWindow::existingRuleAction(const QString &entry) const
+{
+    const auto profile = Configs::dataManager->routesRepo->GetRouteProfile(
+        Configs::dataManager->settingsRepo->current_route_id);
+    if (!profile || profile->isRaw) return {};
+    for (const auto &target : ruleTargets())
+        if (profile->GetSimpleRules(target.action).split('\n', Qt::SkipEmptyParts).contains(entry))
+            return target.label;
+    return {};
+}
+
+// Append one simple rule to the active routing profile and put it into effect.
+// Same path the quick menu uses: a routing change only reaches the core when the
+// running profile is regenerated.
+void MainWindow::addRuleFromConnection(const QString &entry, int action)
+{
+    auto profile = Configs::dataManager->routesRepo->GetRouteProfile(
+        Configs::dataManager->settingsRepo->current_route_id);
+    if (!profile) {
+        MessageBoxWarning(tr("No routing profile"), tr("There is no active routing profile to add the rule to."));
+        return;
+    }
+    if (profile->isRaw) {
+        MessageBoxWarning(tr("Raw routing profile"),
+                          tr("“%1” is a raw profile and is edited as JSON, so a rule cannot be appended to it here.")
+                              .arg(profile->name));
+        return;
+    }
+    const auto simple = static_cast<Configs::simpleAction>(action);
+    QStringList current = profile->GetSimpleRules(simple).split('\n', Qt::SkipEmptyParts);
+    if (current.contains(entry)) return;
+    current << entry;
+    if (const QString error = profile->UpdateSimpleRules(current.join('\n'), simple); !error.isEmpty()) {
+        MessageBoxWarning(tr("Rule not added"), error);
+        return;
+    }
+    Configs::dataManager->routesRepo->Save(profile);
+    refreshRoutingStatus();
+    if (Configs::dataManager->settingsRepo->started_id >= 0)
+        profile_start(Configs::dataManager->settingsRepo->started_id);
+}
+
+void MainWindow::showConnectionMenu(const QPoint &pos)
+{
+    const int row = ui->connections->rowAt(pos.y());
+    if (row < 0) return;
+    const auto *anchor = ui->connections->item(row, 0);
+    if (anchor == nullptr) return;
+    const QString dest = anchor->data(Stats::DESTKEY).toString();
+    const QString domain = anchor->data(Stats::DOMAINKEY).toString();
+    const QString process = anchor->data(Stats::PROCESSKEY).toString();
+    const QString processPath = anchor->data(Stats::PROCESSPATHKEY).toString();
+    const QString outbound = anchor->data(Stats::OUTBOUNDKEY).toString();
+
+    QMenu menu(this);
+    // The verdict this connection actually got. The table already answers
+    // "where does this go" - the menu just makes it the subject of the action.
+    auto *verdict = menu.addAction(tr("%1 → %2")
+        .arg(domain.isEmpty() ? dest : domain, outbound.isEmpty() ? tr("unknown") : outbound));
+    verdict->setEnabled(false);
+    menu.addSeparator();
+
+    const auto candidates = candidatesFor(dest, domain, process, processPath);
+    if (candidates.isEmpty()) {
+        auto *none = menu.addAction(tr("Nothing to build a rule from"));
+        none->setEnabled(false);
+    }
+    for (const auto &candidate : candidates) {
+        const QString already = existingRuleAction(candidate.entry);
+        auto *submenu = menu.addMenu(already.isEmpty()
+            ? candidate.label
+            : tr("%1  ·  already %2").arg(candidate.label, already.toLower()));
+        submenu->setToolTip(candidate.entry);
+        for (const auto &target : ruleTargets()) {
+            auto *action = submenu->addAction(target.label);
+            const QString entry = candidate.entry;
+            const int simple = target.action;
+            connect(action, &QAction::triggered, this, [this, entry, simple] {
+                addRuleFromConnection(entry, simple);
+            });
+        }
+    }
+
+    menu.addSeparator();
+    if (!processPath.isEmpty()) {
+        auto *copyPath = menu.addAction(tr("Copy executable path"));
+        connect(copyPath, &QAction::triggered, this, [processPath] {
+            QApplication::clipboard()->setText(processPath);
+        });
+    }
+    auto *copyDest = menu.addAction(tr("Copy destination"));
+    connect(copyDest, &QAction::triggered, this, [dest, domain] {
+        QApplication::clipboard()->setText(domain.isEmpty() ? dest : domain);
+    });
+    menu.exec(ui->connections->viewport()->mapToGlobal(pos));
 }
 
 // Right-click the Traffic / Speed headers to pick the sub-field they sort by;
@@ -113,6 +270,10 @@ void MainWindow::UpdateConnectionList(const QMap<QString, Stats::ConnectionMetad
 
         // C3: Outbound
         ui->connections->item(row, 3)->setText(conn.outbound);
+        // The verdict is what the row is asked about, and it can change while
+        // the connection is open.
+        ui->connections->item(row, 0)->setData(Stats::OUTBOUNDKEY, conn.outbound);
+        ui->connections->item(row, 0)->setData(Stats::DOMAINKEY, conn.domain);
 
         // C4: Traffic
         ui->connections->item(row, 4)->setText(ReadableSize(conn.upload) + "↑" + " " + ReadableSize(conn.download) + "↓");
@@ -126,6 +287,11 @@ void MainWindow::UpdateConnectionList(const QMap<QString, Stats::ConnectionMetad
         ui->connections->insertRow(row);
         auto f0 = std::make_unique<QTableWidgetItem>();
         f0->setData(Stats::IDKEY, conn.id);
+        f0->setData(Stats::DESTKEY, conn.dest);
+        f0->setData(Stats::DOMAINKEY, conn.domain);
+        f0->setData(Stats::PROCESSKEY, conn.process);
+        f0->setData(Stats::PROCESSPATHKEY, conn.processPath);
+        f0->setData(Stats::OUTBOUNDKEY, conn.outbound);
 
         // C0: Dest (Domain)
         auto f = f0->clone();
@@ -176,6 +342,11 @@ void MainWindow::UpdateConnectionListWithRecreate(const QList<Stats::ConnectionM
         ui->connections->insertRow(row);
         auto f0 = std::make_unique<QTableWidgetItem>();
         f0->setData(Stats::IDKEY, conn.id);
+        f0->setData(Stats::DESTKEY, conn.dest);
+        f0->setData(Stats::DOMAINKEY, conn.domain);
+        f0->setData(Stats::PROCESSKEY, conn.process);
+        f0->setData(Stats::PROCESSPATHKEY, conn.processPath);
+        f0->setData(Stats::OUTBOUNDKEY, conn.outbound);
 
         // C0: Dest (Domain)
         auto f = f0->clone();

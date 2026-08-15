@@ -240,6 +240,12 @@ private:
     // them, so they are stored unabridged here and re-elided on every resize.
     QList<QPointer<QLabel>> statusElidedLabels;
     void setStatusText(QLabel *label, const QString &text);
+    // Right-clicking a live connection offers to turn it into a routing rule:
+    // the row already shows which outbound it took, so the fix belongs there
+    // rather than three screens away in the profile editor.
+    void showConnectionMenu(const QPoint &pos);
+    void addRuleFromConnection(const QString &entry, int action);
+    [[nodiscard]] QString existingRuleAction(const QString &entry) const;
     QShortcut *shortcut_esc = new QShortcut(QKeySequence::Cancel, this);
     //
     // Shared by the test sweeps and the batch profile scans (remove-invalid).
