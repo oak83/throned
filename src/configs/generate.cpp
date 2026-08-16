@@ -1,5 +1,6 @@
 #include "include/configs/generate.h"
 #include "include/api/RPC.h"
+#include "include/configs/validate.h"
 #include "include/configs/AutoSelectorPlan.h"
 #include "include/global/Configs.hpp"
 
@@ -136,6 +137,15 @@ namespace Configs {
             DomainSelectors proxy;
             RouteProfile::ProcessSelectors directProcess;
             RouteProfile::ProcessSelectors proxyProcess;
+            // A rule can aim traffic at one specific profile, and its lookups have
+            // to leave through the same one: resolved over the main proxy instead,
+            // the answers describe an exit that will not carry the connection.
+            struct ChainDNS {
+                QString outboundTag;
+                DomainSelectors sites;
+                RouteProfile::ProcessSelectors process;
+            };
+            QList<ChainDNS> chains;
         };
 
         struct TunDeps {
@@ -654,6 +664,21 @@ namespace Configs {
 
                 preReqs.dns.directProcess = routeChain->get_process_selectors(directID);
                 preReqs.dns.proxyProcess = routeChain->get_process_selectors(proxyID);
+
+                // Rules aimed at a specific profile: outboundMap already holds the
+                // tag of the chain built for each, and a non-negative key is a
+                // profile id rather than one of the direct/block/warp sentinels.
+                for (const auto &[outID, outTag] : preReqs.routing.outboundMap) {
+                    if (outID < 0) continue;
+                    DNSDeps::ChainDNS chain;
+                    chain.outboundTag = outTag;
+                    chain.process = routeChain->get_process_selectors(outID);
+                    parseSelectorList(routeChain->get_sites(outID), sinkFor(chain.sites));
+                    if (chain.process.isEmpty() && chain.sites.ruleSets.isEmpty()
+                        && !chain.sites.hasInlineConditions())
+                        continue;
+                    preReqs.dns.chains << chain;
+                }
             }
             if (auto entAddrs = getEntDomains({ctx.ent->id}, ctx.error); !entAddrs.isEmpty())
             {
@@ -828,6 +853,10 @@ namespace Configs {
             return known.value(server, "https://8.8.8.8/dns-query");
         }
 
+        QString chainDnsTag(const QString &outboundTag) {
+            return QString(tags::dnsRemote) + "-" + outboundTag;
+        }
+
         void buildDNSSection(BuildContext &ctx, bool useDnsObj = true) {
             const auto &settings = *dataManager->settingsRepo;
             if (getOS() == Darwin && settings.core_box_underlying_dns.isEmpty() && settings.spmode_vpn)
@@ -858,6 +887,16 @@ namespace Configs {
                 remoteDnsObj["domain_resolver"] = tags::dnsLocal;
                 remoteDnsObj["detour"] = tags::proxy;
                 servers += remoteDnsObj;
+
+                // One remote server per chain a rule aims at, same upstream as
+                // dns-remote but detoured through that chain, so the answers come
+                // from the exit that will carry the traffic.
+                for (const auto &chain : dns.chains) {
+                    auto chainDnsObj = remoteDnsObj;
+                    chainDnsObj["tag"] = chainDnsTag(chain.outboundTag);
+                    chainDnsObj["detour"] = chain.outboundTag;
+                    servers += chainDnsObj;
+                }
 
                 if (isTailscale)
                 {
@@ -1012,6 +1051,17 @@ namespace Configs {
                      {"server", tags::dnsFake}
                 };
                 independentCache = true;
+            }
+
+            // Ahead of the direct/proxy rules: naming one profile is the more
+            // specific intent, so it wins over a blanket direct or proxy entry.
+            // Test configs build no chain servers, so they get no chain rules.
+            if (!ctx.forTest) {
+                for (const auto &chain : dns.chains) {
+                    const auto chainTag = chainDnsTag(chain.outboundTag);
+                    appendDnsRoutingRules(rules, chain.sites, settings.remote_dns_strategy, chainTag);
+                    appendProcessDnsRules(rules, chain.process, settings.remote_dns_strategy, chainTag);
+                }
             }
 
             if (dns.needDirectDnsRules) {
@@ -2235,6 +2285,9 @@ namespace Configs {
         buildXrayConfig(ctx);
         if (failed()) return ctx.result;
 
+        for (const auto &problem : FindDanglingReferences(ctx.result->coreConfig))
+            MW_show_log("Generated config: " + problem);
+
         return ctx.result;
     }
 
@@ -2540,6 +2593,9 @@ namespace Configs {
         res->coreConfig = ctx.result->coreConfig;
         res->xrayConfig = ctx.result->xrayConfig;
         res->isXrayNeeded = ctx.result->isXrayNeeded;
+
+        for (const auto &problem : FindDanglingReferences(res->coreConfig))
+            MW_show_log("Generated test config: " + problem);
 
         return res;
     }

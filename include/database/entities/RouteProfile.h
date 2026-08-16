@@ -114,6 +114,9 @@ namespace Configs {
 
         QStringList get_proxy_sites();
 
+        // Same collection keyed by any outbound, including a profile a rule aims at.
+        QStringList get_sites(int outbound);
+
         struct ProcessSelectors {
             QStringList names;
             QStringList paths;
