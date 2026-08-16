@@ -156,6 +156,18 @@ jobs:
         with:
           go-version: "1.26.5"
           cache-dependency-path: core/server/go.sum
+      - uses: arduino/setup-protoc@v3
+        with:
+          version: "31.1"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # gen/*.pb.go is generated, not committed, and this job only downloads the
+      # built core, so the sources have to be produced before anything compiles.
+      - name: Generate core protobuf
+        shell: bash
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+          cd core/server/gen && protoc -I . --go_out=. --go-grpc_out=. libcore.proto
       # The core is windows-only in places, so this is the job that can run its
       # tests. winipcfg is vendored and its tests want an elevated host with real
       # adapters, so they stay out.

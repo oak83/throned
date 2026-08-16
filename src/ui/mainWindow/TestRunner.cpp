@@ -8,6 +8,7 @@
 #include "include/database/ProfilesRepo.h"
 #include "include/stats/traffic/TrafficStatsManager.hpp"
 
+#include <QMessageBox>
 #include <QSemaphore>
 #include <QThread>
 #include <QThreadPool>

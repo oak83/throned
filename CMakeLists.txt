@@ -34,6 +34,8 @@ if (UNIX AND NOT APPLE)
     set(QT_DBUS_LIBRARY Qt6::DBus)
 endif ()
 
+option(THRONED_UNITY_BUILD "Compile the app as unity batches" ON)
+
 find_package(Qt6 REQUIRED COMPONENTS Widgets Network Svg LinguistTools ${QT_DBUS_COMPONENT})
 find_package(Qt6 QUIET COMPONENTS Test)
 
@@ -493,7 +495,11 @@ set_target_properties(Throned PROPERTIES
         MACOSX_BUNDLE_GUI_IDENTIFIER app.throned.desktop
         MACOSX_BUNDLE TRUE
         WIN32_EXECUTABLE TRUE
-        UNITY_BUILD ON
+        # Unity builds share includes between neighbouring sources, which hides a
+        # missing one until a different grouping (another platform, another day)
+        # splits them apart. Turn this off to compile each file on its own and
+        # find those before CI does.
+        UNITY_BUILD ${THRONED_UNITY_BUILD}
 )
 set_property(SOURCE "3rdparty/SQLiteCpp/src/sqlite3.c" PROPERTY SKIP_UNITY_BUILD_INCLUSION ON)
 
