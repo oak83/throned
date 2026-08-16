@@ -26,7 +26,7 @@ namespace Configs {
     }
 
     // New rule types MUST be appended: RouteRule::type is persisted as the raw int.
-    enum ruleType {custom, simpleAddressProxy, simpleAddressBypass, simpleAddressBlock, simpleProcessNameProxy, simpleProcessNameBypass, simpleProcessNameBlock, simpleProcessPathProxy, simpleProcessPathBypass, simpleProcessPathBlock, simpleAddressWarpBypass, simpleProcessNameWarpBypass, simpleProcessPathWarpBypass};
+    enum ruleType {custom, simpleAddressProxy, simpleAddressBypass, simpleAddressBlock, simpleProcessNameProxy, simpleProcessNameBypass, simpleProcessNameBlock, simpleProcessPathProxy, simpleProcessPathBypass, simpleProcessPathBlock, simpleAddressWarpBypass, simpleProcessNameWarpBypass, simpleProcessPathWarpBypass, simpleAddressViaProfile, simpleProcessNameViaProfile, simpleProcessPathViaProfile};
 
     inline QString ruleTypeToString(ruleType type)
     {
@@ -43,6 +43,9 @@ namespace Configs {
         if (type == simpleAddressWarpBypass) return {"Simple Address Warp-bypass"};
         if (type == simpleProcessNameWarpBypass) return {"Simple Process Name Warp-bypass"};
         if (type == simpleProcessPathWarpBypass) return {"Simple Process Path Warp-bypass"};
+        if (type == simpleAddressViaProfile) return {"Simple Address Via Profile"};
+        if (type == simpleProcessNameViaProfile) return {"Simple Process Name Via Profile"};
+        if (type == simpleProcessPathViaProfile) return {"Simple Process Path Via Profile"};
         return {"invalid"};
     }
 
@@ -63,6 +66,9 @@ namespace Configs {
             case simpleAddressWarpBypass: return {"simple_address_warp_bypass"};
             case simpleProcessNameWarpBypass: return {"simple_process_name_warp_bypass"};
             case simpleProcessPathWarpBypass: return {"simple_process_path_warp_bypass"};
+            case simpleAddressViaProfile: return {"simple_address_via_profile"};
+            case simpleProcessNameViaProfile: return {"simple_process_name_via_profile"};
+            case simpleProcessPathViaProfile: return {"simple_process_path_via_profile"};
             default: return {"custom"};
         }
     }
@@ -81,6 +87,9 @@ namespace Configs {
         if (token == "simple_address_warp_bypass") return simpleAddressWarpBypass;
         if (token == "simple_process_name_warp_bypass") return simpleProcessNameWarpBypass;
         if (token == "simple_process_path_warp_bypass") return simpleProcessPathWarpBypass;
+        if (token == "simple_address_via_profile") return simpleAddressViaProfile;
+        if (token == "simple_process_name_via_profile") return simpleProcessNameViaProfile;
+        if (token == "simple_process_path_via_profile") return simpleProcessPathViaProfile;
         return custom;
     }
 

@@ -1,10 +1,13 @@
 #pragma once
 
+#include <QList>
 #include <QMap>
+#include <QPair>
 #include <QStringList>
 #include <QWidget>
 
 class QAbstractButton;
+class QComboBox;
 class QLabel;
 class QVBoxLayout;
 
@@ -22,11 +25,15 @@ public:
     void setAdvancedRules(const QStringList &names);
     void setRuleSetCatalog(const QStringList &names);
     void setLocalProxyTrafficEnabled(bool enabled);
+    // Profiles a via-profile rule can aim at, as (id, label) in menu order.
+    void setViaProfiles(const QList<QPair<int, QString>> &profiles);
+    void setViaProfileID(int profileID);
 
 signals:
     void rulesChanged(int action, const QString &rules);
     void localProxyTrafficChanged(bool enabled);
     void advancedEditorRequested();
+    void viaProfileChanged(int profileID);
 
 private:
     void selectAction(int action);
@@ -51,4 +58,6 @@ private:
     QWidget *quickOptionsCard_ = nullptr;
     QAbstractButton *localProxyToggle_ = nullptr;
     bool localProxyTrafficEnabled_ = false;
+    QComboBox *viaProfileCombo_ = nullptr;
+    QLabel *viaProfileLabel_ = nullptr;
 };

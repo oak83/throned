@@ -50,6 +50,10 @@ private:
     AutoCompleteTextEdit* simpleProxy;
 
     AutoCompleteTextEdit* simpleWarpBypass;
+    AutoCompleteTextEdit* simpleViaProfile;
+    // Rewriting the bucket rebuilds its rules from a template that has no target,
+    // so the picked profile is kept here and stamped back on afterwards.
+    int viaProfileID_ = -1;
 
     RouteProfileSimpleEditor* simpleEditor = nullptr;
 

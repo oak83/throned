@@ -257,6 +257,10 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     simpleBlock = new AutoCompleteTextEdit("", ruleItems, this);
     simpleProxy = new AutoCompleteTextEdit("", ruleItems, this);
     simpleWarpBypass = new AutoCompleteTextEdit("", ruleItems, this);
+    // No .ui counterpart: the simple editor replaces that grid wholesale, and this
+    // bucket only ever needs the text buffer behind it.
+    simpleViaProfile = new AutoCompleteTextEdit("", ruleItems, this);
+    simpleViaProfile->hide();
 
     ui->simple_direct_box->layout()->replaceWidget(ui->simple_direct, simpleDirect);
     ui->simple_block_box->layout()->replaceWidget(ui->simple_block, simpleBlock);
@@ -271,6 +275,7 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     simpleBlock->setPlainText(chain->GetSimpleRules(Configs::block));
     simpleProxy->setPlainText(chain->GetSimpleRules(Configs::proxy));
     simpleWarpBypass->setPlainText(chain->GetSimpleRules(Configs::warpBypass));
+    simpleViaProfile->setPlainText(chain->GetSimpleRules(Configs::viaProfile));
 
     simpleEditor = new RouteProfileSimpleEditor(ui->tab_2);
     ui->simple_direct_box->hide();
@@ -284,6 +289,14 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     simpleEditor->setRules(Configs::block, simpleBlock->toPlainText());
     simpleEditor->setRules(Configs::proxy, simpleProxy->toPlainText());
     simpleEditor->setRules(Configs::warpBypass, simpleWarpBypass->toPlainText());
+    simpleEditor->setRules(Configs::viaProfile, simpleViaProfile->toPlainText());
+    // outbounds/outboundMap already hold every profile keyed by combo index; the
+    // first three entries are the proxy/direct/warp roles, which are not profiles.
+    QList<QPair<int, QString>> viaProfiles;
+    for (int i = 3; i < outbounds.size(); i++) viaProfiles << qMakePair(outboundMap[i], outbounds[i]);
+    simpleEditor->setViaProfiles(viaProfiles);
+    viaProfileID_ = chain->GetSimpleViaProfileID();
+    simpleEditor->setViaProfileID(viaProfileID_);
     simpleEditor->setRuleSetCatalog(geo_items);
     int advancedRules = 0;
     QStringList advancedRuleNames;
@@ -303,7 +316,12 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
         case Configs::block: simpleBlock->setPlainText(rules); break;
         case Configs::proxy: simpleProxy->setPlainText(rules); break;
         case Configs::warpBypass: simpleWarpBypass->setPlainText(rules); break;
+        case Configs::viaProfile: simpleViaProfile->setPlainText(rules); break;
         }
+    });
+    connect(simpleEditor, &RouteProfileSimpleEditor::viaProfileChanged, this, [this](int profileID) {
+        viaProfileID_ = profileID;
+        chain->SetSimpleViaProfileID(profileID);
     });
     connect(simpleEditor, &RouteProfileSimpleEditor::localProxyTrafficChanged, this, [this](bool enabled) {
         const auto it = std::find_if(chain->Rules.begin(), chain->Rules.end(), Configs::IsLocalProxyTrafficRule);
@@ -557,6 +575,8 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
             res += chain->UpdateSimpleRules(simpleBlock->toPlainText(), Configs::block);
             res += chain->UpdateSimpleRules(simpleProxy->toPlainText(), Configs::proxy);
             res += chain->UpdateSimpleRules(simpleWarpBypass->toPlainText(), Configs::warpBypass);
+            res += chain->UpdateSimpleRules(simpleViaProfile->toPlainText(), Configs::viaProfile);
+            if (viaProfileID_ >= 0) chain->SetSimpleViaProfileID(viaProfileID_);
             if (currentIndex >= 0)
                 persistCurrentRuleAttrTabLabel();
             currentIndex = chain->Rules.isEmpty() ? -1 : 0;
@@ -573,6 +593,7 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
             simpleBlock->setPlainText(chain->GetSimpleRules(Configs::block));
             simpleProxy->setPlainText(chain->GetSimpleRules(Configs::proxy));
             simpleWarpBypass->setPlainText(chain->GetSimpleRules(Configs::warpBypass));
+            simpleViaProfile->setPlainText(chain->GetSimpleRules(Configs::viaProfile));
             syncRouteProfileToSimpleEditors();
         }
     });
@@ -1006,6 +1027,7 @@ void RouteItem::reloadRuleViewsFromChain() {
     simpleBlock->setPlainText(chain->GetSimpleRules(Configs::block));
     simpleProxy->setPlainText(chain->GetSimpleRules(Configs::proxy));
     simpleWarpBypass->setPlainText(chain->GetSimpleRules(Configs::warpBypass));
+    simpleViaProfile->setPlainText(chain->GetSimpleRules(Configs::viaProfile));
     syncRouteProfileToSimpleEditors();
     ui->def_out->setCurrentText(Configs::outboundIDToString(chain->defaultOutboundID));
 }
@@ -1034,6 +1056,8 @@ void RouteItem::accept() {
     res += chain->UpdateSimpleRules(simpleBlock->toPlainText(), Configs::block);
     res += chain->UpdateSimpleRules(simpleProxy->toPlainText(), Configs::proxy);
     res += chain->UpdateSimpleRules(simpleWarpBypass->toPlainText(), Configs::warpBypass);
+    res += chain->UpdateSimpleRules(simpleViaProfile->toPlainText(), Configs::viaProfile);
+    if (viaProfileID_ >= 0) chain->SetSimpleViaProfileID(viaProfileID_);
     if (!res.isEmpty()) {
         runOnUiThread([=] {
             MessageBoxWarning(tr("Invalid rules"), tr("Some rules could not be added, fix them before saving:\n") + res);
@@ -1062,6 +1086,7 @@ void RouteItem::syncSimpleEditorsToRouteProfile() {
     simpleBlock->setPlainText(simpleEditor->rules(Configs::block));
     simpleProxy->setPlainText(simpleEditor->rules(Configs::proxy));
     simpleWarpBypass->setPlainText(simpleEditor->rules(Configs::warpBypass));
+    simpleViaProfile->setPlainText(simpleEditor->rules(Configs::viaProfile));
 }
 
 void RouteItem::syncRouteProfileToSimpleEditors() {
@@ -1070,6 +1095,7 @@ void RouteItem::syncRouteProfileToSimpleEditors() {
     simpleEditor->setRules(Configs::block, simpleBlock->toPlainText());
     simpleEditor->setRules(Configs::proxy, simpleProxy->toPlainText());
     simpleEditor->setRules(Configs::warpBypass, simpleWarpBypass->toPlainText());
+    simpleEditor->setRules(Configs::viaProfile, simpleViaProfile->toPlainText());
     QStringList advancedRuleNames;
     bool localProxyTraffic = false;
     for (const auto& rule : chain->Rules) {

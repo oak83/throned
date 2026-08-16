@@ -205,6 +205,17 @@ namespace Configs {
         rule.name = ruleTypeToString(static_cast<ruleType>(rule.type));
         rules << std::make_shared<RouteRule>(rule);
 
+        // Via-profile rules carry the chosen profile in outboundID; until one is
+        // picked they behave as plain proxy rules rather than aiming nowhere.
+        for (auto viaType : {simpleAddressViaProfile, simpleProcessNameViaProfile, simpleProcessPathViaProfile}) {
+            rule = RouteRule();
+            rule.type = viaType;
+            rule.action = "route";
+            rule.outboundID = proxyID;
+            rule.name = ruleTypeToString(static_cast<ruleType>(rule.type));
+            rules << std::make_shared<RouteRule>(rule);
+        }
+
         return rules;
     }
 
@@ -677,23 +688,7 @@ namespace Configs {
     QString RouteProfile::GetSimpleRules(simpleAction action)
     {
         QList<int> types;
-        if (action == proxy) {
-            types << simpleAddressProxy;
-            types << simpleProcessNameProxy;
-            types << simpleProcessPathProxy;
-        } else if (action == bypass) {
-            types << simpleAddressBypass;
-            types << simpleProcessNameBypass;
-            types << simpleProcessPathBypass;
-        } else if (action == warpBypass) {
-            types << simpleAddressWarpBypass;
-            types << simpleProcessNameWarpBypass;
-            types << simpleProcessPathWarpBypass;
-        } else {
-            types << simpleAddressBlock;
-            types << simpleProcessNameBlock;
-            types << simpleProcessPathBlock;
-        }
+        for (auto t : simple_rule_types(action)) types << t;
         QString res;
         for (const auto& item: Rules)
         {
@@ -717,24 +712,10 @@ namespace Configs {
     {
         QString res;
         auto items = content.split("\n");
-        QList<ruleType> types;
-        if (action == proxy) {
-            types << simpleAddressProxy;
-            types << simpleProcessNameProxy;
-            types << simpleProcessPathProxy;
-        } else if (action == bypass) {
-            types << simpleAddressBypass;
-            types << simpleProcessNameBypass;
-            types << simpleProcessPathBypass;
-        } else if (action == warpBypass) {
-            types << simpleAddressWarpBypass;
-            types << simpleProcessNameWarpBypass;
-            types << simpleProcessPathWarpBypass;
-        } else {
-            types << simpleAddressBlock;
-            types << simpleProcessNameBlock;
-            types << simpleProcessPathBlock;
-        }
+        const QList<ruleType> types = simple_rule_types(action);
+        // Resetting rebuilds each rule from the clean template, which does not
+        // know the chosen profile, so carry it across.
+        const int viaID = action == viaProfile ? GetSimpleViaProfileID() : -1;
         for (auto t : types) {
             ResetSimpleRule(t);
         }
@@ -754,8 +735,34 @@ namespace Configs {
                 res += "invalid rule:" + raw + "\n";
             }
         }
+        if (viaID >= 0) SetSimpleViaProfileID(viaID);
         FilterEmptyRules();
         return res;
+    }
+
+    QList<ruleType> RouteProfile::simple_rule_types(simpleAction action) {
+        switch (action) {
+        case proxy: return {simpleAddressProxy, simpleProcessNameProxy, simpleProcessPathProxy};
+        case bypass: return {simpleAddressBypass, simpleProcessNameBypass, simpleProcessPathBypass};
+        case warpBypass: return {simpleAddressWarpBypass, simpleProcessNameWarpBypass, simpleProcessPathWarpBypass};
+        case viaProfile: return {simpleAddressViaProfile, simpleProcessNameViaProfile, simpleProcessPathViaProfile};
+        default: return {simpleAddressBlock, simpleProcessNameBlock, simpleProcessPathBlock};
+        }
+    }
+
+    int RouteProfile::GetSimpleViaProfileID() const {
+        for (const auto &item : Rules) {
+            if (item && simple_rule_types(viaProfile).contains(static_cast<ruleType>(item->type)))
+                return item->outboundID;
+        }
+        return -1;
+    }
+
+    void RouteProfile::SetSimpleViaProfileID(int profileID) {
+        for (const auto &item : Rules) {
+            if (item && simple_rule_types(viaProfile).contains(static_cast<ruleType>(item->type)))
+                item->outboundID = profileID;
+        }
     }
 
     void RouteProfile::FilterEmptyRules() {
@@ -768,7 +775,7 @@ namespace Configs {
 
     bool RouteProfile::add_simple_rule(const QString& content, const std::shared_ptr<RouteRule>& rule, ruleType type)
     {
-        if (type == simpleAddressProxy || type == simpleAddressBypass || type == simpleAddressBlock || type == simpleAddressWarpBypass) return add_simple_address_rule(content, rule);
+        if (type == simpleAddressProxy || type == simpleAddressBypass || type == simpleAddressBlock || type == simpleAddressWarpBypass || type == simpleAddressViaProfile) return add_simple_address_rule(content, rule);
         else return add_simple_process_rule(content, rule);
     }
 
@@ -837,18 +844,21 @@ namespace Configs {
             if (action == proxy) return simpleAddressProxy;
             if (action == bypass) return simpleAddressBypass;
             if (action == warpBypass) return simpleAddressWarpBypass;
+            if (action == viaProfile) return simpleAddressViaProfile;
             return simpleAddressBlock;
         }
         if (content.startsWith("processName")) {
             if (action == proxy) return simpleProcessNameProxy;
             if (action == bypass) return simpleProcessNameBypass;
             if (action == warpBypass) return simpleProcessNameWarpBypass;
+            if (action == viaProfile) return simpleProcessNameViaProfile;
             return simpleProcessNameBlock;
         }
         if (content.startsWith("processPath")) {
             if (action == proxy) return simpleProcessPathProxy;
             if (action == bypass) return simpleProcessPathBypass;
             if (action == warpBypass) return simpleProcessPathWarpBypass;
+            if (action == viaProfile) return simpleProcessPathViaProfile;
             return simpleProcessPathBlock;
         }
         return custom;

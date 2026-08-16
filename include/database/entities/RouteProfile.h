@@ -27,7 +27,7 @@ namespace Configs {
     // where the client's own local inbounds go rather than matching user traffic.
     bool IsLocalProxyTrafficRule(const std::shared_ptr<RouteRule>& rule);
 
-    enum simpleAction{bypass, block, proxy, warpBypass};
+    enum simpleAction{bypass, block, proxy, warpBypass, viaProfile};
     inline QString simpleActionToString(simpleAction action)
     {
         if (action == bypass) return {"direct"};
@@ -149,6 +149,13 @@ namespace Configs {
         QString GetSimpleRules(simpleAction action);
 
         QString UpdateSimpleRules(const QString& content, simpleAction action);
+
+        static QList<ruleType> simple_rule_types(simpleAction action);
+
+        // The via-profile bucket keeps its target on its own rules, so the choice
+        // persists with them and needs no column of its own. -1 means unset.
+        [[nodiscard]] int GetSimpleViaProfileID() const;
+        void SetSimpleViaProfileID(int profileID);
 
         void FilterEmptyRules();
     private:
