@@ -16,14 +16,20 @@ import (
 )
 
 var mu sync.Mutex
-var enabled bool
+
+// Transitions overlap: a failover can start the next profile before the
+// previous start has released its guard. Counting holders keeps the filter up
+// until the last of them is done, where a bool let the first one out disarm it
+// for everyone still transitioning.
+var holders int
 
 // The session WireGuard opens is FWPM_SESSION_FLAG_DYNAMIC, so a crashed or
 // killed core takes the filters with it and cannot leave the machine offline.
 func Enable() error {
 	mu.Lock()
 	defer mu.Unlock()
-	if enabled {
+	if holders > 0 {
+		holders++
 		return nil
 	}
 	// luid 0: there is no tunnel to permit during a transition, which is the
@@ -31,22 +37,25 @@ func Enable() error {
 	if err := firewall.EnableFirewall(0, false, nil); err != nil {
 		return err
 	}
-	enabled = true
+	holders = 1
 	return nil
 }
 
 func Disable() {
 	mu.Lock()
 	defer mu.Unlock()
-	if !enabled {
+	if holders == 0 {
+		return
+	}
+	holders--
+	if holders > 0 {
 		return
 	}
 	firewall.DisableFirewall()
-	enabled = false
 }
 
 func Enabled() bool {
 	mu.Lock()
 	defer mu.Unlock()
-	return enabled
+	return holders > 0
 }

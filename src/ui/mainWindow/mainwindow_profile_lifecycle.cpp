@@ -428,16 +428,23 @@ void MainWindow::profile_start(int _id) {
         // the physical interface. Released either way: a failed start is visible,
         // and that is when the user needs the network to fix it.
         const bool guarded = Configs::dataManager->settingsRepo->spmode_vpn && running != nullptr;
+        // Declared first so it runs last: the next start must not reach the guard
+        // until this one has handed its own back.
+        const auto unlockStarting = qScopeGuard([this] { mu_starting.unlock(); });
         // Scoped so no path out of this block can leave the filter installed:
         // it blocks everything, and a leaked one means no internet.
         const auto releaseGuard = qScopeGuard([guarded] {
             if (!guarded) return;
             bool ok = false;
-            defaultClient->SetTransitionGuard(&ok, false);
+            const auto err = defaultClient->SetTransitionGuard(&ok, false);
+            if (!ok || !err.isEmpty())
+                MW_show_log(MainWindow::tr("Failed to release the transition guard: %1").arg(err));
         });
         if (guarded) {
             bool ok = false;
-            defaultClient->SetTransitionGuard(&ok, true);
+            const auto err = defaultClient->SetTransitionGuard(&ok, true);
+            if (!ok || !err.isEmpty())
+                MW_show_log(MainWindow::tr("Failed to install the transition guard: %1").arg(err));
         }
         // stop current running
         if (running != nullptr) {
@@ -450,7 +457,6 @@ void MainWindow::profile_start(int _id) {
         if (!profile_start_stage2()) {
             MW_show_log("<<<<<<<< " + tr("Failed to start profile %1").arg(ent->outbound->DisplayTypeAndName()));
         }
-        mu_starting.unlock();
         // cancel timeout
         runOnUiThread([=, this] {
             restartMsgboxTimer->cancel();
