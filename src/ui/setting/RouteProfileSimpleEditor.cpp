@@ -21,7 +21,10 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QScrollArea>
+#include <QTextLayout>
 #include <QTimer>
+
+#include <limits>
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QHostAddress>
@@ -33,6 +36,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QTextLayout>
 #include <QSignalBlocker>
 #include <QStyleOptionButton>
 #include <QToolButton>
@@ -96,9 +100,18 @@ protected:
         painter.setPen(QColor("#F1F3F5"));
         const QRect titleRect(43, 0, width() - 85, height());
         const QFontMetrics metrics(titleFont);
-        // horizontalAdvance under-reports a string whose emoji come from a fallback
-        // font, which stopped the scroll before the tail ever came into view.
-        overflow_ = std::max(0, metrics.boundingRect(title_).width() + 4 - titleRect.width());
+        // Neither font metric measures a string with fallback emoji correctly:
+        // horizontalAdvance stops the scroll short of the tail, boundingRect runs
+        // it off into blank space. The layout engine that draws it does know.
+        if (naturalWidth_ < 0) {
+            QTextLayout layout(title_, titleFont);
+            layout.beginLayout();
+            QTextLine line = layout.createLine();
+            line.setLineWidth(std::numeric_limits<qreal>::max());
+            layout.endLayout();
+            naturalWidth_ = static_cast<int>(std::ceil(line.naturalTextWidth()));
+        }
+        overflow_ = std::max(0, naturalWidth_ - titleRect.width());
         if (marquee_ != nullptr) {
             if (overflow_ > 0 && !marquee_->isActive()) marquee_->start();
             if (overflow_ <= 0 && marquee_->isActive()) marquee_->stop();
@@ -138,6 +151,7 @@ private:
     QTimer *marquee_ = nullptr;
     int offset_ = 0;
     int overflow_ = 0;
+    int naturalWidth_ = -1;
 };
 
 // Same footprint as an action, drawn as an outline so it reads as "make one"
@@ -632,7 +646,7 @@ QFrame#routeSidebar, QFrame#routeStats, QFrame#routeRuleCard {
     border-radius: 7px;
 }
 QLabel#routeSideTitle, QLabel#routeSectionTitle { color: #F1F3F5; font-weight: 600; }
-QLabel#routeHeading { color: #F1F3F5; font-size: 17px; font-weight: 650; min-height: 26px; }
+QLabel#routeHeading { color: #F1F3F5; font-size: 17px; font-weight: 500; min-height: 26px; }
 QScrollArea#routeSideScroll, QScrollArea#routeSideScroll > QWidget > QWidget { background: transparent; }
 QLabel#routeMuted { color: #A4ABB4; font-size: 13px; }
 QLabel#routeEmpty { color: #747C86; font-size: 13px; font-style: italic; }
