@@ -37,6 +37,10 @@ public:
 
     void runSpeedTests(const QList<int>& profileIDs, bool testCurrent = false);
 
+    // Walks one profile's path hop by hop and hands back a line per hop, so a
+    // failure names the stage that broke instead of collapsing into a timeout.
+    void runDiagnostics(int profileID);
+
     void stop();
 
     bool isRunning();

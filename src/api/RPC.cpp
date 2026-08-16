@@ -361,6 +361,21 @@ namespace API {
         }
     }
 
+    libcore::TestResp Client::Diagnose(bool *rpcOK, const libcore::TestReq &request, QString *coreError) {
+        libcore::TestResp reply;
+        std::vector<uint8_t> resp;
+        auto status = channel->Call("Diagnose", spb::pb::serialize<std::string>(request), resp);
+
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
+            *rpcOK = true;
+            return reply;
+        }
+        if (coreError && !resp.empty())
+            *coreError = QString::fromUtf8(reinterpret_cast<const char *>(resp.data()), static_cast<int>(resp.size()));
+        NOT_OK
+        return {};
+    }
+
     void Client::StopTests(bool *rpcOK) {
         const libcore::EmptyReq request;
         std::vector<uint8_t> resp;

@@ -644,3 +644,68 @@ void TestRunner::runSpeedProbe(const Target& target)
         Configs::dataManager->profilesRepo->Save(ent);
     }
 }
+
+void TestRunner::runDiagnostics(int profileID) {
+    auto ent = Configs::dataManager->profilesRepo->GetProfile(profileID);
+    if (ent == nullptr) return;
+    const auto title = ent->outbound->DisplayTypeAndName();
+
+    runOnNewThread([this, profileID, title] {
+        auto ent = Configs::dataManager->profilesRepo->GetProfile(profileID);
+        if (ent == nullptr) return;
+        auto buildObject = Configs::BuildTestConfig({ent});
+        if (!buildObject->error.isEmpty()) {
+            MW_show_log(MainWindow::tr("Failed to build diagnostic config: ") + buildObject->error);
+            return;
+        }
+
+        Target target;
+        if (!buildObject->fullConfigs.isEmpty()) {
+            target.coreConfig = buildObject->fullConfigs.first();
+            target.useDefaultOutbound = true;
+        } else {
+            target.coreConfig = QJsonObject2QString(buildObject->coreConfig, false);
+            target.xrayConfig = buildObject->isXrayNeeded ? QJsonObject2QString(buildObject->xrayConfig, false) : "";
+            target.xrayFullConfigs = buildObject->xrayFullConfigs;
+            target.outboundTags = buildObject->outboundTags;
+        }
+        target.entID = profileID;
+
+        libcore::TestReq req;
+        fillCommonTestReq(req, target);
+        req.url = Configs::dataManager->settingsRepo->test_latency_url.toStdString();
+        req.test_timeout_ms = Configs::dataManager->settingsRepo->url_test_timeout_ms;
+
+        bool rpcOK = false;
+        QString coreError;
+        const auto result = defaultClient->Diagnose(&rpcOK, req, &coreError);
+        if (!rpcOK) {
+            MW_show_log(MainWindow::tr("[%1] diagnostics failed: %2").arg(title, coreError));
+            return;
+        }
+
+        QStringList lines;
+        for (const auto &step : result.results) {
+            const auto label = QString::fromStdString(step.outbound_tag.value());
+            const auto error = QString::fromStdString(step.error.value());
+            lines << QString("%1  %2  %3 ms%4")
+                         .arg(error.isEmpty() ? "OK  " : "FAIL", -4)
+                         .arg(label, -46)
+                         .arg(step.latency_ms.value(), 5)
+                         .arg(error.isEmpty() ? QString() : "\n      " + error);
+        }
+        if (lines.isEmpty()) lines << MainWindow::tr("The core returned no steps.");
+
+        const auto report = lines.join("\n");
+        MW_show_log(MainWindow::tr("[%1] diagnostics:").arg(title) + "\n" + report);
+        runOnUiThread([title, report] {
+            auto *box = new QMessageBox(QMessageBox::NoIcon, MainWindow::tr("Diagnostics: %1").arg(title),
+                                        MainWindow::tr("Each stage of the path, in order. The first failure is the cause."),
+                                        QMessageBox::Close, GetMessageBoxParent());
+            box->setAttribute(Qt::WA_DeleteOnClose);
+            box->setDetailedText(report);
+            box->setTextInteractionFlags(Qt::TextSelectableByMouse);
+            box->show();
+        });
+    });
+}

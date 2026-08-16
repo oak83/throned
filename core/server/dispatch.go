@@ -121,6 +121,7 @@ var handlers = map[string]handlerFn{
 	"Stop":                handle(globalServer.Stop),
 	"CheckConfig":         handle(globalServer.CheckConfig),
 	"Test":                handle(globalServer.Test),
+	"Diagnose":            handle(globalServer.Diagnose),
 	"StopTest":            handle(globalServer.StopTest),
 	"QueryURLTest":        handle(globalServer.QueryURLTest),
 	"IPTest":              handle(globalServer.IPTest),

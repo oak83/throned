@@ -31,6 +31,10 @@ namespace API {
         // silently dropping the failed test.
         libcore::TestResp Test(bool *rpcOK, const libcore::TestReq &request, QString *coreError = nullptr);
 
+        // Same request, but the core walks the path one hop at a time and returns
+        // a step per hop: the label rides in outbound_tag, the failure in error.
+        libcore::TestResp Diagnose(bool *rpcOK, const libcore::TestReq &request, QString *coreError = nullptr);
+
         void StopTests(bool *rpcOK);
 
         libcore::QueryURLTestResponse QueryURLTest(bool *rpcOK);

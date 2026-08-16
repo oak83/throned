@@ -1431,6 +1431,15 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     connect(ui->actionUrl_Test_Selected, &QAction::triggered, this, [=,this]() {
         testRunner->runUrlTests(get_now_selected_list());
     });
+    // A url test only reports that something timed out. This walks the same path
+    // stage by stage, so the one that broke names itself.
+    auto *diagnoseAction = new QAction(tr("Diagnose Selected"), this);
+    ui->menu_server->insertAction(ui->actionUrl_Test_Selected, diagnoseAction);
+    connect(diagnoseAction, &QAction::triggered, this, [=,this]() {
+        const auto selected = get_now_selected_list();
+        if (selected.isEmpty()) return;
+        testRunner->runDiagnostics(selected.first());
+    });
     connect(ui->actionUrl_Test_Group, &QAction::triggered, this, [=,this]() {
         testRunner->runUrlTests(Configs::dataManager->groupsRepo->CurrentGroup()->Profiles());
     });
