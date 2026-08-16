@@ -24,6 +24,11 @@ public slots:
 private:
     Ui::DialogBasicSettings *ui;
 
+    // Quick link URL fields (created in code, not in .ui)
+    QLineEdit *quick_link_1 = nullptr;
+    QLineEdit *quick_link_2 = nullptr;
+    QLineEdit *quick_link_3 = nullptr;
+
     void applyRegexHighlighting();
 
     // Downloads an Xray geo asset (`fileName`, e.g. "geoip.dat") from `url` into the

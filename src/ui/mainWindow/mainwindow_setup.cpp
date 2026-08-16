@@ -218,8 +218,30 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             separator->setFixedSize(1, 33);
             commandLayout->addWidget(separator);
         }
-    }
-    commandLayout->addStretch(1);
+
+        // Quick link buttons (created in code, added to the command bar)
+        const QList<QPair<QString, void (MainWindow::*)()>> quickLinks{
+            {tr("Link 1"), &MainWindow::on_toolButton_link1_clicked},
+            {tr("Link 2"), &MainWindow::on_toolButton_link2_clicked},
+            {tr("Link 3"), &MainWindow::on_toolButton_link3_clicked},
+        };
+        for (const auto &[label, slot] : quickLinks) {
+            auto *linkBtn = new QToolButton(commandBar);
+            linkBtn->setObjectName(QStringLiteral("toolButton_link"));
+            linkBtn->setText(label);
+            linkBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+            linkBtn->setIconSize(QSize(19, 19));
+            linkBtn->setFixedHeight(38);
+            linkBtn->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+            connect(linkBtn, &QAbstractButton::clicked, this, slot);
+            commandLayout->addWidget(linkBtn);
+            auto *sep = new QFrame(commandBar);
+            sep->setObjectName(QStringLiteral("vSeparator"));
+            sep->setFixedSize(1, 33);
+            commandLayout->addWidget(sep);
+        }
+
+        commandLayout->addStretch(1);
 
     auto addToggle = [commandBar, commandLayout](const QString &text, QCheckBox *toggle) {
         auto *label = new QLabel(text, commandBar);

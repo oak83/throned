@@ -66,9 +66,10 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     ui->random_listen_port->setChecked(Configs::dataManager->settingsRepo->random_inbound_port);
     D_LOAD_INT(test_concurrent)
     D_LOAD_STRING(test_latency_url)
-    D_LOAD_STRING(quick_link_1)
-    D_LOAD_STRING(quick_link_2)
-    D_LOAD_STRING(quick_link_3)
+    // quick_link fields (created in code)
+    if (quick_link_1) quick_link_1->setText(Configs::dataManager->settingsRepo->quick_link_1);
+    if (quick_link_2) quick_link_2->setText(Configs::dataManager->settingsRepo->quick_link_2);
+    if (quick_link_3) quick_link_3->setText(Configs::dataManager->settingsRepo->quick_link_3);
     D_LOAD_BOOL(disable_tray)
     ui->reset_proxy_on_disable_sp->setChecked(Configs::dataManager->settingsRepo->reset_proxy_on_disable_sp);
     ui->url_timeout->setText(Int2String(Configs::dataManager->settingsRepo->url_test_timeout_ms));
@@ -423,6 +424,24 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     testingLayout->addWidget(makeFieldRow(tr("Speed test timeout"), {}, ui->test_timeout));
     testingLayout->addWidget(makeFieldRow(tr("Download test URL"), {}, ui->simple_down_url));
     commonLayout->addWidget(testingSection);
+
+    // Quick links group (created in code)
+    auto *quickGroup = new QGroupBox(tr("Quick Links"), commonPage);
+    quickGroup->setObjectName(QStringLiteral("quickLinksGroup"));
+    auto *quickGrid = new QGridLayout(quickGroup);
+    quickGrid->setContentsMargins(12, 12, 12, 12);
+    quickGrid->setSpacing(8);
+    quick_link_1 = new QLineEdit(quickGroup);
+    quick_link_2 = new QLineEdit(quickGroup);
+    quick_link_3 = new QLineEdit(quickGroup);
+    quickGrid->addWidget(new QLabel(tr("Link 1 URL"), quickGroup), 0, 0);
+    quickGrid->addWidget(quick_link_1, 0, 1);
+    quickGrid->addWidget(new QLabel(tr("Link 2 URL"), quickGroup), 1, 0);
+    quickGrid->addWidget(quick_link_2, 1, 1);
+    quickGrid->addWidget(new QLabel(tr("Link 3 URL"), quickGroup), 2, 0);
+    quickGrid->addWidget(quick_link_3, 2, 1);
+    commonLayout->addWidget(quickGroup);
+
     commonLayout->addStretch(1);
 
     auto *oldRoot = ui->gridLayout;
@@ -886,9 +905,10 @@ void DialogBasicSettings::accept() {
     Configs::dataManager->settingsRepo->random_inbound_port = ui->random_listen_port->isChecked();
     D_SAVE_INT(test_concurrent)
     D_SAVE_STRING(test_latency_url)
-    D_SAVE_STRING(quick_link_1)
-    D_SAVE_STRING(quick_link_2)
-    D_SAVE_STRING(quick_link_3)
+    // quick_link fields (created in code)
+    Configs::dataManager->settingsRepo->quick_link_1 = quick_link_1 ? quick_link_1->text() : "";
+    Configs::dataManager->settingsRepo->quick_link_2 = quick_link_2 ? quick_link_2->text() : "";
+    Configs::dataManager->settingsRepo->quick_link_3 = quick_link_3 ? quick_link_3->text() : "";
     D_SAVE_BOOL(disable_tray)
     Configs::dataManager->settingsRepo->proxy_scheme = ui->proxy_scheme->currentText().toLower();
     Configs::dataManager->settingsRepo->speed_test_mode = ui->speedtest_mode->currentIndex();
