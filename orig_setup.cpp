@@ -218,50 +218,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             separator->setFixedSize(1, 33);
             commandLayout->addWidget(separator);
         }
-
     }
-
-    // Quick link buttons (created in code, added to the command bar)
-        auto *linkBtn1 = new QToolButton(commandBar);
-        linkBtn1->setText(tr("Link 1"));
-        linkBtn1->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-        linkBtn1->setIconSize(QSize(19, 19));
-        linkBtn1->setFixedHeight(38);
-        linkBtn1->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-        connect(linkBtn1, &QAbstractButton::clicked, this, &MainWindow::on_toolButton_link1_clicked);
-        commandLayout->addWidget(linkBtn1);
-        auto *sepL1 = new QFrame(commandBar);
-        sepL1->setObjectName(QStringLiteral("vSeparator"));
-        sepL1->setFixedSize(1, 33);
-        commandLayout->addWidget(sepL1);
-
-        auto *linkBtn2 = new QToolButton(commandBar);
-        linkBtn2->setText(tr("Link 2"));
-        linkBtn2->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-        linkBtn2->setIconSize(QSize(19, 19));
-        linkBtn2->setFixedHeight(38);
-        linkBtn2->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-        connect(linkBtn2, &QAbstractButton::clicked, this, &MainWindow::on_toolButton_link2_clicked);
-        commandLayout->addWidget(linkBtn2);
-        auto *sepL2 = new QFrame(commandBar);
-        sepL2->setObjectName(QStringLiteral("vSeparator"));
-        sepL2->setFixedSize(1, 33);
-        commandLayout->addWidget(sepL2);
-
-        auto *linkBtn3 = new QToolButton(commandBar);
-        linkBtn3->setText(tr("Link 3"));
-        linkBtn3->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-        linkBtn3->setIconSize(QSize(19, 19));
-        linkBtn3->setFixedHeight(38);
-        linkBtn3->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-        connect(linkBtn3, &QAbstractButton::clicked, this, &MainWindow::on_toolButton_link3_clicked);
-        commandLayout->addWidget(linkBtn3);
-        auto *sepL3 = new QFrame(commandBar);
-        sepL3->setObjectName(QStringLiteral("vSeparator"));
-        sepL3->setFixedSize(1, 33);
-        commandLayout->addWidget(sepL3);
-
-        commandLayout->addStretch(1);
+    commandLayout->addStretch(1);
 
     auto addToggle = [commandBar, commandLayout](const QString &text, QCheckBox *toggle) {
         auto *label = new QLabel(text, commandBar);
@@ -1703,32 +1661,5 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
 
 MainWindow::~MainWindow() {
     delete ui;
-}
-
-void MainWindow::on_toolButton_link1_clicked() {
-    const auto &url = Configs::dataManager->settingsRepo->quick_link_1;
-    if (url.isEmpty()) {
-        QMessageBox::information(this, "Quick Link 1", "Set the URL in Settings → Basic Settings → Quick Links.");
-        return;
-    }
-    QDesktopServices::openUrl(QUrl(url));
-}
-
-void MainWindow::on_toolButton_link2_clicked() {
-    const auto &url = Configs::dataManager->settingsRepo->quick_link_2;
-    if (url.isEmpty()) {
-        QMessageBox::information(this, "Quick Link 2", "Set the URL in Settings → Basic Settings → Quick Links.");
-        return;
-    }
-    QDesktopServices::openUrl(QUrl(url));
-}
-
-void MainWindow::on_toolButton_link3_clicked() {
-    const auto &url = Configs::dataManager->settingsRepo->quick_link_3;
-    if (url.isEmpty()) {
-        QMessageBox::information(this, "Quick Link 3", "Set the URL in Settings → Basic Settings → Quick Links.");
-        return;
-    }
-    QDesktopServices::openUrl(QUrl(url));
 }
 
