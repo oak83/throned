@@ -152,6 +152,16 @@ jobs:
         with:
           name: throned-core-windows-amd64
           path: download-artifact
+      - uses: actions/setup-go@v6.5.0
+        with:
+          go-version: "1.26.5"
+          cache-dependency-path: core/server/go.sum
+      # The core is windows-only in places, so this is the job that can run its
+      # tests. winipcfg is vendored and its tests want an elevated host with real
+      # adapters, so they stay out.
+      - name: Test ThronedCore
+        shell: bash
+        run: cd core/server && go test $(go list ./... | grep -v /internal/boxdns/winipcfg)
       - uses: actions/cache@v6.1.0
         id: windows-deps
         with:
@@ -177,6 +187,7 @@ jobs:
           curl -fLso srslist.h https://raw.githubusercontent.com/throneproj/routeprofiles/rule-set/srslist.h
           cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo $LAUNCHER_ARGS ..
           ninja
+          ctest --output-on-failure --no-tests=ignore
           cd ..
           ./script/deploy_windows.sh
       - uses: actions/upload-artifact@v7.0.1
