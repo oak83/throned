@@ -35,6 +35,7 @@ if (UNIX AND NOT APPLE)
 endif ()
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Network Svg LinguistTools ${QT_DBUS_COMPONENT})
+find_package(Qt6 QUIET COMPONENTS Test)
 
 #### Platform Variables ####
 if (APPLE)
@@ -376,6 +377,8 @@ set(PROJECT_SOURCES
         src/configs/outbounds/custom.cpp
         include/configs/generate.h
         src/configs/generate.cpp
+        include/configs/validate.h
+        src/configs/validate.cpp
         include/configs/common/utils.h
         src/configs/common/utils.cpp
         include/configs/outbounds/custom.h
@@ -542,3 +545,17 @@ target_link_libraries(Throned PRIVATE
 )
 
 qt_finalize_executable(Throned)
+
+# Tests
+# Only the dependency-free pieces are covered here: the checker links against
+# QtCore alone, so `ctest` stays runnable without a display or a built app.
+if (Qt6Test_FOUND)
+    enable_testing()
+    qt_add_executable(throned_tests
+            tests/test_validate.cpp
+            src/configs/validate.cpp
+    )
+    set_target_properties(throned_tests PROPERTIES UNITY_BUILD OFF AUTOMOC ON)
+    target_link_libraries(throned_tests PRIVATE Qt6::Test)
+    add_test(NAME throned_tests COMMAND throned_tests)
+endif ()
