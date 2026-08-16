@@ -50,10 +50,14 @@ private:
     AutoCompleteTextEdit* simpleProxy;
 
     AutoCompleteTextEdit* simpleWarpBypass;
-    AutoCompleteTextEdit* simpleViaProfile;
-    // Rewriting the bucket rebuilds its rules from a template that has no target,
-    // so the picked profile is kept here and stamped back on afterwards.
-    int viaProfileID_ = -1;
+
+    // One via-profile bucket per chosen profile, id -> its rule lines. Buckets are
+    // created on demand, so this holds only the ones the user asked for.
+    QMap<int, QString> viaBucketRules_;
+    QList<QPair<int, QString>> viaCatalog_;
+    void reloadViaBuckets();
+    void pushViaBuckets();
+    QString saveViaBuckets();
 
     RouteProfileSimpleEditor* simpleEditor = nullptr;
 

@@ -25,18 +25,31 @@ public:
     void setAdvancedRules(const QStringList &names);
     void setRuleSetCatalog(const QStringList &names);
     void setLocalProxyTrafficEnabled(bool enabled);
-    // Profiles a via-profile rule can aim at, as (id, label) in menu order.
-    void setViaProfiles(const QList<QPair<int, QString>> &profiles);
-    void setViaProfileID(int profileID);
+
+    // A via-profile bucket is one more action, keyed by the profile it aims at:
+    // viaAction() maps a profile id into the action space the rest of the widget
+    // already speaks, so buckets need no parallel storage of their own.
+    static constexpr int viaActionBase = 1000000;
+    static int viaAction(int profileID) { return viaActionBase + profileID; }
+    static bool isViaAction(int action) { return action >= viaActionBase; }
+    static int viaProfileOf(int action) { return action - viaActionBase; }
+
+    // Buckets currently on the sidebar, and every profile one could be made from.
+    void setViaBuckets(const QList<QPair<int, QString>> &buckets);
+    void setViaCatalog(const QList<QPair<int, QString>> &profiles);
 
 signals:
     void rulesChanged(int action, const QString &rules);
     void localProxyTrafficChanged(bool enabled);
     void advancedEditorRequested();
-    void viaProfileChanged(int profileID);
+    void viaBucketAdded(int profileID);
+    void viaBucketRemoved(int profileID);
 
 private:
+    [[nodiscard]] QString viaLabelFor(int action) const;
     void selectAction(int action);
+    void rebuildSidebar();
+    void addViaBucket();
     void rebuild();
     void bulkEdit();
     void addApplicationRules();
@@ -58,6 +71,8 @@ private:
     QWidget *quickOptionsCard_ = nullptr;
     QAbstractButton *localProxyToggle_ = nullptr;
     bool localProxyTrafficEnabled_ = false;
-    QComboBox *viaProfileCombo_ = nullptr;
-    QLabel *viaProfileLabel_ = nullptr;
+    QList<QPair<int, QString>> viaBuckets_;
+    QList<QPair<int, QString>> viaCatalog_;
+    QVBoxLayout *sideLayout_ = nullptr;
+    QWidget *sidebar_ = nullptr;
 };

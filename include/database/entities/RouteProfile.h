@@ -1,4 +1,5 @@
 #pragma once
+#include <climits>
 
 #include "include/database/entities/RouteRule.h"
 #include <QUrl>
@@ -144,18 +145,23 @@ namespace Configs {
 
         void ResetRules();
 
-        void ResetSimpleRule(ruleType type);
+        // Buckets that carry a target match on it too, so one profile's rules are
+        // rewritten without touching another's.
+        static constexpr int anyOutbound = INT_MIN;
 
-        QString GetSimpleRules(simpleAction action);
+        void ResetSimpleRule(ruleType type, int outbound = anyOutbound);
 
-        QString UpdateSimpleRules(const QString& content, simpleAction action);
+        QString GetSimpleRules(simpleAction action, int outbound = anyOutbound);
+
+        QString UpdateSimpleRules(const QString& content, simpleAction action, int outbound = anyOutbound);
 
         static QList<ruleType> simple_rule_types(simpleAction action);
 
-        // The via-profile bucket keeps its target on its own rules, so the choice
-        // persists with them and needs no column of its own. -1 means unset.
-        [[nodiscard]] int GetSimpleViaProfileID() const;
-        void SetSimpleViaProfileID(int profileID);
+        // Via-profile buckets are keyed by the profile they aim at: the same three
+        // rule types repeat once per chosen profile, so the choice persists with
+        // the rules and needs no column of its own. In menu order, without dupes.
+        [[nodiscard]] QList<int> GetSimpleViaProfileIDs() const;
+        void RemoveSimpleViaProfile(int profileID);
 
         void FilterEmptyRules();
     private:
@@ -165,7 +171,7 @@ namespace Configs {
 
         static bool add_simple_process_rule(const QString& content, const std::shared_ptr<RouteRule>& rule);
 
-        std::shared_ptr<RouteRule> get_simple_rule_by_type(ruleType type);
+        std::shared_ptr<RouteRule> get_simple_rule_by_type(ruleType type, int outbound = anyOutbound);
 
         static ruleType get_rule_type(const QString& content, simpleAction action);
 

@@ -20,6 +20,8 @@
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QInputDialog>
+#include <QMessageBox>
 #include <QHostAddress>
 #include <QMap>
 #include <QLabel>
@@ -102,12 +104,16 @@ struct ActionPresentation {
     MaterialIcon::Glyph glyph;
 };
 
-ActionPresentation actionPresentation(int action) {
+ActionPresentation actionPresentation(int action, const QString &viaLabel = {}) {
+    if (RouteProfileSimpleEditor::isViaAction(action)) {
+        return {viaLabel,
+                RouteProfileSimpleEditor::tr("Traffic that should leave through %1 instead of the active profile.").arg(viaLabel),
+                QColor(Cyan), MaterialIcon::Glyph::Public};
+    }
     switch (action) {
     case 0: return {RouteProfileSimpleEditor::tr("Direct rules"), RouteProfileSimpleEditor::tr("Traffic that should bypass the proxy."), QColor(Green), MaterialIcon::Glyph::Direct};
     case 1: return {RouteProfileSimpleEditor::tr("Block rules"), RouteProfileSimpleEditor::tr("Traffic that should be rejected."), QColor(Red), MaterialIcon::Glyph::Block};
     case 3: return {RouteProfileSimpleEditor::tr("WARP bypass rules"), RouteProfileSimpleEditor::tr("Traffic that should bypass the WARP outbound."), QColor(Purple), MaterialIcon::Glyph::SwapVertical};
-    case 4: return {RouteProfileSimpleEditor::tr("Via profile rules"), RouteProfileSimpleEditor::tr("Traffic that should leave through one named profile instead of the active one."), QColor(Cyan), MaterialIcon::Glyph::Public};
     default: return {RouteProfileSimpleEditor::tr("Proxy rules"), RouteProfileSimpleEditor::tr("Traffic that should be routed through a proxy outbound."), QColor(Blue), MaterialIcon::Glyph::Shield};
     }
 }
@@ -387,19 +393,13 @@ RouteProfileSimpleEditor::RouteProfileSimpleEditor(QWidget *parent) : QWidget(pa
     side->addWidget(sideTitle);
     side->addSpacing(8);
 
-    const struct { int action; const char *title; MaterialIcon::Glyph glyph; const char *tone; } actions[] = {
-        {0, QT_TR_NOOP("Direct"), MaterialIcon::Glyph::Direct, Green},
-        {2, QT_TR_NOOP("Proxy"), MaterialIcon::Glyph::Shield, Blue},
-        {1, QT_TR_NOOP("Block"), MaterialIcon::Glyph::Block, Red},
-        {3, QT_TR_NOOP("WARP bypass"), MaterialIcon::Glyph::SwapVertical, Purple},
-        {4, QT_TR_NOOP("Via profile"), MaterialIcon::Glyph::Public, Cyan},
-    };
-    for (const auto &item : actions) {
-        auto *button = new ActionButton(item.glyph, tr(item.title), QColor(item.tone), sidebar);
-        actionButtons_[item.action] = button;
-        connect(button, &QAbstractButton::clicked, this, [this, action = item.action] { selectAction(action); });
-        side->addWidget(button);
-    }
+    sidebar_ = sidebar;
+    auto *buttonsHost = new QWidget(sidebar);
+    sideLayout_ = new QVBoxLayout(buttonsHost);
+    sideLayout_->setContentsMargins(0, 0, 0, 0);
+    sideLayout_->setSpacing(6);
+    side->addWidget(buttonsHost);
+    rebuildSidebar();
     side->addStretch();
 
     auto *stats = new QFrame(sidebar);
@@ -438,21 +438,6 @@ RouteProfileSimpleEditor::RouteProfileSimpleEditor(QWidget *parent) : QWidget(pa
     titles->addWidget(heading_);
     titles->addWidget(description_);
     top->addLayout(titles, 1);
-    // Only the via-profile bucket needs a target, so its picker rides in the
-    // header next to the action it belongs to rather than on every card.
-    viaProfileLabel_ = new QLabel(tr("Send through"), content);
-    viaProfileLabel_->setObjectName("routeMuted");
-    top->addWidget(viaProfileLabel_);
-    viaProfileCombo_ = new QComboBox(content);
-    viaProfileCombo_->setObjectName("routeViaProfileCombo");
-    viaProfileCombo_->setMinimumWidth(190);
-    viaProfileCombo_->setToolTip(tr("Rules in this action leave through the chosen profile."));
-    connect(viaProfileCombo_, &QComboBox::currentIndexChanged, this, [this](int index) {
-        if (index < 0) return;
-        emit viaProfileChanged(viaProfileCombo_->itemData(index).toInt());
-    });
-    top->addWidget(viaProfileCombo_);
-
     auto *bulkEditButton = new QPushButton(tr("Paste list"), content);
     bulkEditButton->setObjectName("routeBulkEditButton");
     bulkEditButton->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::List, QColor("#DDE2E7"), 16));
@@ -875,31 +860,112 @@ void RouteProfileSimpleEditor::setLocalProxyTrafficEnabled(bool enabled) {
     }
 }
 
+QString RouteProfileSimpleEditor::viaLabelFor(int action) const {
+    if (!isViaAction(action)) return {};
+    const int profileID = viaProfileOf(action);
+    for (const auto &[id, label] : viaBuckets_) {
+        if (id == profileID) return label;
+    }
+    return {};
+}
+
 void RouteProfileSimpleEditor::selectAction(int action) {
     selectedAction_ = action;
-    const bool via = action == 4;
-    if (viaProfileCombo_) viaProfileCombo_->setVisible(via);
-    if (viaProfileLabel_) viaProfileLabel_->setVisible(via);
     updateActionButtons();
     rebuild();
 }
 
-void RouteProfileSimpleEditor::setViaProfiles(const QList<QPair<int, QString>> &profiles) {
-    if (viaProfileCombo_ == nullptr) return;
-    const int keep = viaProfileCombo_->currentIndex() < 0
-                         ? -1
-                         : viaProfileCombo_->currentData().toInt();
-    QSignalBlocker blocker(viaProfileCombo_);
-    viaProfileCombo_->clear();
-    for (const auto &[id, label] : profiles) viaProfileCombo_->addItem(label, id);
-    setViaProfileID(keep);
+void RouteProfileSimpleEditor::setViaBuckets(const QList<QPair<int, QString>> &buckets) {
+    viaBuckets_ = buckets;
+    rebuildSidebar();
+    // The selected bucket may have just been removed from under the selection.
+    if (isViaAction(selectedAction_) && !actionButtons_.contains(selectedAction_)) selectAction(2);
+    else rebuild();
 }
 
-void RouteProfileSimpleEditor::setViaProfileID(int profileID) {
-    if (viaProfileCombo_ == nullptr) return;
-    QSignalBlocker blocker(viaProfileCombo_);
-    const int index = viaProfileCombo_->findData(profileID);
-    viaProfileCombo_->setCurrentIndex(index >= 0 ? index : 0);
+void RouteProfileSimpleEditor::setViaCatalog(const QList<QPair<int, QString>> &profiles) {
+    viaCatalog_ = profiles;
+    rebuildSidebar();
+}
+
+void RouteProfileSimpleEditor::rebuildSidebar() {
+    if (sideLayout_ == nullptr) return;
+    while (QLayoutItem *item = sideLayout_->takeAt(0)) {
+        if (item->widget()) item->widget()->deleteLater();
+        delete item;
+    }
+    actionButtons_.clear();
+
+    const struct { int action; const char *title; MaterialIcon::Glyph glyph; const char *tone; } actions[] = {
+        {0, QT_TR_NOOP("Direct"), MaterialIcon::Glyph::Direct, Green},
+        {2, QT_TR_NOOP("Proxy"), MaterialIcon::Glyph::Shield, Blue},
+        {1, QT_TR_NOOP("Block"), MaterialIcon::Glyph::Block, Red},
+        {3, QT_TR_NOOP("WARP bypass"), MaterialIcon::Glyph::SwapVertical, Purple},
+    };
+    for (const auto &item : actions) {
+        auto *button = new ActionButton(item.glyph, tr(item.title), QColor(item.tone), sidebar_);
+        actionButtons_[item.action] = button;
+        connect(button, &QAbstractButton::clicked, this, [this, action = item.action] { selectAction(action); });
+        sideLayout_->addWidget(button);
+    }
+
+    if (!viaBuckets_.isEmpty()) {
+        auto *divider = new QFrame(sidebar_);
+        divider->setObjectName("routeSidebarDivider");
+        divider->setFixedHeight(1);
+        sideLayout_->addWidget(divider);
+    }
+    for (const auto &[profileID, label] : viaBuckets_) {
+        const int action = viaAction(profileID);
+        auto *button = new ActionButton(MaterialIcon::Glyph::Public, label, QColor(Cyan), sidebar_);
+        button->setToolTip(tr("Rules here leave through %1. Right-click to remove the action.").arg(label));
+        button->setContextMenuPolicy(Qt::CustomContextMenu);
+        actionButtons_[action] = button;
+        connect(button, &QAbstractButton::clicked, this, [this, action] { selectAction(action); });
+        connect(button, &QWidget::customContextMenuRequested, this, [this, profileID, label](const QPoint &) {
+            if (QMessageBox::question(this, tr("Remove action"),
+                                      tr("Remove the action for %1 and every rule in it?").arg(label))
+                != QMessageBox::Yes)
+                return;
+            emit viaBucketRemoved(profileID);
+        });
+        sideLayout_->addWidget(button);
+    }
+
+    // Buckets are made on demand: one per profile in the list would bury the four
+    // real actions under a whole subscription.
+    auto *addButton = new QPushButton(tr("Send through a profile"), sidebar_);
+    addButton->setObjectName("routeAddViaButton");
+    addButton->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Add, QColor(Cyan), 16));
+    addButton->setCursor(Qt::PointingHandCursor);
+    connect(addButton, &QPushButton::clicked, this, &RouteProfileSimpleEditor::addViaBucket);
+    sideLayout_->addWidget(addButton);
+}
+
+void RouteProfileSimpleEditor::addViaBucket() {
+    QList<QPair<int, QString>> available;
+    for (const auto &entry : viaCatalog_) {
+        const bool taken = std::any_of(viaBuckets_.begin(), viaBuckets_.end(),
+                                       [&entry](const auto &b) { return b.first == entry.first; });
+        if (!taken) available << entry;
+    }
+    if (available.isEmpty()) {
+        QMessageBox::information(this, tr("Send through a profile"),
+                                 tr("Every profile already has an action here."));
+        return;
+    }
+
+    QStringList labels;
+    labels.reserve(available.size());
+    for (const auto &[id, label] : available) labels << label;
+    bool picked = false;
+    const auto choice = QInputDialog::getItem(this, tr("Send through a profile"),
+                                              tr("Rules in the new action leave through this profile:"),
+                                              labels, 0, false, &picked);
+    if (!picked) return;
+    const int index = static_cast<int>(labels.indexOf(QStringView(choice)));
+    if (index < 0) return;
+    emit viaBucketAdded(available[index].first);
 }
 
 void RouteProfileSimpleEditor::updateActionButtons() {
@@ -915,7 +981,7 @@ void RouteProfileSimpleEditor::rebuild() {
         if (item->widget()) item->widget()->deleteLater();
         delete item;
     }
-    const auto presentation = actionPresentation(selectedAction_);
+    const auto presentation = actionPresentation(selectedAction_, viaLabelFor(selectedAction_));
     heading_->setText(presentation.title);
     description_->setText(presentation.description);
     if (auto *icon = findChild<QLabel *>("routeHeaderIcon"))
@@ -953,7 +1019,7 @@ void RouteProfileSimpleEditor::rebuild() {
 }
 
 void RouteProfileSimpleEditor::bulkEdit() {
-    const auto presentation = actionPresentation(selectedAction_);
+    const auto presentation = actionPresentation(selectedAction_, viaLabelFor(selectedAction_));
     QDialog dialog(this);
     dialog.setWindowTitle(tr("Paste rule list"));
     dialog.setObjectName("routeAddDialog");

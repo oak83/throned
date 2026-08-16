@@ -257,10 +257,6 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     simpleBlock = new AutoCompleteTextEdit("", ruleItems, this);
     simpleProxy = new AutoCompleteTextEdit("", ruleItems, this);
     simpleWarpBypass = new AutoCompleteTextEdit("", ruleItems, this);
-    // No .ui counterpart: the simple editor replaces that grid wholesale, and this
-    // bucket only ever needs the text buffer behind it.
-    simpleViaProfile = new AutoCompleteTextEdit("", ruleItems, this);
-    simpleViaProfile->hide();
 
     ui->simple_direct_box->layout()->replaceWidget(ui->simple_direct, simpleDirect);
     ui->simple_block_box->layout()->replaceWidget(ui->simple_block, simpleBlock);
@@ -275,8 +271,6 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     simpleBlock->setPlainText(chain->GetSimpleRules(Configs::block));
     simpleProxy->setPlainText(chain->GetSimpleRules(Configs::proxy));
     simpleWarpBypass->setPlainText(chain->GetSimpleRules(Configs::warpBypass));
-    simpleViaProfile->setPlainText(chain->GetSimpleRules(Configs::viaProfile));
-
     simpleEditor = new RouteProfileSimpleEditor(ui->tab_2);
     ui->simple_direct_box->hide();
     ui->simple_block_box->hide();
@@ -289,14 +283,11 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     simpleEditor->setRules(Configs::block, simpleBlock->toPlainText());
     simpleEditor->setRules(Configs::proxy, simpleProxy->toPlainText());
     simpleEditor->setRules(Configs::warpBypass, simpleWarpBypass->toPlainText());
-    simpleEditor->setRules(Configs::viaProfile, simpleViaProfile->toPlainText());
     // outbounds/outboundMap already hold every profile keyed by combo index; the
     // first three entries are the proxy/direct/warp roles, which are not profiles.
-    QList<QPair<int, QString>> viaProfiles;
-    for (int i = 3; i < outbounds.size(); i++) viaProfiles << qMakePair(outboundMap[i], outbounds[i]);
-    simpleEditor->setViaProfiles(viaProfiles);
-    viaProfileID_ = chain->GetSimpleViaProfileID();
-    simpleEditor->setViaProfileID(viaProfileID_);
+    for (int i = 3; i < outbounds.size(); i++) viaCatalog_ << qMakePair(outboundMap[i], outbounds[i]);
+    simpleEditor->setViaCatalog(viaCatalog_);
+    reloadViaBuckets();
     simpleEditor->setRuleSetCatalog(geo_items);
     int advancedRules = 0;
     QStringList advancedRuleNames;
@@ -311,17 +302,26 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     simpleEditor->setAdvancedRules(advancedRuleNames);
     simpleEditor->setLocalProxyTrafficEnabled(localProxyTraffic);
     connect(simpleEditor, &RouteProfileSimpleEditor::rulesChanged, this, [this](int action, const QString& rules) {
+        if (RouteProfileSimpleEditor::isViaAction(action)) {
+            viaBucketRules_[RouteProfileSimpleEditor::viaProfileOf(action)] = rules;
+            return;
+        }
         switch (static_cast<Configs::simpleAction>(action)) {
         case Configs::bypass: simpleDirect->setPlainText(rules); break;
         case Configs::block: simpleBlock->setPlainText(rules); break;
         case Configs::proxy: simpleProxy->setPlainText(rules); break;
         case Configs::warpBypass: simpleWarpBypass->setPlainText(rules); break;
-        case Configs::viaProfile: simpleViaProfile->setPlainText(rules); break;
+        case Configs::viaProfile: break;
         }
     });
-    connect(simpleEditor, &RouteProfileSimpleEditor::viaProfileChanged, this, [this](int profileID) {
-        viaProfileID_ = profileID;
-        chain->SetSimpleViaProfileID(profileID);
+    connect(simpleEditor, &RouteProfileSimpleEditor::viaBucketAdded, this, [this](int profileID) {
+        if (!viaBucketRules_.contains(profileID)) viaBucketRules_[profileID] = "";
+        pushViaBuckets();
+    });
+    connect(simpleEditor, &RouteProfileSimpleEditor::viaBucketRemoved, this, [this](int profileID) {
+        viaBucketRules_.remove(profileID);
+        chain->RemoveSimpleViaProfile(profileID);
+        pushViaBuckets();
     });
     connect(simpleEditor, &RouteProfileSimpleEditor::localProxyTrafficChanged, this, [this](bool enabled) {
         const auto it = std::find_if(chain->Rules.begin(), chain->Rules.end(), Configs::IsLocalProxyTrafficRule);
@@ -575,8 +575,7 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
             res += chain->UpdateSimpleRules(simpleBlock->toPlainText(), Configs::block);
             res += chain->UpdateSimpleRules(simpleProxy->toPlainText(), Configs::proxy);
             res += chain->UpdateSimpleRules(simpleWarpBypass->toPlainText(), Configs::warpBypass);
-            res += chain->UpdateSimpleRules(simpleViaProfile->toPlainText(), Configs::viaProfile);
-            if (viaProfileID_ >= 0) chain->SetSimpleViaProfileID(viaProfileID_);
+            res += saveViaBuckets();
             if (currentIndex >= 0)
                 persistCurrentRuleAttrTabLabel();
             currentIndex = chain->Rules.isEmpty() ? -1 : 0;
@@ -593,7 +592,7 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
             simpleBlock->setPlainText(chain->GetSimpleRules(Configs::block));
             simpleProxy->setPlainText(chain->GetSimpleRules(Configs::proxy));
             simpleWarpBypass->setPlainText(chain->GetSimpleRules(Configs::warpBypass));
-            simpleViaProfile->setPlainText(chain->GetSimpleRules(Configs::viaProfile));
+            reloadViaBuckets();
             syncRouteProfileToSimpleEditors();
         }
     });
@@ -1027,7 +1026,7 @@ void RouteItem::reloadRuleViewsFromChain() {
     simpleBlock->setPlainText(chain->GetSimpleRules(Configs::block));
     simpleProxy->setPlainText(chain->GetSimpleRules(Configs::proxy));
     simpleWarpBypass->setPlainText(chain->GetSimpleRules(Configs::warpBypass));
-    simpleViaProfile->setPlainText(chain->GetSimpleRules(Configs::viaProfile));
+    reloadViaBuckets();
     syncRouteProfileToSimpleEditors();
     ui->def_out->setCurrentText(Configs::outboundIDToString(chain->defaultOutboundID));
 }
@@ -1056,8 +1055,8 @@ void RouteItem::accept() {
     res += chain->UpdateSimpleRules(simpleBlock->toPlainText(), Configs::block);
     res += chain->UpdateSimpleRules(simpleProxy->toPlainText(), Configs::proxy);
     res += chain->UpdateSimpleRules(simpleWarpBypass->toPlainText(), Configs::warpBypass);
-    res += chain->UpdateSimpleRules(simpleViaProfile->toPlainText(), Configs::viaProfile);
-    if (viaProfileID_ >= 0) chain->SetSimpleViaProfileID(viaProfileID_);
+    res += saveViaBuckets();
+
     if (!res.isEmpty()) {
         runOnUiThread([=] {
             MessageBoxWarning(tr("Invalid rules"), tr("Some rules could not be added, fix them before saving:\n") + res);
@@ -1086,7 +1085,7 @@ void RouteItem::syncSimpleEditorsToRouteProfile() {
     simpleBlock->setPlainText(simpleEditor->rules(Configs::block));
     simpleProxy->setPlainText(simpleEditor->rules(Configs::proxy));
     simpleWarpBypass->setPlainText(simpleEditor->rules(Configs::warpBypass));
-    simpleViaProfile->setPlainText(simpleEditor->rules(Configs::viaProfile));
+    for (auto it = viaBucketRules_.begin(); it != viaBucketRules_.end(); ++it) it.value() = simpleEditor->rules(RouteProfileSimpleEditor::viaAction(it.key()));
 }
 
 void RouteItem::syncRouteProfileToSimpleEditors() {
@@ -1095,7 +1094,7 @@ void RouteItem::syncRouteProfileToSimpleEditors() {
     simpleEditor->setRules(Configs::block, simpleBlock->toPlainText());
     simpleEditor->setRules(Configs::proxy, simpleProxy->toPlainText());
     simpleEditor->setRules(Configs::warpBypass, simpleWarpBypass->toPlainText());
-    simpleEditor->setRules(Configs::viaProfile, simpleViaProfile->toPlainText());
+    pushViaBuckets();
     QStringList advancedRuleNames;
     bool localProxyTraffic = false;
     for (const auto& rule : chain->Rules) {
@@ -1430,4 +1429,37 @@ void RouteItem::on_delete_route_item_clicked() {
     }
     updateRouteItemsView();
     updateRuleSection();
+}
+
+// Buckets come from the rules themselves: whichever profiles the via-profile
+// rules aim at are exactly the buckets that should be on the sidebar.
+void RouteItem::reloadViaBuckets() {
+    viaBucketRules_.clear();
+    for (int profileID : chain->GetSimpleViaProfileIDs())
+        viaBucketRules_[profileID] = chain->GetSimpleRules(Configs::viaProfile, profileID);
+    pushViaBuckets();
+}
+
+void RouteItem::pushViaBuckets() {
+    QList<QPair<int, QString>> buckets;
+    for (auto it = viaBucketRules_.begin(); it != viaBucketRules_.end(); ++it) {
+        QString label = QString::number(it.key());
+        for (const auto &entry : viaCatalog_) {
+            if (entry.first != it.key()) continue;
+            label = entry.second;
+            break;
+        }
+        buckets << qMakePair(it.key(), label);
+        simpleEditor->setRules(RouteProfileSimpleEditor::viaAction(it.key()), it.value());
+    }
+    simpleEditor->setViaBuckets(buckets);
+}
+
+QString RouteItem::saveViaBuckets() {
+    QString res;
+    // Profiles dropped from a bucket keep no rules behind: the ones still listed
+    // are rewritten, and anything else was removed with its bucket already.
+    for (auto it = viaBucketRules_.begin(); it != viaBucketRules_.end(); ++it)
+        res += chain->UpdateSimpleRules(it.value(), Configs::viaProfile, it.key());
+    return res;
 }

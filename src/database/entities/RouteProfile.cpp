@@ -669,30 +669,32 @@ namespace Configs {
         Rules.clear();
     }
 
-    void RouteProfile::ResetSimpleRule(ruleType type) {
+    void RouteProfile::ResetSimpleRule(ruleType type, int outbound) {
         for (std::shared_ptr<RouteRule> &item: Rules) {
-            if (item->type == type) {
-                reset_simple_rule(item);
-                return;
-            }
+            if (item->type != type) continue;
+            if (outbound != anyOutbound && item->outboundID != outbound) continue;
+            reset_simple_rule(item);
+            // The template has no target, so a bucket keyed by one puts it back.
+            if (outbound != anyOutbound) item->outboundID = outbound;
+            return;
         }
         auto cleanRules = get_simple_rules();
         for (std::shared_ptr<RouteRule> &item: cleanRules) {
-            if (item->type == type) {
-                Rules << item;
-                return;
-            }
+            if (item->type != type) continue;
+            if (outbound != anyOutbound) item->outboundID = outbound;
+            Rules << item;
+            return;
         }
     }
 
-    QString RouteProfile::GetSimpleRules(simpleAction action)
+    QString RouteProfile::GetSimpleRules(simpleAction action, int outbound)
     {
         QList<int> types;
         for (auto t : simple_rule_types(action)) types << t;
         QString res;
         for (const auto& item: Rules)
         {
-            if (types.contains(item->type))
+            if (types.contains(item->type) && (outbound == anyOutbound || item->outboundID == outbound))
             {
                 for (const auto& domain : item->domain) res += QString("domain:" + domain + "\n");
                 for (const auto& domain_suffix : item->domain_suffix) res += QString("suffix:" + domain_suffix + "\n");
@@ -708,16 +710,13 @@ namespace Configs {
     }
 
 
-    QString RouteProfile::UpdateSimpleRules(const QString& content, simpleAction action)
+    QString RouteProfile::UpdateSimpleRules(const QString& content, simpleAction action, int outbound)
     {
         QString res;
         auto items = content.split("\n");
         const QList<ruleType> types = simple_rule_types(action);
-        // Resetting rebuilds each rule from the clean template, which does not
-        // know the chosen profile, so carry it across.
-        const int viaID = action == viaProfile ? GetSimpleViaProfileID() : -1;
         for (auto t : types) {
-            ResetSimpleRule(t);
+            ResetSimpleRule(t, outbound);
         }
         for (const auto& raw : items) {
             if (raw.trimmed().isEmpty()) continue;
@@ -726,7 +725,7 @@ namespace Configs {
                 res += "invalid rule:" + raw + "\n";
                 continue;
             }
-            auto rule = get_simple_rule_by_type(type);
+            auto rule = get_simple_rule_by_type(type, outbound);
             if (!rule) {
                 res += "internal error, failed to get rule for: " + ruleTypeToString(type) + "\n";
                 continue;
@@ -735,7 +734,6 @@ namespace Configs {
                 res += "invalid rule:" + raw + "\n";
             }
         }
-        if (viaID >= 0) SetSimpleViaProfileID(viaID);
         FilterEmptyRules();
         return res;
     }
@@ -750,19 +748,28 @@ namespace Configs {
         }
     }
 
-    int RouteProfile::GetSimpleViaProfileID() const {
+    QList<int> RouteProfile::GetSimpleViaProfileIDs() const {
+        QList<int> ids;
+        const auto types = simple_rule_types(viaProfile);
         for (const auto &item : Rules) {
-            if (item && simple_rule_types(viaProfile).contains(static_cast<ruleType>(item->type)))
-                return item->outboundID;
+            if (item == nullptr || !types.contains(static_cast<ruleType>(item->type))) continue;
+            // A negative id is one of the role sentinels, not a profile.
+            if (item->outboundID < 0 || ids.contains(item->outboundID)) continue;
+            ids << item->outboundID;
         }
-        return -1;
+        return ids;
     }
 
-    void RouteProfile::SetSimpleViaProfileID(int profileID) {
+    void RouteProfile::RemoveSimpleViaProfile(int profileID) {
+        const auto types = simple_rule_types(viaProfile);
+        QList<std::shared_ptr<RouteRule>> kept;
         for (const auto &item : Rules) {
-            if (item && simple_rule_types(viaProfile).contains(static_cast<ruleType>(item->type)))
-                item->outboundID = profileID;
+            if (item != nullptr && types.contains(static_cast<ruleType>(item->type))
+                && item->outboundID == profileID)
+                continue;
+            kept << item;
         }
+        Rules = kept;
     }
 
     void RouteProfile::FilterEmptyRules() {
@@ -827,9 +834,11 @@ namespace Configs {
         }
     }
 
-    std::shared_ptr<RouteRule> RouteProfile::get_simple_rule_by_type(ruleType type) {
+    std::shared_ptr<RouteRule> RouteProfile::get_simple_rule_by_type(ruleType type, int outbound) {
         for (auto r : Rules) {
-            if (r->type == type) return r;
+            if (r->type != type) continue;
+            if (outbound != anyOutbound && r->outboundID != outbound) continue;
+            return r;
         }
         return nullptr;
     }

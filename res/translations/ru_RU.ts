@@ -2,6 +2,73 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ru_RU">
 <context>
+    <name>ApplicationPickerDialog</name>
+    <message>
+        <source>Choose applications</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose traffic sources</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select one or more applications, running processes, or an executable file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search applications or executable paths…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reload</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Installed applications</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Running processes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Executable file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Full path to an executable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose an executable file or paste its full path.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Match by</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Executable name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exact path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add selected</source>
+        <translation type="unfinished">Добавить выбранное</translation>
+    </message>
+    <message>
+        <source>Choose executable</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>DialogAutoSelector</name>
     <message>
         <source>Auto Selector Stats</source>
@@ -499,6 +566,10 @@ It stays a preference, not a lock: if that profile stops working the selector st
         <translation>Интервал (в минутах; неверно, если значение меньше 30)</translation>
     </message>
     <message>
+        <source>Check for application updates</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When enabled, If the currently active profile needs to be removed, it will be stopped and removed, otherwise it will not be removed at all&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Если включено, активный профиль будет остановлен и удален только в том случае, если это необходимо; в противном случае он не будет удален&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
@@ -703,6 +774,15 @@ It stays a preference, not a lock: if that profile stops working the selector st
         <translation>Ошибка создания копии</translation>
     </message>
     <message>
+        <source>Not a valid Throned backup file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Each selected part replaces the current data. This cannot be undone.
+Throned will restart to complete the restore.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Failed to create temporary file for restore.</source>
         <translation>Не удалось создать временный файл для восстановления.</translation>
     </message>
@@ -731,16 +811,8 @@ It stays a preference, not a lock: if that profile stops working the selector st
         <translation>Пользовательские иконки</translation>
     </message>
     <message>
-        <source>Throne Backup (*.thrbackup)</source>
-        <translation>Резервная копия Throne (*.thrbackup)</translation>
-    </message>
-    <message>
         <source>Select at least one part to include in the backup.</source>
         <translation>Выберите хотя бы один компонент для создания резервной копии.</translation>
-    </message>
-    <message>
-        <source>Backup restored successfully. Throne will now restart for the changes to take effect.</source>
-        <translation>Резервная копия успешно восстановлена. Throne будет перезапущен для применения изменений.</translation>
     </message>
     <message>
         <source>Backup created on %1.
@@ -767,6 +839,10 @@ Select which parts to restore:</source>
     <message>
         <source>Downloading Xray geo asset: %1</source>
         <translation>Загрузка гео-файла Xray: %1</translation>
+    </message>
+    <message>
+        <source>Throned Backup (*.thrbackup)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Failed to create database snapshot: %1</source>
@@ -799,10 +875,6 @@ Included: %2</source>
         <translation>Не удается открыть файл резервной копии: %1</translation>
     </message>
     <message>
-        <source>Not a valid Throne backup file.</source>
-        <translation>Это недействительный файл резервной копии Throne.</translation>
-    </message>
-    <message>
         <source>Unsupported backup format version: %1.
 This backup may have been created with a newer version of the application.</source>
         <translation>Неподдерживаемый формат резервной копии: %1.
@@ -813,120 +885,441 @@ This backup may have been created with a newer version of the application.</sour
         <translation>Этот файл резервной копии не содержит восстанавливаемых данных.</translation>
     </message>
     <message>
-        <source>Each selected part replaces the current data. This cannot be undone.
-Throne will restart to complete the restore.</source>
-        <translation>Каждая выбранная часть заменяет текущие данные. Это невозможно отменить.
-Для завершения восстановления Throne перезапустится.</translation>
-    </message>
-    <message>
         <source>Select at least one part to restore.</source>
         <translation>Выберите хотя бы один раздел для восстановления.</translation>
     </message>
-    <message><source>Settings</source><translation>Настройки</translation></message>
-    <message><source>Configure %1 settings.</source><translation>Настройки раздела «%1».</translation></message>
-    <message><source>Common settings</source><translation>Основные настройки</translation></message>
-    <message><source>Everyday proxy, inbound, and test behavior.</source><translation>Повседневные параметры прокси, входящих подключений и тестов.</translation></message>
-    <message><source>Inbound</source><translation>Входящие подключения</translation></message>
-    <message><source>Local proxy endpoint used by applications.</source><translation>Локальная точка прокси для приложений.</translation></message>
-    <message><source>Listen address</source><translation>Адрес прослушивания</translation></message>
-    <message><source>Mixed port</source><translation>Mixed-порт</translation></message>
-    <message><source>SOCKS and HTTP on one local port</source><translation>SOCKS и HTTP на одном локальном порту</translation></message>
-    <message><source>Random port</source><translation>Случайный порт</translation></message>
-    <message><source>Choose a free port on every start</source><translation>Выбирать свободный порт при каждом запуске</translation></message>
-    <message><source>Disable mixed inbound</source><translation>Отключить mixed inbound</translation></message>
-    <message><source>Do not expose the local mixed proxy endpoint</source><translation>Не открывать локальную точку mixed-прокси</translation></message>
-    <message><source>Authentication</source><translation>Авторизация</translation></message>
-    <message><source>Require credentials for local proxy clients</source><translation>Требовать логин и пароль от локальных клиентов</translation></message>
-    <message><source>Username</source><translation>Имя пользователя</translation></message>
-    <message><source>Password</source><translation>Пароль</translation></message>
-    <message><source>System proxy scheme</source><translation>Формат системного прокси</translation></message>
-    <message><source>Custom inbound JSON</source><translation>Пользовательский inbound JSON</translation></message>
-    <message><source>Testing</source><translation>Тестирование</translation></message>
-    <message><source>Defaults used by URL and speed tests.</source><translation>Параметры URL-тестов и проверки скорости.</translation></message>
-    <message><source>Latency test URL</source><translation>URL проверки задержки</translation></message>
-    <message><source>URL test timeout</source><translation>Тайм-аут URL-теста</translation></message>
-    <message><source>Milliseconds before a latency test fails</source><translation>Время ожидания теста в миллисекундах</translation></message>
-    <message><source>Concurrent tests</source><translation>Одновременных тестов</translation></message>
-    <message><source>Speed test mode</source><translation>Режим проверки скорости</translation></message>
-    <message><source>Speed test timeout</source><translation>Тайм-аут проверки скорости</translation></message>
-    <message><source>Download test URL</source><translation>URL тестовой загрузки</translation></message>
-    <message><source>Appearance</source><translation>Внешний вид</translation></message>
-    <message><source>Throned settings</source><translation>Настройки Throned</translation></message>
-    <message><source>Save settings</source><translation>Сохранить настройки</translation></message>
-    <message><source>Cancel</source><translation>Отмена</translation></message>
-    <message><source>Log output</source><translation>Вывод журнала</translation></message>
-    <message><source>Control verbosity and retained history.</source><translation>Уровни подробности и размер истории.</translation></message>
-    <message><source>Sing-box log level</source><translation>Уровень журнала sing-box</translation></message>
-    <message><source>Xray log level</source><translation>Уровень журнала Xray</translation></message>
-    <message><source>Include filters</source><translation>Фильтры включения</translation></message>
-    <message><source>Keep only matching log entries when enabled.</source><translation>Оставлять только совпавшие записи журнала.</translation></message>
-    <message><source>Enable include rules</source><translation>Включить правила включения</translation></message>
-    <message><source>Exclude filters</source><translation>Фильтры исключения</translation></message>
-    <message><source>Hide matching log entries when enabled.</source><translation>Скрывать совпавшие записи журнала.</translation></message>
-    <message><source>Enable exclude rules</source><translation>Включить правила исключения</translation></message>
-    <message><source>Keywords</source><translation>Ключевые слова</translation></message>
-    <message><source>Regular expressions</source><translation>Регулярные выражения</translation></message>
-    <message><source>Theme and language</source><translation>Тема и язык</translation></message>
-    <message><source>Fonts, colors, language, and application icons.</source><translation>Шрифты, цвета, язык и иконки приложения.</translation></message>
-    <message><source>Font size</source><translation>Размер шрифта</translation></message>
-    <message><source>Use custom icons</source><translation>Собственные иконки</translation></message>
-    <message><source>Custom icon files</source><translation>Файлы собственных иконок</translation></message>
-    <message><source>Window and statistics</source><translation>Окно и статистика</translation></message>
-    <message><source>Startup behavior and information shown in the main window.</source><translation>Запуск приложения и данные главного окна.</translation></message>
-    <message><source>Delete profiles without confirmation</source><translation>Удалять профили без подтверждения</translation></message>
-    <message><source>Automatic updates</source><translation>Автоматические обновления</translation></message>
-    <message><source>Schedule subscription and routing-profile refreshes.</source><translation>Расписание обновлений подписок и маршрутов.</translation></message>
-    <message><source>User agent</source><translation>User Agent</translation></message>
-    <message><source>Update subscriptions automatically</source><translation>Автообновление подписок</translation></message>
-    <message><source>Subscription interval (minutes)</source><translation>Интервал подписок (минуты)</translation></message>
-    <message><source>Update routing profiles automatically</source><translation>Автообновление профилей маршрутизации</translation></message>
-    <message><source>Routing interval (minutes)</source><translation>Интервал маршрутов (минуты)</translation></message>
-    <message><source>Update behavior</source><translation>Поведение при обновлении</translation></message>
-    <message><source>Choose how imported profiles and device metadata are handled.</source><translation>Обработка импортированных профилей и данных устройства.</translation></message>
-    <message><source>Custom system parameters</source><translation>Параметры системы вручную</translation></message>
-    <message><source>Optional overrides for HWID, OS, version, or model.</source><translation>Необязательные значения HWID, ОС, версии или модели.</translation></message>
-    <message><source>Shared sing-box multiplexing defaults.</source><translation>Общие параметры мультиплексирования sing-box.</translation></message>
-    <message><source>TLS fragmentation</source><translation>Фрагментация TLS</translation></message>
-    <message><source>Packet fragmentation and TLS-record behavior.</source><translation>Фрагментация пакетов и записей TLS.</translation></message>
-    <message><source>Implementation</source><translation>Реализация</translation></message>
-    <message><source>Fragment size</source><translation>Размер фрагмента</translation></message>
-    <message><source>Fragment delay</source><translation>Задержка фрагментации</translation></message>
-    <message><source>Local controller endpoint exposed by the core.</source><translation>Локальная точка управления ядром.</translation></message>
-    <message><source>API port</source><translation>Порт API</translation></message>
-    <message><source>API secret</source><translation>Секрет API</translation></message>
-    <message><source>Xray core</source><translation>Ядро Xray</translation></message>
-    <message><source>Defaults used by Xray-backed profiles.</source><translation>Параметры профилей на базе Xray.</translation></message>
-    <message><source>Mux concurrency</source><translation>Одновременных соединений Mux</translation></message>
-    <message><source>VLESS preference</source><translation>Предпочтение VLESS</translation></message>
-    <message><source>Application updates and outbound network behavior.</source><translation>Обновления приложения и сетевые подключения.</translation></message>
-    <message><source>Core services</source><translation>Службы ядра</translation></message>
-    <message><source>Traffic statistics and the local DNS endpoint.</source><translation>Статистика трафика и локальный DNS.</translation></message>
-    <message><source>DNS inbound port</source><translation>Порт DNS inbound</translation></message>
-    <message><source>NTP client</source><translation>Клиент NTP</translation></message>
-    <message><source>Time synchronization used by sing-box.</source><translation>Синхронизация времени в sing-box.</translation></message>
-    <message><source>Xray geo assets</source><translation>Георесурсы Xray</translation></message>
-    <message><source>Sources used for geoip.dat and geosite.dat.</source><translation>Источники файлов geoip.dat и geosite.dat.</translation></message>
-    <message><source>GeoIP asset URL</source><translation>URL ресурса GeoIP</translation></message>
-    <message><source>Geosite asset URL</source><translation>URL ресурса Geosite</translation></message>
-    <message><source>Create backup</source><translation>Создание резервной копии</translation></message>
-    <message><source>Choose which local data to include.</source><translation>Выберите данные для включения.</translation></message>
-    <message><source>Backup file</source><translation>Файл резервной копии</translation></message>
-    <message><source>Restore backup</source><translation>Восстановление</translation></message>
-    <message><source>Import data from an existing Throned backup.</source><translation>Импорт данных из резервной копии Throned.</translation></message>
-    <message><source>Permissions</source><translation>Разрешения</translation></message>
-    <message><source>Administrative privileges and startup behavior.</source><translation>Административные права и поведение при запуске.</translation></message>
-    <message><source>Certificates</source><translation>Сертификаты</translation></message>
-    <message><source>Certificate stores and TLS validation defaults.</source><translation>Хранилища сертификатов и проверка TLS.</translation></message>
-    <message><source>uTLS fingerprint</source><translation>Отпечаток uTLS</translation></message>
-    <message><source>Backups</source><translation>Резервные копии</translation></message>
-    <message><source>Multiplexing</source><translation>Мультиплексирование</translation></message>
-    <message><source>Protocol</source><translation>Протокол</translation></message>
-    <message><source>Padding</source><translation>Паддинг</translation></message>
-    <message><source>Network</source><translation>Сеть</translation></message>
-    <message><source>Server</source><translation>Сервер</translation></message>
-    <message><source>Port</source><translation>Порт</translation></message>
-    <message><source>Interval</source><translation>Интервал</translation></message>
-    <message><source>Outbound</source><translation>Исходящий маршрут</translation></message>
+    <message>
+        <source>Configure %1 settings.</source>
+        <translation>Настройки раздела «%1».</translation>
+    </message>
+    <message>
+        <source>Common settings</source>
+        <translation>Основные настройки</translation>
+    </message>
+    <message>
+        <source>Everyday proxy, inbound, and test behavior.</source>
+        <translation>Повседневные параметры прокси, входящих подключений и тестов.</translation>
+    </message>
+    <message>
+        <source>Inbound</source>
+        <translation>Входящие подключения</translation>
+    </message>
+    <message>
+        <source>Local proxy endpoint used by applications.</source>
+        <translation>Локальная точка прокси для приложений.</translation>
+    </message>
+    <message>
+        <source>Listen address</source>
+        <translation>Адрес прослушивания</translation>
+    </message>
+    <message>
+        <source>Mixed port</source>
+        <translation>Mixed-порт</translation>
+    </message>
+    <message>
+        <source>SOCKS and HTTP on one local port</source>
+        <translation>SOCKS и HTTP на одном локальном порту</translation>
+    </message>
+    <message>
+        <source>Choose a free port on every start</source>
+        <translation>Выбирать свободный порт при каждом запуске</translation>
+    </message>
+    <message>
+        <source>Disable mixed inbound</source>
+        <translation>Отключить mixed inbound</translation>
+    </message>
+    <message>
+        <source>Do not expose the local mixed proxy endpoint</source>
+        <translation>Не открывать локальную точку mixed-прокси</translation>
+    </message>
+    <message>
+        <source>Authentication</source>
+        <translation>Авторизация</translation>
+    </message>
+    <message>
+        <source>Require credentials for local proxy clients</source>
+        <translation>Требовать логин и пароль от локальных клиентов</translation>
+    </message>
+    <message>
+        <source>Username</source>
+        <translation>Имя пользователя</translation>
+    </message>
+    <message>
+        <source>Password</source>
+        <translation>Пароль</translation>
+    </message>
+    <message>
+        <source>System proxy scheme</source>
+        <translation>Формат системного прокси</translation>
+    </message>
+    <message>
+        <source>Custom inbound JSON</source>
+        <translation>Пользовательский inbound JSON</translation>
+    </message>
+    <message>
+        <source>Defaults used by URL and speed tests.</source>
+        <translation>Параметры URL-тестов и проверки скорости.</translation>
+    </message>
+    <message>
+        <source>Latency test URL</source>
+        <translation>URL проверки задержки</translation>
+    </message>
+    <message>
+        <source>URL test timeout</source>
+        <translation>Тайм-аут URL-теста</translation>
+    </message>
+    <message>
+        <source>Milliseconds before a latency test fails</source>
+        <translation>Время ожидания теста в миллисекундах</translation>
+    </message>
+    <message>
+        <source>Concurrent tests</source>
+        <translation>Одновременных тестов</translation>
+    </message>
+    <message>
+        <source>Speed test mode</source>
+        <translation>Режим проверки скорости</translation>
+    </message>
+    <message>
+        <source>Speed test timeout</source>
+        <translation>Тайм-аут проверки скорости</translation>
+    </message>
+    <message>
+        <source>Download test URL</source>
+        <translation>URL тестовой загрузки</translation>
+    </message>
+    <message>
+        <source>Appearance</source>
+        <translation>Внешний вид</translation>
+    </message>
+    <message>
+        <source>Throned settings</source>
+        <translation>Настройки Throned</translation>
+    </message>
+    <message>
+        <source>Save settings</source>
+        <translation>Сохранить настройки</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Отмена</translation>
+    </message>
+    <message>
+        <source>Log output</source>
+        <translation>Вывод журнала</translation>
+    </message>
+    <message>
+        <source>Control verbosity and retained history.</source>
+        <translation>Уровни подробности и размер истории.</translation>
+    </message>
+    <message>
+        <source>Sing-box log level</source>
+        <translation>Уровень журнала sing-box</translation>
+    </message>
+    <message>
+        <source>Xray log level</source>
+        <translation>Уровень журнала Xray</translation>
+    </message>
+    <message>
+        <source>Include filters</source>
+        <translation>Фильтры включения</translation>
+    </message>
+    <message>
+        <source>Keep only matching log entries when enabled.</source>
+        <translation>Оставлять только совпавшие записи журнала.</translation>
+    </message>
+    <message>
+        <source>Enable include rules</source>
+        <translation>Включить правила включения</translation>
+    </message>
+    <message>
+        <source>Exclude filters</source>
+        <translation>Фильтры исключения</translation>
+    </message>
+    <message>
+        <source>Hide matching log entries when enabled.</source>
+        <translation>Скрывать совпавшие записи журнала.</translation>
+    </message>
+    <message>
+        <source>Enable exclude rules</source>
+        <translation>Включить правила исключения</translation>
+    </message>
+    <message>
+        <source>Keywords</source>
+        <translation>Ключевые слова</translation>
+    </message>
+    <message>
+        <source>Regular expressions</source>
+        <translation>Регулярные выражения</translation>
+    </message>
+    <message>
+        <source>Theme and language</source>
+        <translation>Тема и язык</translation>
+    </message>
+    <message>
+        <source>Fonts, colors, language, and application icons.</source>
+        <translation>Шрифты, цвета, язык и иконки приложения.</translation>
+    </message>
+    <message>
+        <source>Color theme</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Previewed immediately across every redesigned screen.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Font size</source>
+        <translation>Размер шрифта</translation>
+    </message>
+    <message>
+        <source>Changes the base interface size without restarting.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use custom icons</source>
+        <translation>Собственные иконки</translation>
+    </message>
+    <message>
+        <source>Custom icon files</source>
+        <translation>Файлы собственных иконок</translation>
+    </message>
+    <message>
+        <source>PNG files must use Throned&apos;s supported tray-icon names.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Window and statistics</source>
+        <translation>Окно и статистика</translation>
+    </message>
+    <message>
+        <source>Startup behavior and information shown in the main window.</source>
+        <translation>Запуск приложения и данные главного окна.</translation>
+    </message>
+    <message>
+        <source>Delete profiles without confirmation</source>
+        <translation>Удалять профили без подтверждения</translation>
+    </message>
+    <message>
+        <source>Automatic updates</source>
+        <translation>Автоматические обновления</translation>
+    </message>
+    <message>
+        <source>Schedule subscription and routing-profile refreshes.</source>
+        <translation>Расписание обновлений подписок и маршрутов.</translation>
+    </message>
+    <message>
+        <source>User agent</source>
+        <translation>User Agent</translation>
+    </message>
+    <message>
+        <source>Update subscriptions automatically</source>
+        <translation>Автообновление подписок</translation>
+    </message>
+    <message>
+        <source>Subscription interval (minutes)</source>
+        <translation>Интервал подписок (минуты)</translation>
+    </message>
+    <message>
+        <source>Update routing profiles automatically</source>
+        <translation>Автообновление профилей маршрутизации</translation>
+    </message>
+    <message>
+        <source>Routing interval (minutes)</source>
+        <translation>Интервал маршрутов (минуты)</translation>
+    </message>
+    <message>
+        <source>Check for Throned updates automatically</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update check interval (minutes)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A found release is announced in the tray; nothing installs on its own.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update behavior</source>
+        <translation>Поведение при обновлении</translation>
+    </message>
+    <message>
+        <source>Choose how imported profiles and device metadata are handled.</source>
+        <translation>Обработка импортированных профилей и данных устройства.</translation>
+    </message>
+    <message>
+        <source>Custom system parameters</source>
+        <translation>Параметры системы вручную</translation>
+    </message>
+    <message>
+        <source>Optional overrides for HWID, OS, version, or model.</source>
+        <translation>Необязательные значения HWID, ОС, версии или модели.</translation>
+    </message>
+    <message>
+        <source>Shared sing-box multiplexing defaults.</source>
+        <translation>Общие параметры мультиплексирования sing-box.</translation>
+    </message>
+    <message>
+        <source>TLS fragmentation</source>
+        <translation>Фрагментация TLS</translation>
+    </message>
+    <message>
+        <source>Packet fragmentation and TLS-record behavior.</source>
+        <translation>Фрагментация пакетов и записей TLS.</translation>
+    </message>
+    <message>
+        <source>Implementation</source>
+        <translation>Реализация</translation>
+    </message>
+    <message>
+        <source>Fragment size</source>
+        <translation>Размер фрагмента</translation>
+    </message>
+    <message>
+        <source>Fragment delay</source>
+        <translation>Задержка фрагментации</translation>
+    </message>
+    <message>
+        <source>Local controller endpoint exposed by the core.</source>
+        <translation>Локальная точка управления ядром.</translation>
+    </message>
+    <message>
+        <source>API port</source>
+        <translation>Порт API</translation>
+    </message>
+    <message>
+        <source>API secret</source>
+        <translation>Секрет API</translation>
+    </message>
+    <message>
+        <source>Xray core</source>
+        <translation>Ядро Xray</translation>
+    </message>
+    <message>
+        <source>Defaults used by Xray-backed profiles.</source>
+        <translation>Параметры профилей на базе Xray.</translation>
+    </message>
+    <message>
+        <source>Mux concurrency</source>
+        <translation>Одновременных соединений Mux</translation>
+    </message>
+    <message>
+        <source>VLESS preference</source>
+        <translation>Предпочтение VLESS</translation>
+    </message>
+    <message>
+        <source>Application updates and outbound network behavior.</source>
+        <translation>Обновления приложения и сетевые подключения.</translation>
+    </message>
+    <message>
+        <source>Core services</source>
+        <translation>Службы ядра</translation>
+    </message>
+    <message>
+        <source>Traffic statistics and the local DNS endpoint.</source>
+        <translation>Статистика трафика и локальный DNS.</translation>
+    </message>
+    <message>
+        <source>DNS inbound port</source>
+        <translation>Порт DNS inbound</translation>
+    </message>
+    <message>
+        <source>NTP client</source>
+        <translation>Клиент NTP</translation>
+    </message>
+    <message>
+        <source>Time synchronization used by sing-box.</source>
+        <translation>Синхронизация времени в sing-box.</translation>
+    </message>
+    <message>
+        <source>Xray geo assets</source>
+        <translation>Георесурсы Xray</translation>
+    </message>
+    <message>
+        <source>Sources used for geoip.dat and geosite.dat.</source>
+        <translation>Источники файлов geoip.dat и geosite.dat.</translation>
+    </message>
+    <message>
+        <source>GeoIP asset URL</source>
+        <translation>URL ресурса GeoIP</translation>
+    </message>
+    <message>
+        <source>Geosite asset URL</source>
+        <translation>URL ресурса Geosite</translation>
+    </message>
+    <message>
+        <source>Create backup</source>
+        <translation>Создание резервной копии</translation>
+    </message>
+    <message>
+        <source>Choose which local data to include.</source>
+        <translation>Выберите данные для включения.</translation>
+    </message>
+    <message>
+        <source>Backup file</source>
+        <translation>Файл резервной копии</translation>
+    </message>
+    <message>
+        <source>Restore backup</source>
+        <translation>Восстановление</translation>
+    </message>
+    <message>
+        <source>Import data from an existing Throned backup.</source>
+        <translation>Импорт данных из резервной копии Throned.</translation>
+    </message>
+    <message>
+        <source>Permissions</source>
+        <translation>Разрешения</translation>
+    </message>
+    <message>
+        <source>Administrative privileges and startup behavior.</source>
+        <translation>Административные права и поведение при запуске.</translation>
+    </message>
+    <message>
+        <source>Certificates</source>
+        <translation>Сертификаты</translation>
+    </message>
+    <message>
+        <source>Certificate stores and TLS validation defaults.</source>
+        <translation>Хранилища сертификатов и проверка TLS.</translation>
+    </message>
+    <message>
+        <source>uTLS fingerprint</source>
+        <translation>Отпечаток uTLS</translation>
+    </message>
+    <message>
+        <source>Backup restored successfully. Throned will now restart for the changes to take effect.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Backups</source>
+        <translation>Резервные копии</translation>
+    </message>
+    <message>
+        <source>Multiplexing</source>
+        <translation>Мультиплексирование</translation>
+    </message>
+    <message>
+        <source>Protocol</source>
+        <translation>Протокол</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <translation>Сеть</translation>
+    </message>
+    <message>
+        <source>Server</source>
+        <translation>Сервер</translation>
+    </message>
+    <message>
+        <source>Interval</source>
+        <translation>Интервал</translation>
+    </message>
+    <message>
+        <source>Outbound</source>
+        <translation>Исходящий маршрут</translation>
+    </message>
 </context>
 <context>
     <name>DialogEditGroup</name>
@@ -1724,13 +2117,34 @@ Throne will restart to complete the restore.</source>
 </context>
 <context>
     <name>DialogManageRoutes</name>
-    <message><source>Routing settings</source><translation>Настройки маршрутизации</translation></message>
-    <message><source>Profiles</source><translation>Профили</translation></message>
-    <message><source>Routing profiles</source><translation>Профили маршрутизации</translation></message>
-    <message><source>Choose the active profile, edit its rules, or import a reusable configuration.</source><translation>Выберите активный профиль, измените правила или импортируйте конфигурацию.</translation></message>
-    <message><source>Available profiles</source><translation>Доступные профили</translation></message>
-    <message><source>The selected profile becomes active after you save routing settings.</source><translation>Выбранный профиль станет активным после сохранения настроек маршрутизации.</translation></message>
-    <message><source>Save settings</source><translation>Сохранить настройки</translation></message>
+    <message>
+        <source>Routing settings</source>
+        <translation>Настройки маршрутизации</translation>
+    </message>
+    <message>
+        <source>Profiles</source>
+        <translation>Профили</translation>
+    </message>
+    <message>
+        <source>Routing profiles</source>
+        <translation>Профили маршрутизации</translation>
+    </message>
+    <message>
+        <source>Choose the active profile, edit its rules, or import a reusable configuration.</source>
+        <translation>Выберите активный профиль, измените правила или импортируйте конфигурацию.</translation>
+    </message>
+    <message>
+        <source>Available profiles</source>
+        <translation>Доступные профили</translation>
+    </message>
+    <message>
+        <source>The selected profile becomes active after you save routing settings.</source>
+        <translation>Выбранный профиль станет активным после сохранения настроек маршрутизации.</translation>
+    </message>
+    <message>
+        <source>Save settings</source>
+        <translation>Сохранить настройки</translation>
+    </message>
     <message>
         <source>Routes</source>
         <translation>Маршруты</translation>
@@ -2020,6 +2434,10 @@ For more information, see the document &quot;Configuration/DNS&quot;.</source>
         <translation>Импорт профиля маршрутизации</translation>
     </message>
     <message>
+        <source>Paste a Throned route link, a remoteRoute link, a base64 blob, or a JSON rule array</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Invalid input</source>
         <translation>Неверный ввод</translation>
     </message>
@@ -2098,10 +2516,6 @@ For more information, see the document &quot;Configuration/DNS&quot;.</source>
     <message>
         <source>Update selected</source>
         <translation>Обновить выбранные</translation>
-    </message>
-    <message>
-        <source>Paste a Throne route link, a remoteRoute link, a base64 blob, or a JSON rule array</source>
-        <translation>Вставьте ссылку маршрута Throne, ссылку remoteRoute, base64 или массив правил JSON</translation>
     </message>
     <message>
         <source>Add remote routing profiles</source>
@@ -2938,8 +3352,8 @@ https://matsuridayo.github.io/n-configuration/#vpn-tun</translation>
         <translation>Xray Outbound JSON — пожалуйста, прочтите документацию.</translation>
     </message>
     <message>
-        <source>Xray full config (Throne adds a socks inbound and uses sing-box for tun/routing).</source>
-        <translation>Полная конфигурация Xray (Throne добавляет socks inbound и использует sing-box для tun / маршрутизации).</translation>
+        <source>Xray full config (Throned adds a socks inbound and uses sing-box for tun/routing).</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Please fill the complete config.</source>
@@ -3691,76 +4105,95 @@ https://matsuridayo.github.io/n-configuration/#vpn-tun</translation>
     </message>
 </context>
 <context>
-    <name>JsonEditor</name>
-    <message>
-        <source>JSON Editor</source>
-        <translation>Редактор JSON</translation>
-    </message>
-    <message>
-        <source>Format JSON</source>
-        <translation>Форматирование JSON</translation>
-    </message>
-    <message>
-        <source>Remove All Comments</source>
-        <translation>Удалить все комментарии</translation>
-    </message>
-    <message>
-        <source>Json Editor</source>
-        <translation>Редактор JSON</translation>
-    </message>
-    <message>
-        <source>Structure Preview</source>
-        <translation>Предпросмотр структуры</translation>
-    </message>
-    <message>
-        <source>OK</source>
-        <translation>ОК</translation>
-    </message>
-    <message>
-        <source>Json Contains Syntax Errors</source>
-        <translation>JSON содержит синтаксические ошибки</translation>
-    </message>
-    <message>
-        <source>Original Json may contain syntax errors. Json tree is disabled.</source>
-        <translation>Кажется, оригинальный JSON содержит синтаксические ошибки. Дерево JSON отключено.</translation>
-    </message>
-    <message>
-        <source>You must correct these errors before continuing.</source>
-        <translation>Исправьте эти ошибки, прежде чем продолжить.</translation>
-    </message>
-    <message>
-        <source>Syntax Errors</source>
-        <translation>Синтаксические ошибки</translation>
-    </message>
-    <message>
-        <source>Please fix the JSON errors or remove the comments before continue</source>
-        <translation>Пожалуйста, исправьте ошибки JSON или удалите комментарии, прежде чем продолжить</translation>
-    </message>
-</context>
-<context>
     <name>MainWindow</name>
-    <message><source>Connection</source><translation>Соединение</translation></message>
-    <message><source>Inbound</source><translation>Входящие</translation></message>
-    <message><source>Routing</source><translation>Маршруты</translation></message>
-    <message><source>%1 → %2</source><translation>%1 → %2</translation></message>
-    <message><source>unknown</source><translation>неизвестно</translation></message>
-    <message><source>Nothing to build a rule from</source><translation>Не из чего собрать правило</translation></message>
-    <message><source>This domain — %1</source><translation>Этот домен — %1</translation></message>
-    <message><source>Domain and subdomains — *.%1</source><translation>Домен и поддомены — *.%1</translation></message>
-    <message><source>This process — %1</source><translation>Этот процесс — %1</translation></message>
-    <message><source>This executable — %1</source><translation>Этот исполняемый файл — %1</translation></message>
-    <message><source>This address — %1</source><translation>Этот адрес — %1</translation></message>
-    <message><source>%1  ·  already %2</source><translation>%1  ·  уже %2</translation></message>
-    <message><source>Through proxy</source><translation>Через прокси</translation></message>
-    <message><source>Directly</source><translation>Напрямую</translation></message>
-    <message><source>Block</source><translation>Блокировать</translation></message>
-    <message><source>Copy executable path</source><translation>Скопировать путь к файлу</translation></message>
-    <message><source>Copy destination</source><translation>Скопировать назначение</translation></message>
-    <message><source>No routing profile</source><translation>Нет профиля маршрутизации</translation></message>
-    <message><source>There is no active routing profile to add the rule to.</source><translation>Нет активного профиля маршрутизации, куда добавить правило.</translation></message>
-    <message><source>Raw routing profile</source><translation>Raw-профиль маршрутизации</translation></message>
-    <message><source>“%1” is a raw profile and is edited as JSON, so a rule cannot be appended to it here.</source><translation>«%1» — raw-профиль, он редактируется как JSON, поэтому дописать правило отсюда нельзя.</translation></message>
-    <message><source>Rule not added</source><translation>Правило не добавлено</translation></message>
+    <message>
+        <source>Connection</source>
+        <translation>Соединение</translation>
+    </message>
+    <message>
+        <source>Inbound</source>
+        <translation>Входящие</translation>
+    </message>
+    <message>
+        <source>Routing</source>
+        <translation>Маршруты</translation>
+    </message>
+    <message>
+        <source>%1 → %2</source>
+        <translation>%1 → %2</translation>
+    </message>
+    <message>
+        <source>unknown</source>
+        <translation>неизвестно</translation>
+    </message>
+    <message>
+        <source>Nothing to build a rule from</source>
+        <translation>Не из чего собрать правило</translation>
+    </message>
+    <message>
+        <source>This domain — %1</source>
+        <translation>Этот домен — %1</translation>
+    </message>
+    <message>
+        <source>Domain and subdomains — *.%1</source>
+        <translation>Домен и поддомены — *.%1</translation>
+    </message>
+    <message>
+        <source>This process — %1</source>
+        <translation>Этот процесс — %1</translation>
+    </message>
+    <message>
+        <source>This executable — %1</source>
+        <translation>Этот исполняемый файл — %1</translation>
+    </message>
+    <message>
+        <source>This address — %1</source>
+        <translation>Этот адрес — %1</translation>
+    </message>
+    <message>
+        <source>%1  ·  already %2</source>
+        <translation>%1  ·  уже %2</translation>
+    </message>
+    <message>
+        <source>Through proxy</source>
+        <translation>Через прокси</translation>
+    </message>
+    <message>
+        <source>Directly</source>
+        <translation>Напрямую</translation>
+    </message>
+    <message>
+        <source>Block</source>
+        <translation>Блокировать</translation>
+    </message>
+    <message>
+        <source>Copy executable path</source>
+        <translation>Скопировать путь к файлу</translation>
+    </message>
+    <message>
+        <source>Copy destination</source>
+        <translation>Скопировать назначение</translation>
+    </message>
+    <message>
+        <source>No routing profile</source>
+        <translation>Нет профиля маршрутизации</translation>
+    </message>
+    <message>
+        <source>There is no active routing profile to add the rule to.</source>
+        <translation>Нет активного профиля маршрутизации, куда добавить правило.</translation>
+    </message>
+    <message>
+        <source>Raw routing profile</source>
+        <translation>Raw-профиль маршрутизации</translation>
+    </message>
+    <message>
+        <source>“%1” is a raw profile and is edited as JSON, so a rule cannot be appended to it here.</source>
+        <translation>«%1» — raw-профиль, он редактируется как JSON, поэтому дописать правило отсюда нельзя.</translation>
+    </message>
+    <message>
+        <source>Rule not added</source>
+        <translation>Правило не добавлено</translation>
+    </message>
     <message>
         <source>Program</source>
         <translation>Программа</translation>
@@ -4196,6 +4629,30 @@ URL: %2</translation>
         <translation>Не удалось собрать общую тестовую конфигурацию для группы: </translation>
     </message>
     <message>
+        <source>Failed to build diagnostic config: </source>
+        <translation>Не удалось собрать конфиг для диагностики: </translation>
+    </message>
+    <message>
+        <source>[%1] diagnostics failed: %2</source>
+        <translation>[%1] диагностика не выполнена: %2</translation>
+    </message>
+    <message>
+        <source>The core returned no steps.</source>
+        <translation>Ядро не вернуло ни одного этапа.</translation>
+    </message>
+    <message>
+        <source>[%1] diagnostics:</source>
+        <translation>[%1] диагностика:</translation>
+    </message>
+    <message>
+        <source>Diagnostics: %1</source>
+        <translation>Диагностика: %1</translation>
+    </message>
+    <message>
+        <source>Each stage of the path, in order. The first failure is the cause.</source>
+        <translation>Все этапы пути по порядку. Первый упавший и есть причина.</translation>
+    </message>
+    <message>
         <source>a required category</source>
         <translation>обязательная категория</translation>
     </message>
@@ -4242,6 +4699,14 @@ Download them now?</source>
     <message>
         <source>If there is no response for a long time, it is recommended to restart the software.</source>
         <translation>Если нет ответа в течении долгого времени, рекомендуем перезапустить программу.</translation>
+    </message>
+    <message>
+        <source>Failed to release the transition guard: %1</source>
+        <translation>Не удалось снять защиту на время переключения: %1</translation>
+    </message>
+    <message>
+        <source>Failed to install the transition guard: %1</source>
+        <translation>Не удалось включить защиту на время переключения: %1</translation>
     </message>
     <message>
         <source>Starting profile %1</source>
@@ -4432,6 +4897,10 @@ Error: %1</source>
         <translation>Пожалуйста, предоставьте ядру права root.</translation>
     </message>
     <message>
+        <source>Please run Throned as admin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Requesting permission</source>
         <translation>Запрос разрешения</translation>
     </message>
@@ -4442,10 +4911,6 @@ Error: %1</source>
     <message>
         <source>Settings</source>
         <translation>Настройки</translation>
-    </message>
-    <message>
-        <source>Routing</source>
-        <translation>Маршруты</translation>
     </message>
     <message>
         <source>Destination (Domain)</source>
@@ -4596,10 +5061,6 @@ Please try again.</source>
         <translation>Outbound</translation>
     </message>
     <message>
-        <source>Please run Throne as admin</source>
-        <translation>Пожалуйста, запустите Throne от имени администратора</translation>
-    </message>
-    <message>
         <source>Click To Sort By Protocol</source>
         <translation>Нажмите для сортировки по протоколу</translation>
     </message>
@@ -4616,8 +5077,64 @@ Please try again.</source>
         <translation>Добавить подписку</translation>
     </message>
     <message>
+        <source>TUN mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>System proxy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Auto-scroll</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Routing profile and default traffic</source>
+        <translation type="unfinished">Профиль маршрутизации и трафик по умолчанию</translation>
+    </message>
+    <message>
+        <source>URL test</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Speed test</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resolve IP</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search servers...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n profiles selected</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
         <source>Select Routing</source>
         <translation>Выбор маршрутизации</translation>
+    </message>
+    <message>
+        <source>Diagnose Selected</source>
+        <translation>Диагностика выбранного</translation>
+    </message>
+    <message>
+        <source>Copy sing-box config</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy paired configs</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>All files (*)</source>
@@ -4642,6 +5159,10 @@ Please try again.</source>
     <message>
         <source>routing profiles</source>
         <translation>профилей маршрутизации</translation>
+    </message>
+    <message>
+        <source>updates</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Import routing profile</source>
@@ -4693,7 +5214,10 @@ Name: %1</source>
         <source>Copied!</source>
         <translation>Скопировано!</translation>
     </message>
-    <message><source>Core log level; applies on the next start</source><translation>Уровень логов ядра; применяется при следующем запуске</translation></message>
+    <message>
+        <source>Core log level; applies on the next start</source>
+        <translation>Уровень логов ядра; применяется при следующем запуске</translation>
+    </message>
 </context>
 <context>
     <name>ProfilesTableFilterHeader</name>
@@ -4786,12 +5310,6 @@ Name: %1</source>
         <translation>Не удалось сохранить загруженный файл.</translation>
     </message>
     <message>
-        <source>Proxy: %1
-Direct: %2</source>
-        <translation>Прокси: %1
-Напрямую: %2</translation>
-    </message>
-    <message>
         <source>Add profiles to this group</source>
         <translation>Добавить профили в эту группу</translation>
     </message>
@@ -4834,6 +5352,10 @@ How to update?</source>
         <translation>Идёт обработка данных подписки...</translation>
     </message>
     <message>
+        <source>Failed to parse the Clash configuration.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Process complete, applying...</source>
         <translation>Процесс завершён, применение...</translation>
     </message>
@@ -4850,6 +5372,11 @@ Deleted %5 Profiles:
 %4
 Удалено %5 профилей:
 %6</translation>
+    </message>
+    <message>
+        <source>Still in use, so kept instead of deleted:
+%1</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Nothing</source>
@@ -4904,12 +5431,20 @@ Deleted %5 Profiles:
         <translation>Обновлений нет</translation>
     </message>
     <message>
-        <source>Update found: %1
-Release note:
-%2</source>
-        <translation>Найдено обновление: %1
-Список изменений:
-%2</translation>
+        <source>Throned update available</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is ready to download. Click to see the release notes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update found: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No release note.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Open in browser</source>
@@ -5026,10 +5561,6 @@ Release note:
         <translation>Слабый шифр</translation>
     </message>
     <message>
-        <source>[Warn] Throne did not shut down cleanly last time. Diagnostics were saved to: %1</source>
-        <translation>[Предупреждение] В прошлый раз Throne не завершил работу корректно. Результаты диагностики сохранены в: %1</translation>
-    </message>
-    <message>
         <source>An auto selector cannot be a hop in a chain: it moves to a different server on its own whenever one degrades.</source>
         <translation>Автовыбор не может выступать в качестве промежуточного звена в цепочке: он самостоятельно переключается на другой сервер при ухудшении работоспособности одного из них.</translation>
     </message>
@@ -5088,6 +5619,10 @@ Release note:
     <message>
         <source>last test failed</source>
         <translation>последний тест завершился с ошибкой</translation>
+    </message>
+    <message>
+        <source>Xray full config cannot be combined with the group&apos;s proxies</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>never</source>
@@ -5237,6 +5772,46 @@ Release note:
         <source>%1 of %2 checks failed</source>
         <translation>%1 из %2 проверок завершились неудачно</translation>
     </message>
+    <message>
+        <source>Throned — Route profile preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Development</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>regional-routing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>fallback-policy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The existing lossless advanced editor remains available here.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>[Warn] Throned did not shut down cleanly last time. Diagnostics were saved to: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Application</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Executable path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose an executable file or paste its full path.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Direct</source>
+        <translation type="unfinished">Напрямую</translation>
+    </message>
 </context>
 <context>
     <name>QPlatformTheme</name>
@@ -5262,13 +5837,6 @@ Release note:
     </message>
 </context>
 <context>
-    <name>Qv2ray::ui::widgets::AutoCompleteTextEdit</name>
-    <message>
-        <source>You can not input space characters here.</source>
-        <translation>Ввод символа пробела запрещён.</translation>
-    </message>
-</context>
-<context>
     <name>RawRouteItem</name>
     <message>
         <source>Raw routing profile</source>
@@ -5280,11 +5848,9 @@ Release note:
     </message>
     <message>
         <source>Use the route object exactly as written (outbound ids are still resolved to tags).
-Throne will NOT add its DNS-hijack or xray bridge plumbing, so DNS, chained/xray
-outbounds and other Throne features may break. For advanced users only.</source>
-        <translation>Использовать raw-профиль маршрутизации точно так, как написано (outbounds идентификаторы по-прежнему преобразуются в теги).
-В Throne не будут добавлены функции DNS-hijack или xray bridge, поэтому могут нарушаться функции DNS, chained/xray
-outbounds и другие функции Throne. Только для опытных пользователей.</translation>
+Throned will NOT add its DNS-hijack or xray bridge plumbing, so DNS, chained/xray
+outbounds and other Throned features may break. For advanced users only.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Valid JSON</source>
@@ -5432,12 +5998,6 @@ Your local edits are overwritten on each update.</source>
         <translation>Некорректные правила</translation>
     </message>
     <message>
-        <source>Some rules could not be added:
-</source>
-        <translation>Некоторые правила не удалось добавить:
-</translation>
-    </message>
-    <message>
         <source>Simple rule manual</source>
         <translation>Инструкция по простым правилам</translation>
     </message>
@@ -5527,116 +6087,498 @@ Your local edits are overwritten on each update.</source>
         <source>Fetched with warnings</source>
         <translation>Загружено с предупреждениями</translation>
     </message>
-    <message><source>Simple</source><translation>Простой</translation></message>
-    <message><source>Route profile</source><translation>Профиль маршрутизации</translation></message>
-    <message><source>Mode</source><translation>Режим</translation></message>
-    <message><source>?  Help</source><translation>?  Помощь</translation></message>
-    <message><source>Changes are saved only after validation.</source><translation>Изменения сохранятся только после проверки.</translation></message>
-    <message><source>Cancel</source><translation>Отмена</translation></message>
-    <message><source>Save profile</source><translation>Сохранить профиль</translation></message>
-    <message><source>Back to rule list</source><translation>К списку правил</translation></message>
-    <message><source>Edit the selected rule without losing its original JSON fields.</source><translation>Измените правило без потери исходных полей JSON.</translation></message>
-    <message><source>Ordered rule list</source><translation>Упорядоченный список правил</translation></message>
-    <message><source>First match wins. Reordering here changes the actual sing-box priority.</source><translation>Срабатывает первое совпадение. Порядок здесь — реальный приоритет sing-box.</translation></message>
-    <message><source>Full source</source><translation>Весь JSON</translation></message>
-    <message><source>Validate</source><translation>Проверить</translation></message>
-    <message><source>Add rule</source><translation>Добавить правило</translation></message>
-    <message><source>Full routing source</source><translation>Полный JSON маршрутизации</translation></message>
-    <message><source>Routing profile is valid</source><translation>Профиль маршрутизации корректен</translation></message>
-    <message><source>All %1 rules can be serialized.</source><translation>Все правила (%1) успешно сериализуются.</translation></message>
-    <message><source>Rule %1</source><translation>Правило %1</translation></message>
-    <message><source>All actions are shown in their original global order; unknown JSON fields are preserved.</source><translation>Все действия показаны в исходном порядке; неизвестные поля JSON сохраняются.</translation></message>
-    <message><source>No match conditions</source><translation>Без условий совпадения</translation></message>
-    <message><source>+%1 more</source><translation>ещё %1</translation></message>
-    <message><source>Move up</source><translation>Поднять выше</translation></message>
-    <message><source>Move down</source><translation>Опустить ниже</translation></message>
-    <message><source>Edit rule</source><translation>Изменить правило</translation></message>
-    <message><source>Delete rule</source><translation>Удалить правило</translation></message>
-    <message><source>Unmatched traffic</source><translation>Остальной трафик</translation></message>
-    <message><source>Routing actions</source><translation>Действия маршрутизации</translation></message>
-    <message><source>Profile statistics</source><translation>Статистика профиля</translation></message>
-    <message><source>Total rules</source><translation>Всего правил</translation></message>
-    <message><source>WARP bypass</source><translation>WARP bypass</translation></message>
-    <message><source>Showing %1 rules · original global positions are preserved</source><translation>Показаны правила «%1» · позиции в общем списке сохранены</translation></message>
-    <message><source>Show all actions</source><translation>Показать все действия</translation></message>
-    <message><source>Show %1 only</source><translation>Показать только «%1»</translation></message>
-    <message><source>No %1 rules yet.</source><translation>Правил «%1» пока нет.</translation></message>
-    <message><source>This rule is active</source><translation>Правило активно</translation></message>
+    <message>
+        <source>Simple</source>
+        <translation>Простой</translation>
+    </message>
+    <message>
+        <source>Route profile</source>
+        <translation>Профиль маршрутизации</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Режим</translation>
+    </message>
+    <message>
+        <source>?  Help</source>
+        <translation>?  Помощь</translation>
+    </message>
+    <message>
+        <source>Changes are saved only after validation.</source>
+        <translation>Изменения сохранятся только после проверки.</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Отмена</translation>
+    </message>
+    <message>
+        <source>Save profile</source>
+        <translation>Сохранить профиль</translation>
+    </message>
+    <message>
+        <source>Back to rule list</source>
+        <translation>К списку правил</translation>
+    </message>
+    <message>
+        <source>Edit the selected rule without losing its original JSON fields.</source>
+        <translation>Измените правило без потери исходных полей JSON.</translation>
+    </message>
+    <message>
+        <source>Ordered rule list</source>
+        <translation>Упорядоченный список правил</translation>
+    </message>
+    <message>
+        <source>First match wins. Reordering here changes the actual sing-box priority.</source>
+        <translation>Срабатывает первое совпадение. Порядок здесь — реальный приоритет sing-box.</translation>
+    </message>
+    <message>
+        <source>Full source</source>
+        <translation>Весь JSON</translation>
+    </message>
+    <message>
+        <source>Validate</source>
+        <translation>Проверить</translation>
+    </message>
+    <message>
+        <source>Add rule</source>
+        <translation>Добавить правило</translation>
+    </message>
+    <message>
+        <source>Full routing source</source>
+        <translation>Полный JSON маршрутизации</translation>
+    </message>
+    <message>
+        <source>Routing profile is valid</source>
+        <translation>Профиль маршрутизации корректен</translation>
+    </message>
+    <message>
+        <source>All %1 rules can be serialized.</source>
+        <translation>Все правила (%1) успешно сериализуются.</translation>
+    </message>
+    <message>
+        <source>Rule %1</source>
+        <translation>Правило %1</translation>
+    </message>
+    <message>
+        <source>All actions are shown in their original global order; unknown JSON fields are preserved.</source>
+        <translation>Все действия показаны в исходном порядке; неизвестные поля JSON сохраняются.</translation>
+    </message>
+    <message>
+        <source>No match conditions</source>
+        <translation>Без условий совпадения</translation>
+    </message>
+    <message>
+        <source>+%1 more</source>
+        <translation>ещё %1</translation>
+    </message>
+    <message>
+        <source>Move up</source>
+        <translation>Поднять выше</translation>
+    </message>
+    <message>
+        <source>Move down</source>
+        <translation>Опустить ниже</translation>
+    </message>
+    <message>
+        <source>Edit rule</source>
+        <translation>Изменить правило</translation>
+    </message>
+    <message>
+        <source>Delete rule</source>
+        <translation>Удалить правило</translation>
+    </message>
+    <message>
+        <source>Unmatched traffic</source>
+        <translation>Остальной трафик</translation>
+    </message>
+    <message>
+        <source>Routing actions</source>
+        <translation>Действия маршрутизации</translation>
+    </message>
+    <message>
+        <source>Profile statistics</source>
+        <translation>Статистика профиля</translation>
+    </message>
+    <message>
+        <source>Total rules</source>
+        <translation>Всего правил</translation>
+    </message>
+    <message>
+        <source>WARP bypass</source>
+        <translation>WARP bypass</translation>
+    </message>
+    <message>
+        <source>Showing %1 rules · original global positions are preserved</source>
+        <translation>Показаны правила «%1» · позиции в общем списке сохранены</translation>
+    </message>
+    <message>
+        <source>Show all actions</source>
+        <translation>Показать все действия</translation>
+    </message>
+    <message>
+        <source>Show %1 only</source>
+        <translation>Показать только «%1»</translation>
+    </message>
+    <message>
+        <source>No %1 rules yet.</source>
+        <translation>Правил «%1» пока нет.</translation>
+    </message>
+    <message>
+        <source>This rule is active</source>
+        <translation>Правило активно</translation>
+    </message>
 </context>
 <context>
     <name>RouteProfileSimpleEditor</name>
-    <message><source>Routing actions</source><translation>Действия маршрутизации</translation></message>
-    <message><source>Profile statistics</source><translation>Статистика профиля</translation></message>
-    <message><source>Total rules</source><translation>Всего правил</translation></message>
-    <message><source>Rule order</source><translation>Порядок правил</translation></message>
-    <message><source>Quick options</source><translation>Быстрые настройки</translation></message>
-    <message><source>Common routing behavior.</source><translation>Частые сценарии маршрутизации.</translation></message>
-    <message><source>Route local proxy traffic through proxy</source><translation>Направлять локальный proxy-трафик через прокси</translation></message>
-    <message><source>Also route mixed-in and socks-in traffic through this outbound.</source><translation>Также направлять mixed-in и socks-in через этот outbound.</translation></message>
-    <message><source>Applications</source><translation>Приложения</translation></message>
-    <message><source>Match by installed app, running process, or executable.</source><translation>Выбор установленной программы, процесса или файла.</translation></message>
-    <message><source>Domains</source><translation>Домены</translation></message>
-    <message><source>Match domain names, suffixes, keywords, and regexes.</source><translation>Домены, суффиксы, ключевые слова и регулярные выражения.</translation></message>
-    <message><source>Rule sets</source><translation>Наборы правил</translation></message>
-    <message><source>Remote geosite lists, matched as a whole.</source><translation>Удалённые списки geosite целиком.</translation></message>
-    <message><source>IP addresses &amp; ranges</source><translation>IP-адреса и диапазоны</translation></message>
-    <message><source>Match destination IP addresses, CIDR ranges, and geoip lists.</source><translation>IP-адреса назначения, диапазоны CIDR и списки geoip.</translation></message>
-    <message><source>Advanced / raw rules</source><translation>Расширенные / raw-правила</translation></message>
-    <message><source>Ordered conditions, exact priority, and lossless JSON.</source><translation>Вложенные условия, точный приоритет и JSON без потерь.</translation></message>
-    <message><source>Direct rules</source><translation>Правила напрямую</translation></message>
-    <message><source>Traffic that should bypass the proxy.</source><translation>Трафик, который должен идти в обход прокси.</translation></message>
-    <message><source>Block rules</source><translation>Правила блокировки</translation></message>
-    <message><source>Traffic that should be rejected.</source><translation>Трафик, который нужно отклонить.</translation></message>
-    <message><source>WARP bypass rules</source><translation>Правила обхода WARP</translation></message>
-    <message><source>Traffic that should bypass the WARP outbound.</source><translation>Трафик, который должен обходить WARP-outbound.</translation></message>
-    <message><source>Proxy rules</source><translation>Правила прокси</translation></message>
-    <message><source>Traffic that should be routed through a proxy outbound.</source><translation>Трафик, который должен идти через proxy-outbound.</translation></message>
-    <message><source>Add</source><translation>Добавить</translation></message>
-    <message><source>No rules added yet.</source><translation>Правила пока не добавлены.</translation></message>
-    <message><source>Add routing rule</source><translation>Добавить правило маршрутизации</translation></message>
-    <message><source>Paste one or more destination IP addresses or CIDR ranges, one per line.</source><translation>Вставьте IP-адреса или диапазоны CIDR, по одному на строку.</translation></message>
-    <message><source>Paste one or more values, one per line, or choose several rule sets.</source><translation>Вставьте несколько значений по одному на строку или выберите наборы правил.</translation></message>
-    <message><source>IP / CIDR</source><translation>IP / CIDR</translation></message>
-    <message><source>GeoIP rule set</source><translation>Набор GeoIP</translation></message>
-    <message><source>Domain</source><translation>Домен</translation></message>
-    <message><source>Domain suffix</source><translation>Суффикс домена</translation></message>
-    <message><source>Domain keyword</source><translation>Ключевое слово домена</translation></message>
-    <message><source>Domain regex</source><translation>Регулярное выражение домена</translation></message>
-    <message><source>Geosite rule set</source><translation>Набор Geosite</translation></message>
-    <message><source>One value per line…</source><translation>Одно значение на строку…</translation></message>
-    <message><source>Search rule sets…</source><translation>Поиск наборов правил…</translation></message>
-    <message><source>Add selected</source><translation>Добавить выбранное</translation></message>
-    <message><source>Filter…</source><translation>Фильтр…</translation></message>
-    <message><source>Nothing matches this filter.</source><translation>Под фильтр ничего не подходит.</translation></message>
-    <message><source>+%1 more</source><translation>ещё %1</translation></message>
-    <message><source>Show less</source><translation>Свернуть</translation></message>
-    <message><source>Paste list</source><translation>Вставить списком</translation></message>
-    <message><source>Edit every rule of this action as plain text.</source><translation>Редактировать все правила этого действия обычным текстом.</translation></message>
-    <message><source>Paste rule list</source><translation>Список правил</translation></message>
-    <message><source>Every rule of “%1”, one per line. Editing here replaces the whole list, and each entry lands in its own card automatically.</source><translation>Все правила «%1», по одному на строку. Список заменяется целиком, а каждая запись сама попадает в нужную карточку.</translation></message>
-    <message><source>Prefixes: domain:  suffix:  keyword:  regex:  ruleset:  ip:  processName:  processPath:
-A line without a prefix is recognised on its own — sing-box spellings (domain_suffix, process_name, rule_set…) are accepted too.</source><translation>Префиксы: domain:  suffix:  keyword:  regex:  ruleset:  ip:  processName:  processPath:
-Строка без префикса распознаётся сама — написание из sing-box (domain_suffix, process_name, rule_set…) тоже принимается.</translation></message>
-    <message><source>Apply list</source><translation>Применить список</translation></message>
-    <message><source>Nothing to add yet.</source><translation>Пока нечего добавлять.</translation></message>
-    <message><source>%1 line(s) will be dropped — add a prefix to keep them: %2</source><translation>Строк будет отброшено: %1 — добавьте префикс, чтобы сохранить: %2</translation></message>
-    <message><source>domains</source><translation>домены</translation></message>
-    <message><source>suffixes</source><translation>суффиксы</translation></message>
-    <message><source>keywords</source><translation>ключевые слова</translation></message>
-    <message><source>regexes</source><translation>регулярные выражения</translation></message>
-    <message><source>rule sets</source><translation>наборы правил</translation></message>
-    <message><source>addresses</source><translation>адреса</translation></message>
-    <message><source>processes</source><translation>процессы</translation></message>
+    <message>
+        <source>Routing actions</source>
+        <translation>Действия маршрутизации</translation>
+    </message>
+    <message>
+        <source>Profile statistics</source>
+        <translation>Статистика профиля</translation>
+    </message>
+    <message>
+        <source>Total rules</source>
+        <translation>Всего правил</translation>
+    </message>
+    <message>
+        <source>Rule order</source>
+        <translation>Порядок правил</translation>
+    </message>
+    <message>
+        <source>Quick options</source>
+        <translation>Быстрые настройки</translation>
+    </message>
+    <message>
+        <source>Common routing behavior.</source>
+        <translation>Частые сценарии маршрутизации.</translation>
+    </message>
+    <message>
+        <source>Route local proxy traffic through proxy</source>
+        <translation>Направлять локальный proxy-трафик через прокси</translation>
+    </message>
+    <message>
+        <source>Also route mixed-in and socks-in traffic through this outbound.</source>
+        <translation>Также направлять mixed-in и socks-in через этот outbound.</translation>
+    </message>
+    <message>
+        <source>Rules here leave through %1. Right-click to remove the action.</source>
+        <translation>Правила отсюда уходят через %1. Правый клик — удалить действие.</translation>
+    </message>
+    <message>
+        <source>Remove action</source>
+        <translation>Удалить действие</translation>
+    </message>
+    <message>
+        <source>Remove the action for %1 and every rule in it?</source>
+        <translation>Удалить действие для %1 вместе со всеми его правилами?</translation>
+    </message>
+    <message>
+        <source>Send through a profile</source>
+        <translation>Отправлять через профиль</translation>
+    </message>
+    <message>
+        <source>Every profile already has an action here.</source>
+        <translation>Для каждого профиля действие уже создано.</translation>
+    </message>
+    <message>
+        <source>Rules in the new action leave through this profile:</source>
+        <translation>Правила нового действия будут уходить через этот профиль:</translation>
+    </message>
+    <message>
+        <source>Applications</source>
+        <translation>Приложения</translation>
+    </message>
+    <message>
+        <source>Match by installed app, running process, or executable.</source>
+        <translation>Выбор установленной программы, процесса или файла.</translation>
+    </message>
+    <message>
+        <source>Domains</source>
+        <translation>Домены</translation>
+    </message>
+    <message>
+        <source>Match domain names, suffixes, keywords, and regexes.</source>
+        <translation>Домены, суффиксы, ключевые слова и регулярные выражения.</translation>
+    </message>
+    <message>
+        <source>Rule sets</source>
+        <translation>Наборы правил</translation>
+    </message>
+    <message>
+        <source>Remote geosite lists, matched as a whole.</source>
+        <translation>Удалённые списки geosite целиком.</translation>
+    </message>
+    <message>
+        <source>IP addresses &amp; ranges</source>
+        <translation>IP-адреса и диапазоны</translation>
+    </message>
+    <message>
+        <source>Match destination IP addresses, CIDR ranges, and geoip lists.</source>
+        <translation>IP-адреса назначения, диапазоны CIDR и списки geoip.</translation>
+    </message>
+    <message>
+        <source>Advanced / raw rules</source>
+        <translation>Расширенные / raw-правила</translation>
+    </message>
+    <message>
+        <source>Ordered conditions, exact priority, and lossless JSON.</source>
+        <translation>Вложенные условия, точный приоритет и JSON без потерь.</translation>
+    </message>
+    <message>
+        <source>Direct rules</source>
+        <translation>Правила напрямую</translation>
+    </message>
+    <message>
+        <source>Traffic that should bypass the proxy.</source>
+        <translation>Трафик, который должен идти в обход прокси.</translation>
+    </message>
+    <message>
+        <source>Block rules</source>
+        <translation>Правила блокировки</translation>
+    </message>
+    <message>
+        <source>Traffic that should be rejected.</source>
+        <translation>Трафик, который нужно отклонить.</translation>
+    </message>
+    <message>
+        <source>WARP bypass rules</source>
+        <translation>Правила обхода WARP</translation>
+    </message>
+    <message>
+        <source>Traffic that should bypass the WARP outbound.</source>
+        <translation>Трафик, который должен обходить WARP-outbound.</translation>
+    </message>
+    <message>
+        <source>Proxy rules</source>
+        <translation>Правила прокси</translation>
+    </message>
+    <message>
+        <source>Traffic that should be routed through a proxy outbound.</source>
+        <translation>Трафик, который должен идти через proxy-outbound.</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>Добавить</translation>
+    </message>
+    <message>
+        <source>No rules added yet.</source>
+        <translation>Правила пока не добавлены.</translation>
+    </message>
+    <message>
+        <source>Direct</source>
+        <translation type="unfinished">Напрямую</translation>
+    </message>
+    <message>
+        <source>Proxy</source>
+        <translation type="unfinished">Прокси</translation>
+    </message>
+    <message>
+        <source>Block</source>
+        <translation type="unfinished">Блокировать</translation>
+    </message>
+    <message>
+        <source>WARP bypass</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add routing rule</source>
+        <translation>Добавить правило маршрутизации</translation>
+    </message>
+    <message>
+        <source>Paste one or more destination IP addresses or CIDR ranges, one per line.</source>
+        <translation>Вставьте IP-адреса или диапазоны CIDR, по одному на строку.</translation>
+    </message>
+    <message>
+        <source>Paste one or more values, one per line, or choose several rule sets.</source>
+        <translation>Вставьте несколько значений по одному на строку или выберите наборы правил.</translation>
+    </message>
+    <message>
+        <source>IP / CIDR</source>
+        <translation>IP / CIDR</translation>
+    </message>
+    <message>
+        <source>GeoIP rule set</source>
+        <translation>Набор GeoIP</translation>
+    </message>
+    <message>
+        <source>Domain</source>
+        <translation>Домен</translation>
+    </message>
+    <message>
+        <source>Domain suffix</source>
+        <translation>Суффикс домена</translation>
+    </message>
+    <message>
+        <source>Domain keyword</source>
+        <translation>Ключевое слово домена</translation>
+    </message>
+    <message>
+        <source>Domain regex</source>
+        <translation>Регулярное выражение домена</translation>
+    </message>
+    <message>
+        <source>Geosite rule set</source>
+        <translation>Набор Geosite</translation>
+    </message>
+    <message>
+        <source>One value per line…</source>
+        <translation>Одно значение на строку…</translation>
+    </message>
+    <message>
+        <source>Search rule sets…</source>
+        <translation>Поиск наборов правил…</translation>
+    </message>
+    <message>
+        <source>Add selected</source>
+        <translation>Добавить выбранное</translation>
+    </message>
+    <message>
+        <source>Filter…</source>
+        <translation>Фильтр…</translation>
+    </message>
+    <message>
+        <source>Traffic that should leave through %1 instead of the active profile.</source>
+        <translation>Трафик, который должен уходить через %1, а не через активный профиль.</translation>
+    </message>
+    <message>
+        <source>Nothing matches this filter.</source>
+        <translation>Под фильтр ничего не подходит.</translation>
+    </message>
+    <message>
+        <source>+%1 more</source>
+        <translation>ещё %1</translation>
+    </message>
+    <message>
+        <source>Show less</source>
+        <translation>Свернуть</translation>
+    </message>
+    <message>
+        <source>Paste list</source>
+        <translation>Вставить списком</translation>
+    </message>
+    <message>
+        <source>Edit every rule of this action as plain text.</source>
+        <translation>Редактировать все правила этого действия обычным текстом.</translation>
+    </message>
+    <message>
+        <source>Paste rule list</source>
+        <translation>Список правил</translation>
+    </message>
+    <message>
+        <source>Every rule of “%1”, one per line. Editing here replaces the whole list, and each entry lands in its own card automatically.</source>
+        <translation>Все правила «%1», по одному на строку. Список заменяется целиком, а каждая запись сама попадает в нужную карточку.</translation>
+    </message>
+    <message>
+        <source>Prefixes: domain:  suffix:  keyword:  regex:  ruleset:  ip:  processName:  processPath:
+A line without a prefix is recognised on its own — sing-box spellings (domain_suffix, process_name, rule_set…) are accepted too.</source>
+        <translation>Префиксы: domain:  suffix:  keyword:  regex:  ruleset:  ip:  processName:  processPath:
+Строка без префикса распознаётся сама — написание из sing-box (domain_suffix, process_name, rule_set…) тоже принимается.</translation>
+    </message>
+    <message>
+        <source>Apply list</source>
+        <translation>Применить список</translation>
+    </message>
+    <message>
+        <source>Nothing to add yet.</source>
+        <translation>Пока нечего добавлять.</translation>
+    </message>
+    <message>
+        <source>%1 line(s) will be dropped — add a prefix to keep them: %2</source>
+        <translation>Строк будет отброшено: %1 — добавьте префикс, чтобы сохранить: %2</translation>
+    </message>
+    <message>
+        <source>domains</source>
+        <translation>домены</translation>
+    </message>
+    <message>
+        <source>suffixes</source>
+        <translation>суффиксы</translation>
+    </message>
+    <message>
+        <source>keywords</source>
+        <translation>ключевые слова</translation>
+    </message>
+    <message>
+        <source>regexes</source>
+        <translation>регулярные выражения</translation>
+    </message>
+    <message>
+        <source>rule sets</source>
+        <translation>наборы правил</translation>
+    </message>
+    <message>
+        <source>addresses</source>
+        <translation>адреса</translation>
+    </message>
+    <message>
+        <source>processes</source>
+        <translation>процессы</translation>
+    </message>
 </context>
 <context>
-    <name>SpeedWidget</name>
+    <name>RoutingQuickMenu</name>
+    <message>
+        <source>Direct</source>
+        <translation>Напрямую</translation>
+    </message>
     <message>
         <source>Proxy</source>
         <translation>Прокси</translation>
     </message>
     <message>
-        <source>Direct</source>
-        <translation>Напрямую</translation>
+        <source>Block</source>
+        <translation>Блокировать</translation>
+    </message>
+    <message>
+        <source>WARP bypass</source>
+        <translation>WARP в обход</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Свой</translation>
+    </message>
+    <message>
+        <source>No routing profile</source>
+        <translation>Профиль не выбран</translation>
+    </message>
+    <message>
+        <source> · rules off</source>
+        <translation> · правила выкл.</translation>
+    </message>
+    <message>
+        <source>Rules are matched first, then whatever is left
+goes to the default above.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>Нет</translation>
+    </message>
+    <message>
+        <source>Routing profile</source>
+        <translation>Профиль маршрутизации</translation>
+    </message>
+    <message>
+        <source>Default traffic</source>
+        <translation>Трафик по умолчанию</translation>
+    </message>
+    <message>
+        <source>Through proxy</source>
+        <translation>Через прокси</translation>
+    </message>
+    <message>
+        <source>Apply profile rules</source>
+        <translation>Применять правила профиля</translation>
+    </message>
+    <message>
+        <source>Open routing profile</source>
+        <translation>Открыть профиль маршрутизации</translation>
+    </message>
+    <message>
+        <source>Manage profiles…</source>
+        <translation>Управление профилями…</translation>
     </message>
 </context>
 <context>
@@ -5718,69 +6660,6 @@ A line without a prefix is recognised on its own — sing-box spellings (domain_
     <message>
         <source>Page %1/%2</source>
         <translation>Страница %1/%2</translation>
-    </message>
-</context>
-<context>
-    <name>RoutingQuickMenu</name>
-    <message>
-        <source>Direct</source>
-        <translation>Напрямую</translation>
-    </message>
-    <message>
-        <source>Proxy</source>
-        <translation>Прокси</translation>
-    </message>
-    <message>
-        <source>Block</source>
-        <translation>Блокировать</translation>
-    </message>
-    <message>
-        <source>WARP bypass</source>
-        <translation>WARP в обход</translation>
-    </message>
-    <message>
-        <source>Custom</source>
-        <translation>Свой</translation>
-    </message>
-    <message>
-        <source>No routing profile</source>
-        <translation>Профиль не выбран</translation>
-    </message>
-    <message>
-        <source> · rules off</source>
-        <translation> · правила выкл.</translation>
-    </message>
-    <message>
-        <source>None</source>
-        <translation>Нет</translation>
-    </message>
-    <message>
-        <source>Routing profile</source>
-        <translation>Профиль маршрутизации</translation>
-    </message>
-    <message>
-        <source>Default traffic</source>
-        <translation>Трафик по умолчанию</translation>
-    </message>
-    <message>
-        <source>Through proxy</source>
-        <translation>Через прокси</translation>
-    </message>
-    <message>
-        <source>Apply profile rules</source>
-        <translation>Применять правила профиля</translation>
-    </message>
-    <message>
-        <source>Open routing profile</source>
-        <translation>Открыть профиль маршрутизации</translation>
-    </message>
-    <message>
-        <source>Manage profiles…</source>
-        <translation>Управление профилями…</translation>
-    </message>
-    <message>
-        <source>Routing profile and default traffic</source>
-        <translation>Профиль маршрутизации и трафик по умолчанию</translation>
     </message>
 </context>
 </TS>
