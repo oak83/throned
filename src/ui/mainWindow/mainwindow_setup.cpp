@@ -723,10 +723,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         if (running != nullptr) profile_stop(false, false, true);
         else profile_start();
     });
-    // Quick link buttons: open configurable URLs from settings.
-    connect(ui->toolButton_link1, &QAbstractButton::clicked, this, [=,this]() { on_toolButton_link1_clicked(); });
-    connect(ui->toolButton_link2, &QAbstractButton::clicked, this, [=,this]() { on_toolButton_link2_clicked(); });
-    connect(ui->toolButton_link3, &QAbstractButton::clicked, this, [=,this]() { on_toolButton_link3_clicked(); });
     connect(ui->tabWidget->tabBar(), &QTabBar::tabMoved, this, [=,this](int from, int to) {
         // use tabData to track tab & gid
         QList<int> tabOrder;
