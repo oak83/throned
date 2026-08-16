@@ -519,8 +519,6 @@ target_compile_definitions(Throned PRIVATE
 # Target Source Translations
 
 set(TS_FILES
-        res/translations/zh_CN.ts
-        res/translations/fa_IR.ts
         res/translations/ru_RU.ts
 )
 set(LUPDATE_OPTIONS

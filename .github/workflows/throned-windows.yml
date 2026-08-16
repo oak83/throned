@@ -175,7 +175,7 @@ jobs:
           mkdir build
           cd build
           curl -fLso srslist.h https://raw.githubusercontent.com/throneproj/routeprofiles/rule-set/srslist.h
-          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo $LAUNCHER_ARGS ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release $LAUNCHER_ARGS ..
           ninja
           cd ..
           ./script/deploy_windows.sh
@@ -222,7 +222,7 @@ jobs:
           mkdir build
           cd build
           curl -fLso srslist.h https://raw.githubusercontent.com/throneproj/routeprofiles/rule-set/srslist.h
-          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++" $LAUNCHER_ARGS ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++" $LAUNCHER_ARGS ..
           ninja
           cd ..
           ./script/deploy_linux64.sh
@@ -234,7 +234,7 @@ jobs:
           mkdir build
           cd build
           curl -fLso srslist.h https://raw.githubusercontent.com/throneproj/routeprofiles/rule-set/srslist.h
-          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc" $LAUNCHER_ARGS ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc" $LAUNCHER_ARGS ..
           ninja
           cd ..
           ./script/deploy_linux64_system_qt.sh

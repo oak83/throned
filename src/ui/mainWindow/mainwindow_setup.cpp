@@ -1420,7 +1420,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         ui->menuRouting_Menu->addAction(actionWarp);
 
         QMenu* profilesMenu = ui->menuRouting_Menu->addMenu(QObject::tr("Download Profiles"));
-        for (const QString &country : QStringList{"China", "Iran", "Russia"})
+        for (const QString &country : QStringList{"Russia"})
         {
             auto* action = new QAction(profilesMenu);
             action->setText(country);
