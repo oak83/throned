@@ -65,14 +65,15 @@ public:
         update();
     }
 
-    // A profile name can be far wider than the column. It is elided at rest, and
-    // scrolls only while hovered, so a full list of them is not in constant motion.
+    // A profile name can be far wider than the column, so it scrolls on its own:
+    // the tail of a subscription name is the part that tells them apart.
     void setScrollsWhenTooLong(bool enabled) {
         if (!enabled) return;
         marquee_ = new QTimer(this);
-        marquee_->setInterval(33);
+        marquee_->setInterval(40);
         connect(marquee_, &QTimer::timeout, this, [this] {
             offset_ += 1;
+            // Dwell at both ends, then start over from the left.
             if (offset_ > overflow_ + kMarqueePause) offset_ = -kMarqueePause;
             update();
         });
@@ -95,7 +96,13 @@ protected:
         painter.setPen(QColor("#F1F3F5"));
         const QRect titleRect(43, 0, width() - 85, height());
         const QFontMetrics metrics(titleFont);
-        overflow_ = std::max(0, metrics.horizontalAdvance(title_) - titleRect.width());
+        // horizontalAdvance under-reports a string whose emoji come from a fallback
+        // font, which stopped the scroll before the tail ever came into view.
+        overflow_ = std::max(0, metrics.boundingRect(title_).width() + 4 - titleRect.width());
+        if (marquee_ != nullptr) {
+            if (overflow_ > 0 && !marquee_->isActive()) marquee_->start();
+            if (overflow_ <= 0 && marquee_->isActive()) marquee_->stop();
+        }
         if (marquee_ != nullptr && marquee_->isActive()) {
             painter.setClipRect(titleRect);
             painter.drawText(titleRect.translated(-std::clamp(offset_, 0, overflow_), 0),
@@ -116,21 +123,13 @@ protected:
         painter.drawText(pill, Qt::AlignCenter, count);
     }
 
-    void enterEvent(QEnterEvent *) override {
-        if (marquee_ == nullptr || overflow_ <= 0) return;
-        offset_ = -kMarqueePause;
-        marquee_->start();
-    }
-
-    void leaveEvent(QEvent *) override {
-        if (marquee_ == nullptr) return;
-        marquee_->stop();
-        offset_ = 0;
-        update();
+    // Nothing to animate while the column is off screen.
+    void hideEvent(QHideEvent *) override {
+        if (marquee_ != nullptr) marquee_->stop();
     }
 
 private:
-    static constexpr int kMarqueePause = 30;
+    static constexpr int kMarqueePause = 45;
 
     MaterialIcon::Glyph glyph_;
     QString title_;
