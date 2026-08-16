@@ -471,12 +471,13 @@ namespace API {
 
     QString Client::SetTransitionGuard(bool *rpcOK, const bool enabled) const {
         libcore::SetTransitionGuardRequest request{enabled};
+        libcore::ErrorResp reply;
         std::vector<uint8_t> resp;
         auto status = channel->Call("SetTransitionGuard", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == LocalSocketChannel::CallOK) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
-            return "";
+            return QString::fromStdString(reply.error.value());
         }
         NOT_OK
         return "IPC error";
