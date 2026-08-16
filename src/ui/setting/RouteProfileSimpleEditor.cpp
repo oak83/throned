@@ -20,7 +20,10 @@
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QGlyphRun>
+#include <QRawFont>
 #include <QScrollArea>
+#include <QTextLayout>
 #include <QTimer>
 #include <QInputDialog>
 #include <QMessageBox>
@@ -32,7 +35,10 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QGlyphRun>
+#include <QRawFont>
 #include <QScrollArea>
+#include <QTextLayout>
 #include <QSignalBlocker>
 #include <QStyleOptionButton>
 #include <QToolButton>
@@ -138,6 +144,50 @@ private:
     QTimer *marquee_ = nullptr;
     int offset_ = 0;
     int overflow_ = 0;
+};
+
+// Emoji come from a fallback font whose glyphs are tall and have no descender, so
+// on the baseline they share with the text they ride visibly high. This lays the
+// string out itself and drops each fallback run to sit centred on the cap height.
+class BaselineAlignedLabel final : public QLabel {
+public:
+    using QLabel::QLabel;
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        if (text().isEmpty()) {
+            QLabel::paintEvent(event);
+            return;
+        }
+
+        QTextLayout layout(text(), font());
+        layout.beginLayout();
+        QTextLine line = layout.createLine();
+        if (!line.isValid()) {
+            layout.endLayout();
+            QLabel::paintEvent(event);
+            return;
+        }
+        line.setLineWidth(width());
+        layout.endLayout();
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(palette().color(foregroundRole()));
+
+        const QFontMetricsF metrics(font());
+        const qreal capHeight = metrics.capHeight();
+        const QPointF origin(0, (height() - line.height()) / 2.0);
+        const QString baseFamily = QRawFont::fromFont(font()).familyName();
+
+        for (const QGlyphRun &run : layout.glyphRuns()) {
+            const QRawFont runFont = run.rawFont();
+            const qreal drop = runFont.familyName() == baseFamily
+                                   ? 0.0
+                                   : (runFont.ascent() - capHeight) / 2.0;
+            painter.drawGlyphRun(origin + QPointF(0, drop), run);
+        }
+    }
 };
 
 // Same footprint as an action, drawn as an outline so it reads as "make one"
@@ -529,7 +579,7 @@ RouteProfileSimpleEditor::RouteProfileSimpleEditor(QWidget *parent) : QWidget(pa
     top->addWidget(headerIcon);
     auto *titles = new QVBoxLayout;
     titles->setSpacing(1);
-    heading_ = new QLabel(content);
+    heading_ = new BaselineAlignedLabel(content);
     heading_->setObjectName("routeHeading");
     description_ = new QLabel(content);
     description_->setObjectName("routeMuted");
