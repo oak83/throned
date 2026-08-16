@@ -900,6 +900,18 @@ namespace Configs {
 
             // direct
             auto directDnsObj = buildDnsObj(ctx, settings.direct_dns);
+            // A test config resolves the profile server off the physical interface,
+            // and tun drops the plain :53 that leaves it, so move the hop off :53.
+            if (ctx.forTest && settings.spmode_vpn) {
+                const auto directDnsType = directDnsObj.value("type").toString();
+                if (directDnsType == "udp" && directDnsObj.value("server_port").toInt(53) == 53) {
+                    // DoT keeps the configured resolver, it only changes the port.
+                    directDnsObj["type"] = "tls";
+                } else if (directDnsType == "local" || directDnsType == "dhcp") {
+                    // The system resolver is the unreachable one, so it cannot be kept.
+                    directDnsObj = buildDnsObj(ctx, upgradeUdpDnsToDoH(directDnsObj.value("server").toString()));
+                }
+            }
             directDnsObj["tag"] = tags::dnsDirect;
             directDnsObj["domain_resolver"] = tags::dnsLocal;
             servers.append(directDnsObj);
@@ -1010,19 +1022,22 @@ namespace Configs {
             }
 
             const bool useDirectFinalDNS = settings.dns_final_out == tags::direct;
+            // Test configs never build a dns-remote server, so pointing a rule at
+            // that tag leaves the whole DNS section referencing a missing server.
+            const auto remoteDnsTag = ctx.forTest ? tags::dnsDirect : tags::dnsRemote;
 
             if (dns.needProxyDnsRules && useDirectFinalDNS) {
-                appendDnsRoutingRules(rules, dns.proxy, settings.remote_dns_strategy, tags::dnsRemote);
+                appendDnsRoutingRules(rules, dns.proxy, settings.remote_dns_strategy, remoteDnsTag);
             }
             if (useDirectFinalDNS && !dns.proxyProcess.isEmpty()) {
-                appendProcessDnsRules(rules, dns.proxyProcess, settings.remote_dns_strategy, tags::dnsRemote);
+                appendProcessDnsRules(rules, dns.proxyProcess, settings.remote_dns_strategy, remoteDnsTag);
             }
 
             // final rule: proxy
             rules += QJsonObject{
                 {"strategy", useDirectFinalDNS ? settings.direct_dns_strategy : settings.remote_dns_strategy},
                 {"action", "route"},
-                {"server", useDirectFinalDNS ? tags::dnsDirect : tags::dnsRemote},
+                {"server", useDirectFinalDNS ? tags::dnsDirect : remoteDnsTag},
             };
 
             // Local
