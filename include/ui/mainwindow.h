@@ -202,6 +202,10 @@ private slots:
 
     void on_menu_resolve_domain_triggered();
 
+    void on_toolButton_link1_clicked();
+    void on_toolButton_link2_clicked();
+    void on_toolButton_link3_clicked();
+
     void on_menu_update_subscription_triggered();
 
     void on_profilesTableView_doubleClicked(const QModelIndex &index);

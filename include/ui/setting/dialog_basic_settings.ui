@@ -1773,6 +1773,45 @@ QTabBar::tab:hover:!selected {
          </layout>
         </widget>
        </item>
+      <item>
+       <widget class="QGroupBox" name="groupBox_quicklinks">
+        <property name="title">
+         <string>Quick Links</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_quicklinks">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_quicklink1">
+           <property name="text">
+            <string>Link 1 URL</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLineEdit" name="quick_link_1"/>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_quicklink2">
+           <property name="text">
+            <string>Link 2 URL</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLineEdit" name="quick_link_2"/>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_quicklink3">
+           <property name="text">
+            <string>Link 3 URL</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QLineEdit" name="quick_link_3"/>
+         </item>
+        </layout>
+       </widget>
+      </item>
       </layout>
      </widget>
     </widget>

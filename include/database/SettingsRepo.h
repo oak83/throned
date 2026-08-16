@@ -99,6 +99,10 @@ namespace Configs {
         QStringList log_exclude_keyword = {};
         QStringList log_exclude_regex = {};
         bool log_auto_scroll = true;
+        // Quick links (custom buttons on the main window)
+        QString quick_link_1 = "";
+        QString quick_link_2 = "";
+        QString quick_link_3 = "";
         bool start_minimal = false;
         int max_log_line = 200;
         // On-disk diagnostic log only; log_level is the core's browser verbosity.

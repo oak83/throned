@@ -172,6 +172,9 @@ namespace Configs {
             {"dial_inet4_bind_history",  &dial_inet4_bind_address_history},
             {"dial_inet6_bind_history",  &dial_inet6_bind_address_history},
             {"warp_reserved", &warp_reserved},
+            {"quick_link_1", &quick_link_1},
+            {"quick_link_2", &quick_link_2},
+            {"quick_link_3", &quick_link_3},
         };
     }
 

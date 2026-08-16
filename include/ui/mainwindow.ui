@@ -269,6 +269,111 @@ QToolButton::menu-indicator {
        </widget>
       </item>
       <item>
+       <widget class="QToolButton" name="toolButton_link1">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">QToolButton {
+    padding-left: 8px;
+    padding-right: 8px;
+}</string>
+        </property>
+        <property name="text">
+         <string>Link 1</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../../res/Throned.qrc">
+          <normaloff>:/icon/b-tools-button.png</normaloff>:/icon/b-tools-button.png</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>24</width>
+          <height>24</height>
+         </size>
+        </property>
+        <property name="popupMode">
+         <enum>QToolButton::ToolButtonPopupMode::InstantPopup</enum>
+        </property>
+        <property name="toolButtonStyle">
+         <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="toolButton_link2">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">QToolButton {
+    padding-left: 8px;
+    padding-right: 8px;
+}</string>
+        </property>
+        <property name="text">
+         <string>Link 2</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../../res/Throned.qrc">
+          <normaloff>:/icon/b-tools-button.png</normaloff>:/icon/b-tools-button.png</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>24</width>
+          <height>24</height>
+         </size>
+        </property>
+        <property name="popupMode">
+         <enum>QToolButton::ToolButtonPopupMode::InstantPopup</enum>
+        </property>
+        <property name="toolButtonStyle">
+         <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="toolButton_link3">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">QToolButton {
+    padding-left: 8px;
+    padding-right: 8px;
+}</string>
+        </property>
+        <property name="text">
+         <string>Link 3</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../../res/Throned.qrc">
+          <normaloff>:/icon/b-tools-button.png</normaloff>:/icon/b-tools-button.png</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>24</width>
+          <height>24</height>
+         </size>
+        </property>
+        <property name="popupMode">
+         <enum>QToolButton::ToolButtonPopupMode::InstantPopup</enum>
+        </property>
+        <property name="toolButtonStyle">
+         <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="StartStopButton" name="toolButton_startstop">
         <property name="focusPolicy">
          <enum>Qt::FocusPolicy::NoFocus</enum>

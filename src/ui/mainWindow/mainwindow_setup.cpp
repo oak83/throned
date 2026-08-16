@@ -701,6 +701,10 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         if (running != nullptr) profile_stop(false, false, true);
         else profile_start();
     });
+    // Quick link buttons: open configurable URLs from settings.
+    connect(ui->toolButton_link1, &QAbstractButton::clicked, this, [=,this]() { on_toolButton_link1_clicked(); });
+    connect(ui->toolButton_link2, &QAbstractButton::clicked, this, [=,this]() { on_toolButton_link2_clicked(); });
+    connect(ui->toolButton_link3, &QAbstractButton::clicked, this, [=,this]() { on_toolButton_link3_clicked(); });
     connect(ui->tabWidget->tabBar(), &QTabBar::tabMoved, this, [=,this](int from, int to) {
         // use tabData to track tab & gid
         QList<int> tabOrder;
@@ -1661,5 +1665,32 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
 
 MainWindow::~MainWindow() {
     delete ui;
+}
+
+void MainWindow::on_toolButton_link1_clicked() {
+    const auto &url = Configs::dataManager->settingsRepo->quick_link_1;
+    if (url.isEmpty()) {
+        QMessageBox::information(this, "Quick Link 1", "Set the URL in Settings → Basic Settings → Quick Links.");
+        return;
+    }
+    QDesktopServices::openUrl(QUrl(url));
+}
+
+void MainWindow::on_toolButton_link2_clicked() {
+    const auto &url = Configs::dataManager->settingsRepo->quick_link_2;
+    if (url.isEmpty()) {
+        QMessageBox::information(this, "Quick Link 2", "Set the URL in Settings → Basic Settings → Quick Links.");
+        return;
+    }
+    QDesktopServices::openUrl(QUrl(url));
+}
+
+void MainWindow::on_toolButton_link3_clicked() {
+    const auto &url = Configs::dataManager->settingsRepo->quick_link_3;
+    if (url.isEmpty()) {
+        QMessageBox::information(this, "Quick Link 3", "Set the URL in Settings → Basic Settings → Quick Links.");
+        return;
+    }
+    QDesktopServices::openUrl(QUrl(url));
 }
 
