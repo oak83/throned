@@ -20,6 +20,8 @@
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QScrollArea>
+#include <QTimer>
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QHostAddress>
@@ -63,6 +65,19 @@ public:
         update();
     }
 
+    // A profile name can be far wider than the column. It is elided at rest, and
+    // scrolls only while hovered, so a full list of them is not in constant motion.
+    void setScrollsWhenTooLong(bool enabled) {
+        if (!enabled) return;
+        marquee_ = new QTimer(this);
+        marquee_->setInterval(33);
+        connect(marquee_, &QTimer::timeout, this, [this] {
+            offset_ += 1;
+            if (offset_ > overflow_ + kMarqueePause) offset_ = -kMarqueePause;
+            update();
+        });
+    }
+
 protected:
     void paintEvent(QPaintEvent *) override {
         QPainter painter(this);
@@ -78,7 +93,18 @@ protected:
         titleFont.setWeight(QFont::DemiBold);
         painter.setFont(titleFont);
         painter.setPen(QColor("#F1F3F5"));
-        painter.drawText(QRect(43, 0, width() - 85, height()), Qt::AlignVCenter | Qt::AlignLeft, title_);
+        const QRect titleRect(43, 0, width() - 85, height());
+        const QFontMetrics metrics(titleFont);
+        overflow_ = std::max(0, metrics.horizontalAdvance(title_) - titleRect.width());
+        if (marquee_ != nullptr && marquee_->isActive()) {
+            painter.setClipRect(titleRect);
+            painter.drawText(titleRect.translated(-std::clamp(offset_, 0, overflow_), 0),
+                             Qt::AlignVCenter | Qt::AlignLeft, title_);
+            painter.setClipping(false);
+        } else {
+            painter.drawText(titleRect, Qt::AlignVCenter | Qt::AlignLeft,
+                             metrics.elidedText(title_, Qt::ElideRight, titleRect.width()));
+        }
 
         const QString count = QString::number(count_);
         const int pillWidth = std::max(26, QFontMetrics(font()).horizontalAdvance(count) + 14);
@@ -90,11 +116,68 @@ protected:
         painter.drawText(pill, Qt::AlignCenter, count);
     }
 
+    void enterEvent(QEnterEvent *) override {
+        if (marquee_ == nullptr || overflow_ <= 0) return;
+        offset_ = -kMarqueePause;
+        marquee_->start();
+    }
+
+    void leaveEvent(QEvent *) override {
+        if (marquee_ == nullptr) return;
+        marquee_->stop();
+        offset_ = 0;
+        update();
+    }
+
 private:
+    static constexpr int kMarqueePause = 30;
+
     MaterialIcon::Glyph glyph_;
     QString title_;
     QColor tone_;
     int count_ = 0;
+    QTimer *marquee_ = nullptr;
+    int offset_ = 0;
+    int overflow_ = 0;
+};
+
+// Same footprint as an action, drawn as an outline so it reads as "make one"
+// rather than as another action sitting in the list.
+class AddActionButton final : public QAbstractButton {
+public:
+    AddActionButton(const QString &title, const QColor &tone, QWidget *parent = nullptr)
+        : QAbstractButton(parent), tone_(tone) {
+        setText(title);
+        setCursor(Qt::PointingHandCursor);
+        setFixedHeight(38);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QRectF bounds = rect().adjusted(.5, .5, -.5, -.5);
+        QPen pen(underMouse() ? tone_ : QColor("#3A4048"));
+        pen.setStyle(Qt::DashLine);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRoundedRect(bounds, 6, 6);
+
+        const auto icon = MaterialIcon::pixmap(MaterialIcon::Glyph::Add, tone_, 16);
+        const int textWidth = QFontMetrics(font()).horizontalAdvance(text());
+        const int left = std::max(12, (width() - textWidth - 22) / 2);
+        painter.drawPixmap(left, (height() - 16) / 2, icon);
+        painter.setPen(QColor(underMouse() ? "#E8ECF1" : "#A4ABB4"));
+        painter.drawText(QRect(left + 22, 0, width() - left - 26, height()),
+                         Qt::AlignVCenter | Qt::AlignLeft, text());
+    }
+
+    void enterEvent(QEnterEvent *) override { update(); }
+    void leaveEvent(QEvent *) override { update(); }
+
+private:
+    QColor tone_;
 };
 
 struct ActionPresentation {
@@ -106,8 +189,9 @@ struct ActionPresentation {
 
 ActionPresentation actionPresentation(int action, const QString &viaLabel = {}) {
     if (RouteProfileSimpleEditor::isViaAction(action)) {
+        // The name is already the heading; repeating it here only overflows the row.
         return {viaLabel,
-                RouteProfileSimpleEditor::tr("Traffic that should leave through %1 instead of the active profile.").arg(viaLabel),
+                RouteProfileSimpleEditor::tr("Traffic that should leave through this profile instead of the active one."),
                 QColor(Cyan), MaterialIcon::Glyph::Public};
     }
     switch (action) {
@@ -394,13 +478,28 @@ RouteProfileSimpleEditor::RouteProfileSimpleEditor(QWidget *parent) : QWidget(pa
     side->addSpacing(8);
 
     sidebar_ = sidebar;
+    // A subscription can add a lot of actions, so the list scrolls instead of
+    // pushing the statistics off the bottom of the column.
     auto *buttonsHost = new QWidget(sidebar);
     sideLayout_ = new QVBoxLayout(buttonsHost);
     sideLayout_->setContentsMargins(0, 0, 0, 0);
     sideLayout_->setSpacing(6);
-    side->addWidget(buttonsHost);
+    sideLayout_->addStretch();
+    auto *sideScroll = new QScrollArea(sidebar);
+    sideScroll->setObjectName("routeSideScroll");
+    sideScroll->setWidget(buttonsHost);
+    sideScroll->setWidgetResizable(true);
+    sideScroll->setFrameShape(QFrame::NoFrame);
+    sideScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    sideScroll->viewport()->setAutoFillBackground(false);
+    buttonsHost->setAutoFillBackground(false);
+    side->addWidget(sideScroll, 1);
     rebuildSidebar();
-    side->addStretch();
+
+    addViaButton_ = new AddActionButton(tr("Add profile"), QColor(Cyan), sidebar);
+    connect(addViaButton_, &QAbstractButton::clicked, this, &RouteProfileSimpleEditor::addViaBucket);
+    side->addWidget(addViaButton_);
+    side->addSpacing(4);
 
     auto *stats = new QFrame(sidebar);
     stats->setObjectName("routeStats");
@@ -534,7 +633,8 @@ QFrame#routeSidebar, QFrame#routeStats, QFrame#routeRuleCard {
     border-radius: 7px;
 }
 QLabel#routeSideTitle, QLabel#routeSectionTitle { color: #F1F3F5; font-weight: 600; }
-QLabel#routeHeading { color: #F1F3F5; font-size: 17px; font-weight: 650; }
+QLabel#routeHeading { color: #F1F3F5; font-size: 17px; font-weight: 650; min-height: 26px; }
+QScrollArea#routeSideScroll, QScrollArea#routeSideScroll > QWidget > QWidget { background: transparent; }
 QLabel#routeMuted { color: #A4ABB4; font-size: 13px; }
 QLabel#routeEmpty { color: #747C86; font-size: 13px; font-style: italic; }
 QLabel#routeWarning { color: #E8B455; font-size: 13px; }
@@ -918,6 +1018,7 @@ void RouteProfileSimpleEditor::rebuildSidebar() {
     for (const auto &[profileID, label] : viaBuckets_) {
         const int action = viaAction(profileID);
         auto *button = new ActionButton(MaterialIcon::Glyph::Public, label, QColor(Cyan), sidebar_);
+        button->setScrollsWhenTooLong(true);
         button->setToolTip(tr("Rules here leave through %1. Right-click to remove the action.").arg(label));
         button->setContextMenuPolicy(Qt::CustomContextMenu);
         actionButtons_[action] = button;
@@ -932,14 +1033,7 @@ void RouteProfileSimpleEditor::rebuildSidebar() {
         sideLayout_->addWidget(button);
     }
 
-    // Buckets are made on demand: one per profile in the list would bury the four
-    // real actions under a whole subscription.
-    auto *addButton = new QPushButton(tr("Send through a profile"), sidebar_);
-    addButton->setObjectName("routeAddViaButton");
-    addButton->setIcon(MaterialIcon::icon(MaterialIcon::Glyph::Add, QColor(Cyan), 16));
-    addButton->setCursor(Qt::PointingHandCursor);
-    connect(addButton, &QPushButton::clicked, this, &RouteProfileSimpleEditor::addViaBucket);
-    sideLayout_->addWidget(addButton);
+    sideLayout_->addStretch();
 }
 
 void RouteProfileSimpleEditor::addViaBucket() {
@@ -950,7 +1044,7 @@ void RouteProfileSimpleEditor::addViaBucket() {
         if (!taken) available << entry;
     }
     if (available.isEmpty()) {
-        QMessageBox::information(this, tr("Send through a profile"),
+        QMessageBox::information(this, tr("Add profile"),
                                  tr("Every profile already has an action here."));
         return;
     }
@@ -959,7 +1053,7 @@ void RouteProfileSimpleEditor::addViaBucket() {
     labels.reserve(available.size());
     for (const auto &[id, label] : available) labels << label;
     bool picked = false;
-    const auto choice = QInputDialog::getItem(this, tr("Send through a profile"),
+    const auto choice = QInputDialog::getItem(this, tr("Add profile"),
                                               tr("Rules in the new action leave through this profile:"),
                                               labels, 0, false, &picked);
     if (!picked) return;

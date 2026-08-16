@@ -75,4 +75,5 @@ private:
     QList<QPair<int, QString>> viaCatalog_;
     QVBoxLayout *sideLayout_ = nullptr;
     QWidget *sidebar_ = nullptr;
+    QAbstractButton *addViaButton_ = nullptr;
 };

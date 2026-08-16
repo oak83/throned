@@ -6275,10 +6275,6 @@ Your local edits are overwritten on each update.</source>
         <translation>Удалить действие для %1 вместе со всеми его правилами?</translation>
     </message>
     <message>
-        <source>Send through a profile</source>
-        <translation>Отправлять через профиль</translation>
-    </message>
-    <message>
         <source>Every profile already has an action here.</source>
         <translation>Для каждого профиля действие уже создано.</translation>
     </message>
@@ -6331,6 +6327,10 @@ Your local edits are overwritten on each update.</source>
         <translation>Правила напрямую</translation>
     </message>
     <message>
+        <source>Traffic that should leave through this profile instead of the active one.</source>
+        <translation>Трафик, который должен уходить через этот профиль, а не через активный.</translation>
+    </message>
+    <message>
         <source>Traffic that should bypass the proxy.</source>
         <translation>Трафик, который должен идти в обход прокси.</translation>
     </message>
@@ -6365,6 +6365,10 @@ Your local edits are overwritten on each update.</source>
     <message>
         <source>No rules added yet.</source>
         <translation>Правила пока не добавлены.</translation>
+    </message>
+    <message>
+        <source>Add profile</source>
+        <translation>Добавить профиль</translation>
     </message>
     <message>
         <source>Direct</source>
@@ -6437,10 +6441,6 @@ Your local edits are overwritten on each update.</source>
     <message>
         <source>Filter…</source>
         <translation>Фильтр…</translation>
-    </message>
-    <message>
-        <source>Traffic that should leave through %1 instead of the active profile.</source>
-        <translation>Трафик, который должен уходить через %1, а не через активный профиль.</translation>
     </message>
     <message>
         <source>Nothing matches this filter.</source>
