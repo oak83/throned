@@ -158,6 +158,9 @@ namespace Configs {
             {"inbound_user",               &inbound_user},
             {"inbound_pass",               &inbound_pass},
             {"url_scheme_mirror",          &url_scheme_mirror},
+            {"quick_link_1", &quick_link_1},
+            {"quick_link_2", &quick_link_2},
+            {"quick_link_3", &quick_link_3},
         };
 
         stringListMap = {
@@ -172,9 +175,6 @@ namespace Configs {
             {"dial_inet4_bind_history",  &dial_inet4_bind_address_history},
             {"dial_inet6_bind_history",  &dial_inet6_bind_address_history},
             {"warp_reserved", &warp_reserved},
-            {"quick_link_1", &quick_link_1},
-            {"quick_link_2", &quick_link_2},
-            {"quick_link_3", &quick_link_3},
         };
     }
 
