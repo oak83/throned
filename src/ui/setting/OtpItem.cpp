@@ -1,7 +1,6 @@
 #include "include/ui/setting/OtpItem.h"
 
 #include <QCursor>
-#include <QPainter>
 
 #include "include/global/Utils.hpp"
 
