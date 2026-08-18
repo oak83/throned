@@ -115,18 +115,19 @@ namespace Configs
                                QList<std::shared_ptr<Profile>> &outSrc,
                                QList<std::shared_ptr<Profile>> &outDst,
                                bool ignoreMetadata) {
-        QMap<QString, std::shared_ptr<Profile>> hashMap;
+        QMap<QString, QList<std::shared_ptr<Profile>>> srcByKey;
 
         for (const auto &ent: src) {
-            QString key = ProfileFilter_ent_key(ent, ignoreMetadata);
-            hashMap[key] = ent;
+            srcByKey[ProfileFilter_ent_key(ent, ignoreMetadata)].append(ent);
         }
+        // A src entry can be claimed once. Handing the same one to every dst
+        // duplicate makes the caller map them all onto a single id, which
+        // collapses N identical servers into N slots of one profile (#1775).
         for (const auto &ent: dst) {
-            QString key = ProfileFilter_ent_key(ent, ignoreMetadata);
-            if (hashMap.contains(key)) {
-                outDst += ent;
-                outSrc += hashMap[key];
-            }
+            auto it = srcByKey.find(ProfileFilter_ent_key(ent, ignoreMetadata));
+            if (it == srcByKey.end() || it->isEmpty()) continue;
+            outDst += ent;
+            outSrc += it->takeFirst();
         }
     }
 

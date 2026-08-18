@@ -50,6 +50,7 @@ namespace Configs_sys {
 
 class TrayProfileSelector;
 class RoutingQuickMenu;
+class TrayOtpCodes;
 class TestRunner;
 
 namespace Qv2ray::ui { class SyntaxHighlighter; }
@@ -162,6 +163,10 @@ private slots:
 
     void on_menu_vpn_settings_triggered();
 
+    void on_menu_preset_settings_triggered();
+
+    void on_menu_otp_manager_triggered();
+
     void on_menu_hotkey_settings_triggered();
 
     void on_menu_add_from_input_triggered();
@@ -227,23 +232,24 @@ private:
     QSystemTrayIcon *tray;
     QMenu *trayMenu = nullptr;    // tray context menu
     // Tray "Select Server"/"Select Routing" open this small Qt-drawn popup instead of a
-    // submenu, because a tray submenu isn't painted by Qt on Linux (SNI/DBusMenu) or macOS
-    // (native NSMenu) and so can't reliably expand a dynamic list. Recreated on each open.
-    QPointer<TrayProfileSelector> traySelector;
-    void openTraySelector(bool routing);
-    QPointer<RoutingQuickMenu> routingQuickMenu;
-    void openRoutingQuickMenu(const QPoint &globalPos);
-    // Refresh the routing segment of the status bar from the active profile.
-    void refreshRoutingStatus();
-    void refreshQuickLinkButtons();  // Update quick link button texts from settings
-    QLabel *statusConnectionCaption = nullptr;
-    QLabel *statusDirectSpeed = nullptr;
-    QList<QPointer<QLabel>> statusElidedLabels;
-    void setStatusText(QLabel *label, const QString &text);
-    void showConnectionMenu(const QPoint &pos);
-    void addRuleFromConnection(const QString &entry, int action);
-    [[nodiscard]] QString existingRuleAction(const QString &entry) const;
-    QShortcut *shortcut_esc = new QShortcut(QKeySequence::Cancel, this);
+        // submenu, because a tray submenu isn't painted by Qt on Linux (SNI/DBusMenu) or macOS
+        // (native NSMenu) and so can't reliably expand a dynamic list. Recreated on each open.
+        QPointer<TrayProfileSelector> traySelector;
+        void openTraySelector(bool routing);
+        QPointer<RoutingQuickMenu> routingQuickMenu;
+        void openRoutingQuickMenu(const QPoint &globalPos);
+        // Refresh the routing segment of the status bar from the active profile.
+        void refreshRoutingStatus();
+        void refreshQuickLinkButtons();  // Update quick link button texts from settings
+        QPointer<TrayOtpCodes> trayOtpCodes;
+        void openTrayOtpCodes();
+        QLabel *statusConnectionCaption = nullptr;
+        QLabel *statusDirectSpeed = nullptr;
+        QList<QPointer<QLabel>> statusElidedLabels;
+        void setStatusText(QLabel *label, const QString &text);
+        void showConnectionMenu(const QPoint &pos);
+        void addRuleFromConnection(const QString &entry, int action);
+        [[nodiscard]] QString existingRuleAction(const QString &entry) const;
     //
     // Shared by the test sweeps and the batch profile scans (remove-invalid).
     QThreadPool *parallelCoreCallPool = new QThreadPool(this);

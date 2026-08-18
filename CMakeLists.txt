@@ -93,6 +93,8 @@ set(PROJECT_SOURCES
         src/global/HTTPRequestHelper.cpp
         src/global/DeviceDetailsHelper.cpp
         src/global/CountryHelper.cpp
+        include/global/OTP.hpp
+        src/global/OTP.cpp
 
         3rdparty/qrcodegen.cpp
         3rdparty/QtExtKeySequenceEdit.cpp
@@ -175,12 +177,14 @@ set(PROJECT_SOURCES
         include/ui/widget/StartStopButton.hpp
         src/ui/widget/StartStopButton.cpp
         include/ui/widget/TrayProfileSelector.hpp
-        src/ui/widget/TrayProfileSelector.cpp
-        include/control/ThronedControl.h
-        src/control/ThronedControl.cpp
-        include/ui/widget/RoutingQuickMenu.hpp
-        src/ui/widget/RoutingQuickMenu.cpp
-        include/ui/utils/DataViewHtmlGenerator.h
+                src/ui/widget/TrayProfileSelector.cpp
+                include/control/ThronedControl.h
+                src/control/ThronedControl.cpp
+                include/ui/widget/RoutingQuickMenu.hpp
+                src/ui/widget/RoutingQuickMenu.cpp
+                include/ui/widget/TrayOtpCodes.hpp
+                src/ui/widget/TrayOtpCodes.cpp
+                include/ui/utils/DataViewHtmlGenerator.h
         src/ui/utils/DataViewHtmlGenerator.cpp
         include/ui/utils/ProfilesTableModel.h
         src/ui/utils/ProfilesTableModel.cpp
@@ -191,6 +195,8 @@ set(PROJECT_SOURCES
         include/ui/utils/ProfilesTableVerticalHeader.h
         src/ui/utils/ProfilesTableVerticalHeader.cpp
         include/ui/utils/ProfilesTableFilterHeader.h
+        include/ui/utils/ScreenQrScanner.h
+        src/ui/utils/ScreenQrScanner.cpp
 
         include/ui/profile/dialog_edit_profile.h
         src/ui/profile/dialog_edit_profile.cpp
@@ -279,6 +285,24 @@ set(PROJECT_SOURCES
         src/ui/setting/dialog_vpn_settings.cpp
         include/ui/setting/dialog_vpn_settings.h
         include/ui/setting/dialog_vpn_settings.ui
+
+        src/ui/setting/dialog_preset_settings.cpp
+        include/ui/setting/dialog_preset_settings.h
+        include/ui/setting/dialog_preset_settings.ui
+
+        src/ui/setting/dialog_otp_manager.cpp
+        include/ui/setting/dialog_otp_manager.h
+        include/ui/setting/dialog_otp_manager.ui
+
+        src/ui/setting/dialog_edit_otp.cpp
+        include/ui/setting/dialog_edit_otp.h
+        include/ui/setting/dialog_edit_otp.ui
+
+        src/ui/setting/OtpItem.cpp
+        include/ui/setting/OtpItem.h
+        include/ui/setting/OtpItem.ui
+        src/ui/setting/OtpListWidget.cpp
+        include/ui/setting/OtpListWidget.h
 
         src/ui/stats/dialog_traffic_stats.cpp
         include/ui/stats/dialog_traffic_stats.h
@@ -410,6 +434,7 @@ set(PROJECT_SOURCES
         include/database/ProfilesRepo.h
         include/database/GroupsRepo.h
         include/database/RoutesRepo.h
+        include/database/OtpProfilesRepo.h
         include/database/SettingsRepo.h
         include/database/TrafficStatsRepo.h
 
@@ -417,15 +442,18 @@ set(PROJECT_SOURCES
         include/database/entities/Group.h
         include/database/entities/RouteProfile.h
         include/database/entities/RouteRule.h
+        include/database/entities/OtpProfile.h
 
         src/database/entities/Profile.cpp
         src/database/entities/Group.cpp
         src/database/entities/RouteProfile.cpp
         src/database/entities/RouteRule.cpp
+        src/database/entities/OtpProfile.cpp
 
         src/database/ProfilesRepo.cpp
         src/database/GroupsRepo.cpp
         src/database/RoutesRepo.cpp
+        src/database/OtpProfilesRepo.cpp
         src/database/TrafficStatsRepo.cpp
 
         include/database/DatabaseManager.h

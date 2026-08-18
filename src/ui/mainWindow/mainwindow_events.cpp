@@ -2,17 +2,12 @@
 
 #include <QApplication>
 #include <QCursor>
-#include <QLabel>
 #include <QLineEdit>
 #include <QMimeData>
 #include <QTimer>
 
+#include "include/ui/widget/TrayOtpCodes.hpp"
 #include "include/ui/widget/TrayProfileSelector.hpp"
-#include "include/ui/widget/RoutingQuickMenu.hpp"
-#include "include/database/RoutesRepo.h"
-#include "include/database/entities/RouteProfile.h"
-#include "include/ui/setting/RouteItem.h"
-#include "include/ui/mainWindow/MainWindowInternal.h"
 
 void MainWindow::trayClickEvent() {
     constexpr qint64 recentlyActiveMs = 350;
@@ -165,7 +160,6 @@ void MainWindow::openTraySelector(bool routing) {
         if (Configs::dataManager->settingsRepo->current_route_id == id) return;
         Configs::dataManager->settingsRepo->current_route_id = id;
         Configs::dataManager->settingsRepo->Save();
-        refreshRoutingStatus();
         if (Configs::dataManager->settingsRepo->started_id >= 0) profile_start(Configs::dataManager->settingsRepo->started_id);
     };
     cb.isRunning = [this]() { return running != nullptr; };
@@ -176,6 +170,12 @@ void MainWindow::openTraySelector(bool routing) {
     traySelector = new TrayProfileSelector(
         routing ? TrayProfileSelector::Routing : TrayProfileSelector::Server, cb, this);
     traySelector->popupAt(QCursor::pos());
+}
+
+void MainWindow::openTrayOtpCodes() {
+    if (trayOtpCodes) trayOtpCodes->close();
+    trayOtpCodes = new TrayOtpCodes(this);
+    trayOtpCodes->popupAt(QCursor::pos());
 }
 
 void MainWindow::refreshRoutingStatus() {
@@ -250,8 +250,12 @@ void MainWindow::keyPressEvent(QKeyEvent *event) {
 bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
     const QEvent::Type type = event->type();
 
-    // MainPreview uses a deliberate 40px circular control beside compact nav
-    // buttons; do not resize it to the first menu button's height.
+    if (type == QEvent::Resize && obj == ui->toolButton_program) {
+        const int h = ui->toolButton_program->height();
+        if (h > 0 && ui->toolButton_startstop->height() != h) {
+            ui->toolButton_startstop->setFixedSize(h, h);
+        }
+    }
     if (type == QEvent::MouseButtonPress) {
         auto mouseEvent = dynamic_cast<QMouseEvent *>(event);
         if (obj == ui->label_running && mouseEvent->button() == Qt::LeftButton && running != nullptr) {
@@ -270,15 +274,10 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
                 return true;
             }
         }
-    } else if (type == QEvent::Resize) {
-        if (auto *label = qobject_cast<QLabel *>(obj); label && statusElidedLabels.contains(label)) {
-            const QString full = label->property("statusFullText").toString();
-            if (!full.isEmpty()) setStatusText(label, full);
-        }
     } else if (type == QEvent::MouseButtonDblClick) {
         if (obj == ui->splitter) {
             const auto size = ui->splitter->size();
-            ui->splitter->setSizes({size.height() * 3 / 5, size.height() * 2 / 5});
+            ui->splitter->setSizes({size.height() / 2, size.height() / 2});
         }
     }
     return QMainWindow::eventFilter(obj, event);
