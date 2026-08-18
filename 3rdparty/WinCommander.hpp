@@ -27,9 +27,15 @@
 
 class WinCommander {
 public:
+#ifndef SW_HIDE
     static const int SW_HIDE = 0;
+#endif
+#ifndef SW_NORMAL
     static const int SW_NORMAL = 1;
+#endif
+#ifndef SW_SHOWMINIMIZED
     static const int SW_SHOWMINIMIZED = 2;
+#endif
 
     static uint runProcessElevated(const QString &path,
                                    const QStringList &parameters = QStringList(),
