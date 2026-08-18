@@ -295,6 +295,20 @@ void ActivateWindow(QWidget *w);
 
 void HideWindow(QWidget *w);
 
+// Recolor an icon by filling with a color (SourceIn composition mode).
+// Use for monochrome resource icons that need theme-aware coloring.
+inline QIcon RecolorIcon(const QString &path, const QColor &color) {
+    QPixmap pixmap(path);
+    if (pixmap.isNull()) return QIcon(path);
+    QPainter painter(&pixmap);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.fillRect(pixmap.rect(), color);
+    painter.end();
+    return QIcon(pixmap);
+}
+
+//
+
 //
 
 void runOnUiThread(const std::function<void()> &callback, bool wait = false);
