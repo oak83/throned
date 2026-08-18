@@ -8,6 +8,8 @@
 
 #include "include/ui/widget/TrayOtpCodes.hpp"
 #include "include/ui/widget/TrayProfileSelector.hpp"
+#include "include/ui/widget/RoutingQuickMenu.hpp"
+#include "include/ui/setting/RouteItem.h"
 
 void MainWindow::trayClickEvent() {
     constexpr qint64 recentlyActiveMs = 350;
