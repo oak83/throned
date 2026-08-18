@@ -316,6 +316,7 @@ void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {
             profile_start(settings->started_id);
         }
         refresh_status();
+        refreshQuickLinkButtons();  // Update quick link button texts
         if (changed(MwArg::NeedRestart) &&
             QMessageBox::warning(GetMessageBoxParent(), tr("Settings changed"), tr("Restart the program to take effect."), QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
             this->exit_reason = ExitReason::Restart;

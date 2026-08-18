@@ -223,7 +223,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     // Quick link buttons (created in code, added to the command bar)
         auto *linkBtn1 = new QToolButton(commandBar);
-        linkBtn1->setText(tr("Link 1"));
+        linkBtn1->setObjectName(QStringLiteral("linkBtn1"));
+        linkBtn1->setText(Configs::dataManager->settingsRepo->quick_link_name_1.isEmpty() ? tr("Link 1") : Configs::dataManager->settingsRepo->quick_link_name_1);
         linkBtn1->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         linkBtn1->setIconSize(QSize(19, 19));
         linkBtn1->setFixedHeight(38);
@@ -236,7 +237,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         commandLayout->addWidget(sepL1);
 
         auto *linkBtn2 = new QToolButton(commandBar);
-        linkBtn2->setText(tr("Link 2"));
+        linkBtn2->setObjectName(QStringLiteral("linkBtn2"));
+        linkBtn2->setText(Configs::dataManager->settingsRepo->quick_link_name_2.isEmpty() ? tr("Link 2") : Configs::dataManager->settingsRepo->quick_link_name_2);
         linkBtn2->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         linkBtn2->setIconSize(QSize(19, 19));
         linkBtn2->setFixedHeight(38);
@@ -249,7 +251,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         commandLayout->addWidget(sepL2);
 
         auto *linkBtn3 = new QToolButton(commandBar);
-        linkBtn3->setText(tr("Link 3"));
+        linkBtn3->setObjectName(QStringLiteral("linkBtn3"));
+        linkBtn3->setText(Configs::dataManager->settingsRepo->quick_link_name_3.isEmpty() ? tr("Link 3") : Configs::dataManager->settingsRepo->quick_link_name_3);
         linkBtn3->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         linkBtn3->setIconSize(QSize(19, 19));
         linkBtn3->setFixedHeight(38);
@@ -1730,5 +1733,14 @@ void MainWindow::on_toolButton_link3_clicked() {
         return;
     }
     QDesktopServices::openUrl(QUrl(url));
+}
+
+void MainWindow::refreshQuickLinkButtons() {
+    auto *btn1 = findChild<QToolButton*>("linkBtn1");
+    auto *btn2 = findChild<QToolButton*>("linkBtn2");
+    auto *btn3 = findChild<QToolButton*>("linkBtn3");
+    if (btn1) btn1->setText(Configs::dataManager->settingsRepo->quick_link_name_1.isEmpty() ? tr("Link 1") : Configs::dataManager->settingsRepo->quick_link_name_1);
+    if (btn2) btn2->setText(Configs::dataManager->settingsRepo->quick_link_name_2.isEmpty() ? tr("Link 2") : Configs::dataManager->settingsRepo->quick_link_name_2);
+    if (btn3) btn3->setText(Configs::dataManager->settingsRepo->quick_link_name_3.isEmpty() ? tr("Link 3") : Configs::dataManager->settingsRepo->quick_link_name_3);
 }
 

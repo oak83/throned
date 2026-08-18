@@ -70,6 +70,9 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     if (quick_link_1) quick_link_1->setText(Configs::dataManager->settingsRepo->quick_link_1);
     if (quick_link_2) quick_link_2->setText(Configs::dataManager->settingsRepo->quick_link_2);
     if (quick_link_3) quick_link_3->setText(Configs::dataManager->settingsRepo->quick_link_3);
+    if (quick_link_name_1) quick_link_name_1->setText(Configs::dataManager->settingsRepo->quick_link_name_1);
+    if (quick_link_name_2) quick_link_name_2->setText(Configs::dataManager->settingsRepo->quick_link_name_2);
+    if (quick_link_name_3) quick_link_name_3->setText(Configs::dataManager->settingsRepo->quick_link_name_3);
     D_LOAD_BOOL(disable_tray)
     ui->reset_proxy_on_disable_sp->setChecked(Configs::dataManager->settingsRepo->reset_proxy_on_disable_sp);
     ui->url_timeout->setText(Int2String(Configs::dataManager->settingsRepo->url_test_timeout_ms));
@@ -434,12 +437,21 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     quick_link_1 = new QLineEdit(quickGroup);
     quick_link_2 = new QLineEdit(quickGroup);
     quick_link_3 = new QLineEdit(quickGroup);
-    quickGrid->addWidget(new QLabel(tr("Link 1 URL"), quickGroup), 0, 0);
-    quickGrid->addWidget(quick_link_1, 0, 1);
-    quickGrid->addWidget(new QLabel(tr("Link 2 URL"), quickGroup), 1, 0);
-    quickGrid->addWidget(quick_link_2, 1, 1);
-    quickGrid->addWidget(new QLabel(tr("Link 3 URL"), quickGroup), 2, 0);
-    quickGrid->addWidget(quick_link_3, 2, 1);
+    quick_link_name_1 = new QLineEdit(quickGroup);
+    quick_link_name_2 = new QLineEdit(quickGroup);
+    quick_link_name_3 = new QLineEdit(quickGroup);
+    quickGrid->addWidget(new QLabel(tr("Link 1 Name"), quickGroup), 0, 0);
+    quickGrid->addWidget(quick_link_name_1, 0, 1);
+    quickGrid->addWidget(new QLabel(tr("Link 1 URL"), quickGroup), 1, 0);
+    quickGrid->addWidget(quick_link_1, 1, 1);
+    quickGrid->addWidget(new QLabel(tr("Link 2 Name"), quickGroup), 2, 0);
+    quickGrid->addWidget(quick_link_name_2, 2, 1);
+    quickGrid->addWidget(new QLabel(tr("Link 2 URL"), quickGroup), 3, 0);
+    quickGrid->addWidget(quick_link_2, 3, 1);
+    quickGrid->addWidget(new QLabel(tr("Link 3 Name"), quickGroup), 4, 0);
+    quickGrid->addWidget(quick_link_name_3, 4, 1);
+    quickGrid->addWidget(new QLabel(tr("Link 3 URL"), quickGroup), 5, 0);
+    quickGrid->addWidget(quick_link_3, 5, 1);
     commonLayout->addWidget(quickGroup);
 
     commonLayout->addStretch(1);
@@ -761,6 +773,9 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
         cancel->setMinimumWidth(120);
     }
     bodyLayout->addWidget(ui->buttonBox, 0, Qt::AlignRight);
+    // Ensure our overridden accept() is called, not QDialog::accept()
+    disconnect(ui->buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(ui->buttonBox, &QDialogButtonBox::accepted, this, &DialogBasicSettings::accept);
     oldRoot->addWidget(body, 1, 0);
     delete legacyPages.value(0);
     delete ui->tabWidget;
@@ -909,6 +924,9 @@ void DialogBasicSettings::accept() {
     Configs::dataManager->settingsRepo->quick_link_1 = quick_link_1 ? quick_link_1->text() : "";
     Configs::dataManager->settingsRepo->quick_link_2 = quick_link_2 ? quick_link_2->text() : "";
     Configs::dataManager->settingsRepo->quick_link_3 = quick_link_3 ? quick_link_3->text() : "";
+    Configs::dataManager->settingsRepo->quick_link_name_1 = quick_link_name_1 ? quick_link_name_1->text() : "";
+    Configs::dataManager->settingsRepo->quick_link_name_2 = quick_link_name_2 ? quick_link_name_2->text() : "";
+    Configs::dataManager->settingsRepo->quick_link_name_3 = quick_link_name_3 ? quick_link_name_3->text() : "";
     D_SAVE_BOOL(disable_tray)
     Configs::dataManager->settingsRepo->proxy_scheme = ui->proxy_scheme->currentText().toLower();
     Configs::dataManager->settingsRepo->speed_test_mode = ui->speedtest_mode->currentIndex();

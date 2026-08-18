@@ -235,6 +235,7 @@ private:
     void openRoutingQuickMenu(const QPoint &globalPos);
     // Refresh the routing segment of the status bar from the active profile.
     void refreshRoutingStatus();
+    void refreshQuickLinkButtons();  // Update quick link button texts from settings
     QLabel *statusConnectionCaption = nullptr;
     QLabel *statusDirectSpeed = nullptr;
     QList<QPointer<QLabel>> statusElidedLabels;
