@@ -67,12 +67,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     D_LOAD_INT(test_concurrent)
     D_LOAD_STRING(test_latency_url)
     // quick_link fields (created in code)
-    if (quick_link_1) quick_link_1->setText(Configs::dataManager->settingsRepo->quick_link_1);
-    if (quick_link_2) quick_link_2->setText(Configs::dataManager->settingsRepo->quick_link_2);
-    if (quick_link_3) quick_link_3->setText(Configs::dataManager->settingsRepo->quick_link_3);
-    if (quick_link_name_1) quick_link_name_1->setText(Configs::dataManager->settingsRepo->quick_link_name_1);
-    if (quick_link_name_2) quick_link_name_2->setText(Configs::dataManager->settingsRepo->quick_link_name_2);
-    if (quick_link_name_3) quick_link_name_3->setText(Configs::dataManager->settingsRepo->quick_link_name_3);
+    // NOTE: load is done AFTER widget creation (below)
     D_LOAD_BOOL(disable_tray)
     ui->reset_proxy_on_disable_sp->setChecked(Configs::dataManager->settingsRepo->reset_proxy_on_disable_sp);
     ui->url_timeout->setText(Int2String(Configs::dataManager->settingsRepo->url_test_timeout_ms));
@@ -453,6 +448,14 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     quickGrid->addWidget(new QLabel(tr("Link 3 URL"), quickGroup), 5, 0);
     quickGrid->addWidget(quick_link_3, 5, 1);
     commonLayout->addWidget(quickGroup);
+
+    // Load quick_link values after widget creation
+    if (quick_link_1) quick_link_1->setText(Configs::dataManager->settingsRepo->quick_link_1);
+    if (quick_link_2) quick_link_2->setText(Configs::dataManager->settingsRepo->quick_link_2);
+    if (quick_link_3) quick_link_3->setText(Configs::dataManager->settingsRepo->quick_link_3);
+    if (quick_link_name_1) quick_link_name_1->setText(Configs::dataManager->settingsRepo->quick_link_name_1);
+    if (quick_link_name_2) quick_link_name_2->setText(Configs::dataManager->settingsRepo->quick_link_name_2);
+    if (quick_link_name_3) quick_link_name_3->setText(Configs::dataManager->settingsRepo->quick_link_name_3);
 
     commonLayout->addStretch(1);
 
