@@ -23,8 +23,7 @@ import (
 
 	"github.com/google/shlex"
 	"github.com/sagernet/sing-box/adapter"
-	"github.com/sagernet/sing-box/experimental/clashapi"
-	"github.com/sagernet/sing-box/experimental/clashapi/trafficontrol"
+	"github.com/sagernet/sing-box/common/trafficcontrol"
 	"github.com/sagernet/sing/common/control"
 	E "github.com/sagernet/sing/common/exceptions"
 	"github.com/sagernet/sing/service"
@@ -582,17 +581,22 @@ func (s *server) Test(ctx context.Context, in *gen.TestReq) (*gen.TestResp, erro
 	}
 	defer env.close()
 
+	// Held, not re-read: StopTest rearms a fresh context, uncancelled.
+	testCtx := test_utils.TestContext()
+
 	// A muxed config needs a warm connection; the live instance already is one.
 	twice := !in.GetTestCurrent()
-	results := test_utils.BatchURLTest(test_utils.TestContext(), env.box, env.tags, in.GetUrl(),
+	results := test_utils.BatchURLTest(testCtx, env.box, env.tags, in.GetUrl(),
 		int(in.GetMaxConcurrency()), twice, time.Duration(in.GetTestTimeoutMs())*time.Millisecond)
 
 	res := make([]*gen.URLTestResp, 0, len(results))
+	failed := make(map[string]bool, len(results))
 	for idx, data := range results {
 		errStr := ""
 		if data.Error != nil {
 			errStr = data.Error.Error()
 		}
+		failed[env.tags[idx]] = errStr != ""
 		res = append(res, &gen.URLTestResp{
 			OutboundTag: To(env.tags[idx]),
 			LatencyMs:   To(int32(data.Duration.Milliseconds())),
@@ -600,7 +604,22 @@ func (s *server) Test(ctx context.Context, in *gen.TestReq) (*gen.TestResp, erro
 		})
 	}
 
-	return &gen.TestResp{Results: res}, nil
+	out := &gen.TestResp{Results: res}
+	// `defer env.close()` tears the box down on return, so this cannot wait.
+	var pending []string
+	for _, tag := range in.VpnEndpointTags {
+		if failed[tag] {
+			pending = append(pending, tag)
+		}
+	}
+	if len(pending) > 0 {
+		timeout := defaultVPNStatusTimeout
+		if ms := in.GetVpnStatusTimeoutMs(); ms > 0 {
+			timeout = time.Duration(ms) * time.Millisecond
+		}
+		out.VpnStatus = collectVPNStatus(testCtx, env.box, pending, timeout)
+	}
+	return out, nil
 }
 
 func (s *server) StopTest(ctx context.Context, in *gen.EmptyReq) (*gen.EmptyResp, error) {
@@ -678,14 +697,8 @@ func (s *server) QueryStats(ctx context.Context, in *gen.EmptyReq) (out *gen.Que
 	out.Ups = make(map[string]int64)
 	out.Downs = make(map[string]int64)
 	if box := currentBox(); box != nil {
-		clash := service.FromContext[adapter.ClashServer](box.Context())
-		if clash != nil {
-			cApi, ok := clash.(*clashapi.Server)
-			if !ok {
-				log.Println("Failed to assert clash server")
-				err = E.New("invalid clash server type")
-				return
-			}
+		trafficManager := service.PtrFromContext[trafficcontrol.Manager](box.Context())
+		if trafficManager != nil {
 			outbounds := service.FromContext[adapter.OutboundManager](box.Context())
 			if outbounds == nil {
 				log.Println("Failed to get outbound manager")
@@ -699,12 +712,12 @@ func (s *server) QueryStats(ctx context.Context, in *gen.EmptyReq) (out *gen.Que
 				return
 			}
 			for _, ob := range outbounds.Outbounds() {
-				u, d := cApi.TrafficManager().TotalOutbound(ob.Tag())
+				u, d := trafficManager.TotalOutbound(ob.Tag())
 				out.Ups[ob.Tag()] = u
 				out.Downs[ob.Tag()] = d
 			}
 			for _, ep := range endpoints.Endpoints() {
-				u, d := cApi.TrafficManager().TotalOutbound(ep.Tag())
+				u, d := trafficManager.TotalOutbound(ep.Tag())
 				out.Ups[ep.Tag()] = u
 				out.Downs[ep.Tag()] = d
 			}
@@ -715,7 +728,7 @@ func (s *server) QueryStats(ctx context.Context, in *gen.EmptyReq) (out *gen.Que
 
 // connMetaToProto maps one tracker's metadata into the wire type. Shared by the
 // active and closed lists so both carry identical, enriched fields.
-func connMetaToProto(c *trafficontrol.TrackerMetadata) *gen.ConnectionMetaData {
+func connMetaToProto(c *trafficcontrol.TrackerMetadata) *gen.ConnectionMetaData {
 	process := ""
 	processPath := ""
 	if c.Metadata.ProcessInfo != nil {
@@ -751,15 +764,10 @@ func (s *server) QueryConnections(ctx context.Context, in *gen.EmptyReq) (*gen.Q
 	if box == nil {
 		return &gen.QueryConnectionsResp{}, nil
 	}
-	clashServer := service.FromContext[adapter.ClashServer](box.Context())
-	if clashServer == nil {
-		return &gen.QueryConnectionsResp{}, errors.New("no clash server found")
+	tm := service.PtrFromContext[trafficcontrol.Manager](box.Context())
+	if tm == nil {
+		return &gen.QueryConnectionsResp{}, errors.New("no traffic manager found")
 	}
-	clash, ok := clashServer.(*clashapi.Server)
-	if !ok {
-		return &gen.QueryConnectionsResp{}, errors.New("invalid state, should not be here")
-	}
-	tm := clash.TrafficManager()
 
 	active := make([]*gen.ConnectionMetaData, 0)
 	for _, c := range tm.Connections() {

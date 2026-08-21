@@ -74,7 +74,9 @@ private:
     void runSpeedProbe(const Target& target);
 
     // Shared by the live progress poll and the final pass, which must not drift.
-    void applyUrlResult(const std::shared_ptr<Configs::Profile>& ent, const libcore::URLTestResp& res);
+    // `vpnConnected` is empty on the progress poll; only the final pass has verdicts.
+    void applyUrlResult(const std::shared_ptr<Configs::Profile>& ent, const libcore::URLTestResp& res,
+                        const QHash<QString, bool>* vpnConnected = nullptr);
 
     void applyIpResult(const std::shared_ptr<Configs::Profile>& ent, const libcore::IPTestRes& res);
 

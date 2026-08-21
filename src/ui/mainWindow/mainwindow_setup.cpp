@@ -1180,6 +1180,9 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     auto *actSelectRouting = new QAction(tr("Select Routing"), trayMenu);
     connect(actSelectRouting, &QAction::triggered, this, [this]() { openTraySelector(true); });
     trayMenu->addAction(actSelectRouting);
+    auto *actOtpCodes = new QAction(tr("OTP Codes"), trayMenu);
+    connect(actOtpCodes, &QAction::triggered, this, [this]() { openTrayOtpCodes(); });
+    trayMenu->addAction(actOtpCodes);
     // MacOS cannot reuse menus across different parents properly
     if (getOS() == Darwin) {
         auto* traySpmodeMenu = new QMenu(ui->menu_spmode->title(), trayMenu);

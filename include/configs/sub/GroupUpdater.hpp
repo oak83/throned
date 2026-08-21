@@ -31,6 +31,10 @@ namespace Subscription {
 
         void updateWireguardFileConfig(const QString &str);
 
+        void updateOpenVPNFileConfig(const QString &str);
+
+        void updateOpenConnectProfile(const QString &str);
+
         void updateSIP008(const QString &str);
 
         int gid_add_to = -1;

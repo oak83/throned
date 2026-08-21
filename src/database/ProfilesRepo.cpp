@@ -80,7 +80,8 @@ namespace Configs {
         Configs::outbound* outbound = Configs::NewOutboundByType(type);
 
         profile->outbound = std::shared_ptr<Configs::outbound>(outbound);
-        
+        profile->outbound->profile_id = profile->id;
+
         // Parse complex objects from JSON
         if (json.contains("outbound") && json["outbound"].isObject()) {
             profile->outbound->ParseFromJson(json["outbound"].toObject());
@@ -203,6 +204,7 @@ namespace Configs {
         if (profile->id >= 0) return false;
         int newId = NewProfileID();
         profile->id = newId;
+        if (profile->outbound) profile->outbound->profile_id = newId;
         profile->gid = gid < 0 ? Configs::dataManager->settingsRepo->current_group : gid;
         QMutexLocker locker(&mutex);
         identityMap[newId] = std::weak_ptr<Profile>(profile);
@@ -234,6 +236,7 @@ namespace Configs {
         for (int i = 0; i < n; ++i) {
             int id = firstId + i;
             toAdd[i]->id = id;
+            if (toAdd[i]->outbound) toAdd[i]->outbound->profile_id = id;
             toAdd[i]->gid = gid;
             identityMap[id] = std::weak_ptr<Profile>(toAdd[i]);
         }

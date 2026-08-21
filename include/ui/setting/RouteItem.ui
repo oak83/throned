@@ -257,6 +257,47 @@ QTabBar::tab:hover:!selected {
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="endpointsTab">
+      <attribute name="title">
+       <string>Endpoints</string>
+      </attribute>
+      <attribute name="toolTip">
+       <string>OpenVPN / OpenConnect profiles started alongside this routing profile. Traffic for the networks they advertise goes through them; everything else follows this profile's rules. Each endpoint gets a rule in the Advanced tab that you can move among your own rules.</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="endpointsTabLayout">
+       <item>
+        <layout class="QHBoxLayout" name="endpointsActionRow">
+         <item>
+          <widget class="QComboBox" name="endpointPicker">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>1</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="endpointAddBtn">
+           <property name="text">
+            <string>Add</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="endpointRemoveBtn">
+           <property name="text">
+            <string>Remove</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QListWidget" name="endpointList"/>
+       </item>
+      </layout>
+     </widget>
      <widget class="QWidget" name="tab">
       <attribute name="title">
        <string>Advanced</string>
@@ -442,6 +483,16 @@ QTabBar::tab:hover:!selected {
              <widget class="QComboBox" name="rule_action_combo"/>
             </item>
            </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="rule_managed_note">
+            <property name="text">
+             <string>This rule is managed by the Endpoints tab. You can only move it.</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
           </item>
           <item>
            <widget class="QTabWidget" name="rule_attr_tabs">

@@ -21,6 +21,8 @@
 #include "include/configs/outbounds/juicity.h"
 #include "include/configs/outbounds/trusttunnel.h"
 #include "include/configs/outbounds/naive.h"
+#include "include/configs/outbounds/openvpn.h"
+#include "include/configs/outbounds/openconnect.h"
 #include "include/configs/outbounds/shadowtls.h"
 #include "include/configs/outbounds/vless.h"
 #include "include/configs/outbounds/vmess.h"
@@ -29,6 +31,9 @@
 #include "include/global/CountryHelper.hpp"
 
 namespace Configs {
+    // `latency` sentinel: egress probe failed, but the core reports the tunnel up.
+    constexpr int kLatencyConnectOnly = -2;
+
     class Profile {
     public:
         QString type;
@@ -138,6 +143,14 @@ namespace Configs {
 
         [[nodiscard]] Configs::wireguard *Wireguard() const {
             return dynamic_cast<Configs::wireguard *>(outbound.get());
+        };
+
+        [[nodiscard]] Configs::openvpn *OpenVPN() const {
+            return dynamic_cast<Configs::openvpn *>(outbound.get());
+        };
+
+        [[nodiscard]] Configs::openconnect *OpenConnect() const {
+            return dynamic_cast<Configs::openconnect *>(outbound.get());
         };
 
         [[nodiscard]] Configs::Custom *Custom() const {

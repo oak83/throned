@@ -13,10 +13,15 @@
 #include <QToolTip>
 #include <QDialog>
 #include <QTextEdit>
+#include <QPlainTextEdit>
+#include <QCheckBox>
+#include <QScreen>
 #include <QGridLayout>
+#include <QFormLayout>
 #include <QDialogButtonBox>
 #include <include/api/RPC.h>
 
+#include "include/configs/generate.h"
 #include "include/configs/sub/warp.h"
 #include "include/configs/sub/RouteUpdater.hpp"
 
@@ -74,6 +79,176 @@ void DialogManageRoutes::set_dns_hijack_enability(const bool enable) const {
     ui->dnshijack_rules->setEnabled(enable);
     ui->dnshijack_v4resp->setEnabled(enable);
     ui->dnshijack_v6resp->setEnabled(enable);
+}
+
+void DialogManageRoutes::show_predefined_dns_editor() {
+    auto w = new QDialog(this);
+    w->setWindowTitle(tr("Predefined DNS Answers"));
+    w->setWindowModality(Qt::ApplicationModal);
+
+    auto layout = new QGridLayout(w);
+
+    auto enable = new QCheckBox(tr("Enable predefined answers"), w);
+    enable->setChecked(predefined_dns_enabled);
+    layout->addWidget(enable, 0, 0);
+
+    auto tEdit = new QPlainTextEdit(w);
+    tEdit->setPlaceholderText(tr("One entry per line, hosts-file syntax:\n\n"
+                                 "127.0.0.1 localhost\n"
+                                 "10.0.0.5 nas.lan files.lan\n"
+                                 "::1 localhost6\n\n"
+                                 "A domain listed with only one address family is answered "
+                                 "NXDOMAIN for the other, so the override cannot be bypassed."));
+    tEdit->setPlainText(predefined_dns_text);
+    tEdit->setEnabled(predefined_dns_enabled);
+    layout->addWidget(tEdit, 1, 0);
+
+    connect(enable, &QCheckBox::stateChanged, tEdit, [=](int state) {
+        tEdit->setEnabled(state != Qt::Unchecked);
+    });
+
+    auto buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, w);
+    layout->addWidget(buttons, 2, 0);
+
+    connect(buttons, &QDialogButtonBox::accepted, w, [=, this] {
+        QString badLine;
+        QList<Configs::PredefinedDNSEntry> parsed;
+        if (!Configs::ParsePredefinedDNS(tEdit->toPlainText().split("\n"), parsed, &badLine)) {
+            MessageBoxWarning(tr("Invalid input"), tr("Not a valid predefined DNS entry:\n") + badLine);
+            return;
+        }
+        predefined_dns_enabled = enable->isChecked();
+        predefined_dns_text = tEdit->toPlainText();
+        w->accept();
+    });
+    connect(buttons, &QDialogButtonBox::rejected, w, &QDialog::reject);
+
+    w->resize(w->sizeHint().expandedTo(QSize(520, 360)).boundedTo(screen()->availableGeometry().size()));
+    w->exec();
+    w->deleteLater();
+}
+
+void DialogManageRoutes::show_dns_advanced_editor() {
+    auto w = new QDialog(this);
+    w->setWindowTitle(tr("Advanced DNS Settings"));
+    w->setWindowModality(Qt::ApplicationModal);
+
+    auto layout = new QFormLayout(w);
+
+    auto cacheCap = new QLineEdit(Int2String(dns_advanced.cache_capacity), w);
+    cacheCap->setValidator(QRegExpValidator_Number);
+    layout->addRow(tr("Cache Capacity"), cacheCap);
+
+    auto queryTimeout = new QLineEdit(dns_advanced.query_timeout, w);
+    queryTimeout->setPlaceholderText(tr("10s (default)"));
+    layout->addRow(tr("Query Timeout"), queryTimeout);
+
+    auto optimistic = new QCheckBox(tr("Optimistic Cache"), w);
+    optimistic->setToolTip(tr("<html><head/><body><p>Keep serving an expired answer while it is "
+                              "refreshed in the background. Cannot be combined with Disable Cache "
+                              "or Disable Expire.</p></body></html>"));
+    optimistic->setChecked(dns_advanced.optimistic);
+    layout->addRow(optimistic);
+
+    auto optimisticTimeout = new QLineEdit(dns_advanced.optimistic_timeout, w);
+    optimisticTimeout->setPlaceholderText(tr("3d (default)"));
+    layout->addRow(tr("Optimistic Timeout"), optimisticTimeout);
+
+    auto disableCache = new QCheckBox(tr("Disable Cache"), w);
+    disableCache->setChecked(dns_advanced.disable_cache);
+    layout->addRow(disableCache);
+
+    auto disableExpire = new QCheckBox(tr("Disable Expire"), w);
+    disableExpire->setChecked(dns_advanced.disable_expire);
+    layout->addRow(disableExpire);
+
+    auto reverseMapping = new QCheckBox(tr("Reverse Mapping"), w);
+    reverseMapping->setChecked(dns_advanced.reverse_mapping);
+    layout->addRow(reverseMapping);
+
+    // The core rejects optimistic alongside either cache switch, so the UI keeps them exclusive.
+    auto syncConflicts = [=] {
+        const bool cacheOff = disableCache->isChecked() || disableExpire->isChecked();
+        if (cacheOff) optimistic->setChecked(false);
+        optimistic->setEnabled(!cacheOff);
+        optimisticTimeout->setEnabled(optimistic->isChecked());
+        disableCache->setEnabled(!optimistic->isChecked());
+        disableExpire->setEnabled(!optimistic->isChecked());
+    };
+    connect(optimistic, &QCheckBox::toggled, w, syncConflicts);
+    connect(disableCache, &QCheckBox::toggled, w, syncConflicts);
+    connect(disableExpire, &QCheckBox::toggled, w, syncConflicts);
+    syncConflicts();
+
+    auto buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, w);
+    layout->addRow(buttons);
+
+    connect(buttons, &QDialogButtonBox::accepted, w, [=, this] {
+        for (const auto &field : {queryTimeout, optimisticTimeout}) {
+            if (field->text().trimmed().isEmpty()) continue;
+            if (Configs::IsValidDuration(field->text().trimmed())) continue;
+            MessageBoxWarning(tr("Invalid settings"),
+                              tr("Not a valid duration: ") + field->text().trimmed() +
+                                  tr("\nUse a number followed by ns, us, ms, s, m, h or d."));
+            return;
+        }
+        dns_advanced.cache_capacity = cacheCap->text().toInt();
+        dns_advanced.query_timeout = queryTimeout->text().trimmed();
+        dns_advanced.optimistic = optimistic->isChecked();
+        dns_advanced.optimistic_timeout = optimisticTimeout->text().trimmed();
+        dns_advanced.disable_cache = disableCache->isChecked();
+        dns_advanced.disable_expire = disableExpire->isChecked();
+        dns_advanced.reverse_mapping = reverseMapping->isChecked();
+        w->accept();
+    });
+    connect(buttons, &QDialogButtonBox::rejected, w, &QDialog::reject);
+
+    w->resize(w->sizeHint().boundedTo(screen()->availableGeometry().size()));
+    w->exec();
+    w->deleteLater();
+}
+
+void DialogManageRoutes::show_dns_object_editor() {
+    auto w = new QDialog(this);
+    w->setWindowTitle(tr("DNS Object"));
+    w->setWindowModality(Qt::ApplicationModal);
+
+    auto layout = new QGridLayout(w);
+
+    auto tEdit = new QPlainTextEdit(w);
+    tEdit->setPlaceholderText(DecodeB64IfValid("ewogICJzZXJ2ZXJzIjogW10sCiAgInJ1bGVzIjogW10sCiAgImZpbmFsIjogIiIsCiAgInN0cmF0ZWd5IjogIiIsCiAgImRpc2FibGVfY2FjaGUiOiBmYWxzZSwKICAiZGlzYWJsZV9leHBpcmUiOiBmYWxzZSwKICAiaW5kZXBlbmRlbnRfY2FjaGUiOiBmYWxzZSwKICAicmV2ZXJzZV9tYXBwaW5nIjogZmFsc2UsCiAgImZha2VpcCI6IHt9Cn0="));
+    tEdit->setPlainText(dns_object_text);
+    layout->addWidget(tEdit, 0, 0, 1, 2);
+
+    auto format = new QPushButton(tr("Format"), w);
+    layout->addWidget(format, 1, 0);
+    connect(format, &QPushButton::clicked, w, [=] {
+        auto obj = QString2QJsonObject(tEdit->toPlainText());
+        if (obj.isEmpty()) {
+            MessageBoxWarning(tr("Invalid input"), tr("The DNS object is not a valid JSON object"));
+            return;
+        }
+        tEdit->setPlainText(QJsonObject2QString(obj, false));
+    });
+
+    auto document = new QPushButton(tr("Document"), w);
+    layout->addWidget(document, 1, 1);
+    connect(document, &QPushButton::clicked, w, [=] {
+        MessageBoxInfo("DNS", "https://sing-box.sagernet.org/configuration/dns/");
+    });
+
+    auto buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, w);
+    layout->addWidget(buttons, 2, 0, 1, 2);
+
+    connect(buttons, &QDialogButtonBox::accepted, w, [=, this] {
+        dns_object_text = tEdit->toPlainText();
+        w->accept();
+    });
+    connect(buttons, &QDialogButtonBox::rejected, w, &QDialog::reject);
+
+    w->resize(w->sizeHint().expandedTo(QSize(560, 420)).boundedTo(screen()->availableGeometry().size()));
+    w->exec();
+    w->deleteLater();
 }
 
 bool DialogManageRoutes::validate_dns_rules(const QString &rawString) {
@@ -358,52 +533,50 @@ QDialog#routeProfileEditor QCheckBox { color: #DDE2E7; spacing: 8px; }
     currentRoute = Configs::dataManager->routesRepo->GetRouteProfile(Configs::dataManager->settingsRepo->current_route_id);
     if (currentRoute == nullptr) currentRoute = chainList[0];
 
-    QString dnsHelpDocumentUrl;
-
     // All four strategy pickers share one order; they used to disagree, so the same
     // position meant "prefer_ipv4" in one and "ipv4_only" in the next.
     ui->default_domain_strategy->addItems(Configs::DomainStrategy::DomainStrategy);
     ui->domainStrategyCombo->addItems(Configs::DomainStrategy::DomainStrategy);
-    ui->dns_object->setPlaceholderText(DecodeB64IfValid("ewogICJzZXJ2ZXJzIjogW10sCiAgInJ1bGVzIjogW10sCiAgImZpbmFsIjogIiIsCiAgInN0cmF0ZWd5IjogIiIsCiAgImRpc2FibGVfY2FjaGUiOiBmYWxzZSwKICAiZGlzYWJsZV9leHBpcmUiOiBmYWxzZSwKICAiaW5kZXBlbmRlbnRfY2FjaGUiOiBmYWxzZSwKICAicmV2ZXJzZV9tYXBwaW5nIjogZmFsc2UsCiAgImZha2VpcCI6IHt9Cn0="));
-    dnsHelpDocumentUrl = "https://sing-box.sagernet.org/configuration/dns/";
 
     ui->direct_dns_strategy->addItems(Configs::DomainStrategy::DomainStrategy);
     ui->remote_dns_strategy->addItems(Configs::DomainStrategy::DomainStrategy);
     ui->local_override->setText(Configs::dataManager->settingsRepo->core_box_underlying_dns);
-    ui->cache_cap->setText(Int2String(Configs::dataManager->settingsRepo->dns_cache_capacity));
-    ui->disable_cache->setChecked(Configs::dataManager->settingsRepo->dns_disable_cache);
-    ui->disable_expire->setChecked(Configs::dataManager->settingsRepo->dns_disable_expire);
-    ui->reverse_mapping->setChecked(Configs::dataManager->settingsRepo->dns_reverse_mapping);
     ui->enable_fakeip->setChecked(Configs::dataManager->settingsRepo->fake_dns);
-    //
+
+    dns_advanced = {
+        Configs::dataManager->settingsRepo->dns_cache_capacity,
+        Configs::dataManager->settingsRepo->dns_disable_cache,
+        Configs::dataManager->settingsRepo->dns_disable_expire,
+        Configs::dataManager->settingsRepo->dns_reverse_mapping,
+        Configs::dataManager->settingsRepo->dns_optimistic,
+        Configs::dataManager->settingsRepo->dns_optimistic_timeout,
+        Configs::dataManager->settingsRepo->dns_query_timeout,
+    };
+    connect(ui->dns_advanced, &QPushButton::clicked, this, &DialogManageRoutes::show_dns_advanced_editor);
+
+    dns_object_text = Configs::dataManager->settingsRepo->dns_object;
+    connect(ui->dns_object_edit, &QPushButton::clicked, this, &DialogManageRoutes::show_dns_object_editor);
     connect(ui->use_dns_object, &QCheckBox::stateChanged, this, [=,this](int state) {
         auto useDNSObject = state == Qt::Checked;
         ui->simple_dns_box->setDisabled(useDNSObject);
-        ui->dns_object->setDisabled(!useDNSObject);
+        ui->dns_advanced->setDisabled(useDNSObject);
+        ui->dns_object_edit->setDisabled(!useDNSObject);
     });
     ui->use_dns_object->stateChanged(Qt::Unchecked); // uncheck to uncheck
-    connect(ui->dns_document, &QPushButton::clicked, this, [=,this] {
-        MessageBoxInfo("DNS", dnsHelpDocumentUrl);
-    });
-    connect(ui->format_dns_object, &QPushButton::clicked, this, [=,this] {
-        auto obj = QString2QJsonObject(ui->dns_object->toPlainText());
-        if (obj.isEmpty()) {
-            MessageBoxInfo("DNS", "Invalid json");
-        } else {
-            ui->dns_object->setPlainText(QJsonObject2QString(obj, false));
-        }
-    });
     ui->ruleset_mirror->setCurrentIndex(Configs::dataManager->settingsRepo->ruleset_mirror);
     ui->default_domain_strategy->setCurrentText(Configs::dataManager->settingsRepo->default_domain_strategy);
     ui->domainStrategyCombo->setCurrentText(Configs::dataManager->settingsRepo->resolve_domain_strategy);
     ui->use_dns_object->setChecked(Configs::dataManager->settingsRepo->use_dns_object);
-    ui->dns_object->setPlainText(Configs::dataManager->settingsRepo->dns_object);
     ui->remote_dns->setCurrentText(Configs::dataManager->settingsRepo->remote_dns);
     ui->remote_dns_strategy->setCurrentText(Configs::dataManager->settingsRepo->remote_dns_strategy);
     ui->direct_dns->setCurrentText(Configs::dataManager->settingsRepo->direct_dns);
     ui->direct_dns_strategy->setCurrentText(Configs::dataManager->settingsRepo->direct_dns_strategy);
     ui->dns_final_out->setCurrentText(Configs::dataManager->settingsRepo->dns_final_out);
     ui->enable_dns_routing->setChecked(Configs::dataManager->settingsRepo->enable_dns_routing);
+    ui->respect_hosts->setChecked(Configs::dataManager->settingsRepo->dns_use_hosts);
+    predefined_dns_enabled = Configs::dataManager->settingsRepo->dns_predefined_enable;
+    predefined_dns_text = Configs::dataManager->settingsRepo->dns_predefined_rules.join("\n");
+    connect(ui->predefined_dns, &QPushButton::clicked, this, &DialogManageRoutes::show_predefined_dns_editor);
     reloadProfileItems();
 
     connect(ui->route_profiles, &QListWidget::itemDoubleClicked, this, [=,this](const QListWidgetItem* item){
@@ -535,19 +708,29 @@ void DialogManageRoutes::accept() {
     Configs::dataManager->settingsRepo->resolve_domain_strategy = ui->domainStrategyCombo->currentText();
     Configs::dataManager->settingsRepo->default_domain_strategy = ui->default_domain_strategy->currentText();
     Configs::dataManager->settingsRepo->use_dns_object = ui->use_dns_object->isChecked();
-    Configs::dataManager->settingsRepo->dns_object = ui->dns_object->toPlainText();
+    Configs::dataManager->settingsRepo->dns_object = dns_object_text;
     Configs::dataManager->settingsRepo->remote_dns = ui->remote_dns->currentText();
     Configs::dataManager->settingsRepo->remote_dns_strategy = ui->remote_dns_strategy->currentText();
-    Configs::dataManager->settingsRepo->dns_cache_capacity = ui->cache_cap->text().toInt();
-    Configs::dataManager->settingsRepo->dns_disable_cache = ui->disable_cache->isChecked();
-    Configs::dataManager->settingsRepo->dns_disable_expire = ui->disable_expire->isChecked();
-    Configs::dataManager->settingsRepo->dns_reverse_mapping = ui->reverse_mapping->isChecked();
+    Configs::dataManager->settingsRepo->dns_cache_capacity = dns_advanced.cache_capacity;
+    Configs::dataManager->settingsRepo->dns_disable_cache = dns_advanced.disable_cache;
+    Configs::dataManager->settingsRepo->dns_disable_expire = dns_advanced.disable_expire;
+    Configs::dataManager->settingsRepo->dns_reverse_mapping = dns_advanced.reverse_mapping;
+    Configs::dataManager->settingsRepo->dns_optimistic = dns_advanced.optimistic;
+    Configs::dataManager->settingsRepo->dns_optimistic_timeout = dns_advanced.optimistic_timeout;
+    Configs::dataManager->settingsRepo->dns_query_timeout = dns_advanced.query_timeout;
     Configs::dataManager->settingsRepo->direct_dns = ui->direct_dns->currentText();
     Configs::dataManager->settingsRepo->direct_dns_strategy = ui->direct_dns_strategy->currentText();
     Configs::dataManager->settingsRepo->core_box_underlying_dns = ui->local_override->text().trimmed();
     Configs::dataManager->settingsRepo->dns_final_out = ui->dns_final_out->currentText();
     Configs::dataManager->settingsRepo->fake_dns = ui->enable_fakeip->isChecked();
     Configs::dataManager->settingsRepo->enable_dns_routing = ui->enable_dns_routing->isChecked();
+    Configs::dataManager->settingsRepo->dns_use_hosts = ui->respect_hosts->isChecked();
+    Configs::dataManager->settingsRepo->dns_predefined_enable = predefined_dns_enabled;
+    QStringList predefinedRules;
+    for (const auto &line : predefined_dns_text.split("\n")) {
+        if (!line.trimmed().isEmpty()) predefinedRules.append(line.trimmed());
+    }
+    Configs::dataManager->settingsRepo->dns_predefined_rules = predefinedRules;
 
     Configs::dataManager->routesRepo->UpdateRouteProfiles(chainList);
     Configs::dataManager->settingsRepo->current_route_id = currentRoute->id;
@@ -618,7 +801,9 @@ void DialogManageRoutes::on_export_route_clicked()
     auto idx = ui->route_profiles->currentRow();
     if (idx < 0) return;
 
-    QApplication::clipboard()->setText(chainList[idx]->ToShareLink());
+    QString warnings;
+    QApplication::clipboard()->setText(chainList[idx]->ToShareLink(&warnings));
+    if (!warnings.isEmpty()) MessageBoxInfo(tr("Exported with warnings"), warnings);
 
     QToolTip::showText(QCursor::pos(), tr("Copied!"), this);
     int r = ++tooltipID;
@@ -693,10 +878,11 @@ void DialogManageRoutes::on_import_route_clicked()
         if (auto profile = Configs::RouteProfile::FromShareInput(clip, &fatal, &warnings, &wasOldArray)) {
             const QString what = wasOldArray ? tr("a routing rule list")
                                              : tr("routing profile \"%1\"").arg(profile->name);
-            if (QMessageBox::question(this, tr("Import from clipboard"),
-                                      tr("Import %1 from the clipboard?").arg(what))
+            QString prompt = tr("Import %1 from the clipboard?").arg(what);
+            // endpoints are already created by the parse above, before this prompt
+            if (!warnings.isEmpty()) prompt += "\n\n" + tr("Note:") + "\n" + warnings.trimmed();
+            if (QMessageBox::question(this, tr("Import from clipboard"), prompt)
                 == QMessageBox::StandardButton::Yes) {
-                if (!warnings.isEmpty()) MessageBoxInfo(tr("Imported with warnings"), warnings);
                 applyImportedProfile(profile, wasOldArray);
                 return;
             }

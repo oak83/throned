@@ -181,6 +181,12 @@ namespace Configs {
         bool use_dns_object = false;
         QString dns_object = "";
         QString dns_final_out = "remote";
+        bool dns_optimistic = false;
+        QString dns_optimistic_timeout = "";
+        QString dns_query_timeout = "";
+        bool dns_use_hosts = false;
+        bool dns_predefined_enable = true;
+        QStringList dns_predefined_rules = {"127.0.0.1 localhost"};
         QString resolve_domain_strategy = "";
         QString default_domain_strategy = "";
         int ruleset_mirror = Mirrors::CLOUDFLARE;

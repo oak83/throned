@@ -43,6 +43,12 @@ namespace {
         return error.contains("test aborted") || error.contains("context canceled");
     }
 
+    bool isVpnProfile(const std::shared_ptr<Configs::Profile>& ent) {
+        return ent != nullptr && (ent->type == "openvpn" || ent->type == "openconnect");
+    }
+
+    constexpr int kVpnStatusWaitMs = 10000;
+
     // An empty tag map means a single-profile box, so the result must be `fallback`.
     int resolveEntID(const QMap<QString, int>& tag2entID, const std::string& tag, int fallback) {
         if (tag2entID.isEmpty()) return fallback;
@@ -108,12 +114,16 @@ QString TestRunner::contextName(int entID) const {
     return MainWindow::tr("a tested profile");
 }
 
-void TestRunner::applyUrlResult(const std::shared_ptr<Configs::Profile>& ent, const libcore::URLTestResp& res) {
+void TestRunner::applyUrlResult(const std::shared_ptr<Configs::Profile>& ent, const libcore::URLTestResp& res,
+                                const QHash<QString, bool>* vpnConnected) {
     const auto error = QString::fromStdString(res.error.value());
     if (error.isEmpty()) {
         ent->SetLatency(res.latency_ms.value());
     } else if (isTestAborted(error)) {
         ent->SetLatency(0);
+    } else if (vpnConnected != nullptr && isVpnProfile(ent)
+               && vpnConnected->value(QString::fromStdString(res.outbound_tag.value()), false)) {
+        ent->SetLatency(Configs::kLatencyConnectOnly);
     } else {
         ent->SetLatency(-1);
         MW_show_log(MainWindow::tr("[%1] test error: %2").arg(ent->outbound->DisplayTypeAndName(), error));
@@ -147,6 +157,14 @@ void TestRunner::runUrlProbe(const Target& target) {
     req.url = Configs::dataManager->settingsRepo->test_latency_url.toStdString();
     req.max_concurrency = Configs::dataManager->settingsRepo->test_concurrent;
     req.test_timeout_ms = Configs::dataManager->settingsRepo->url_test_timeout_ms;
+
+    // The test box dies with the RPC, so the verdict has to be asked for up front.
+    for (auto it = target.tag2entID.cbegin(); it != target.tag2entID.cend(); ++it) {
+        if (isVpnProfile(Configs::dataManager->profilesRepo->GetProfile(it.value()))) {
+            req.vpn_endpoint_tags.push_back(it.key().toStdString());
+        }
+    }
+    if (!req.vpn_endpoint_tags.empty()) req.vpn_status_timeout_ms = kVpnStatusWaitMs;
 
     bool rpcOK = false;
     QString coreError;
@@ -185,6 +203,11 @@ void TestRunner::runUrlProbe(const Target& target) {
         return;
     }
 
+    QHash<QString, bool> vpnConnected;
+    for (const auto& st : result.vpn_status) {
+        vpnConnected.insert(QString::fromStdString(st.tag.value()), st.connected.value());
+    }
+
     for (const auto& res : result.results) {
         const int entid = resolveEntID(target.tag2entID, res.outbound_tag.value(), target.entID);
         if (entid == -1) {
@@ -196,7 +219,7 @@ void TestRunner::runUrlProbe(const Target& target) {
             MW_show_log(MainWindow::tr("Profile manager data is corrupted, try again."));
             continue;
         }
-        applyUrlResult(ent, res);
+        applyUrlResult(ent, res, &vpnConnected);
     }
 }
 
@@ -407,11 +430,11 @@ void TestRunner::runSpeedTests(const QList<int>& requestedIDs, bool testCurrent)
                     return;
                 }
 
-                for (const auto& entID : buildObject->fullConfigs.keys()) {
+                for (auto it = buildObject->fullConfigs.cbegin(); it != buildObject->fullConfigs.cend(); ++it) {
                     Target target;
-                    target.coreConfig = buildObject->fullConfigs[entID];
+                    target.coreConfig = it.value();
                     target.useDefaultOutbound = true;
-                    target.entID = entID;
+                    target.entID = it.key();
                     runSpeedProbe(target);
                 }
 

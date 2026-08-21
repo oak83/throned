@@ -7,6 +7,7 @@
 #include <QMimeData>
 #include <QTimer>
 
+#include "include/ui/widget/TrayOtpCodes.hpp"
 #include "include/ui/widget/TrayProfileSelector.hpp"
 #include "include/ui/widget/RoutingQuickMenu.hpp"
 #include "include/database/RoutesRepo.h"
@@ -235,6 +236,12 @@ void MainWindow::openRoutingQuickMenu(const QPoint &globalPos) {
 
     routingQuickMenu = new RoutingQuickMenu(cb, this);
     routingQuickMenu->popupAt(globalPos);
+}
+
+void MainWindow::openTrayOtpCodes() {
+    if (trayOtpCodes) trayOtpCodes->close();
+    trayOtpCodes = new TrayOtpCodes(this);
+    trayOtpCodes->popupAt(QCursor::pos());
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event) {

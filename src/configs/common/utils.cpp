@@ -51,25 +51,33 @@ namespace Configs
         auto url = QUrl(link);
         if (!url.isValid()) return false;
         auto query = QUrlQuery(url.query());
+        const auto transport = query.queryItemValue("type");
+        // an absent "type" is raw, matching xrayStreamSetting::ParseFromLink's default;
+        // sing-box has no equivalent of the raw HTTP header, so these must go to Xray
+        const bool rawHttp = (transport.isEmpty() || transport == "tcp" || transport == "raw")
+                             && query.queryItemValue("headerType") == "http";
 
         if (dataManager->settingsRepo->xray_vless_preference == Xray::AllVLESS
-            || query.queryItemValue("type") == "xhttp"
+            || rawHttp
+            || transport == "xhttp"
             || (query.queryItemValue("security") == "reality" && dataManager->settingsRepo->xray_vless_preference == Xray::XhttpAndReality)
             || (query.queryItemValue("encryption") != "none" && query.queryItemValue("encryption") != "")
             || query.queryItemValue("extra") != "") return true;
         return false;
     }
 
-    QString getHeadersString(QStringList headers) {
+    QString getHeadersString(const QStringList& headers) {
         QString result;
         if (headers.length()%2 != 0) {
             return "";
         }
+        QStringList formatted;
+        formatted.reserve(headers.length()/2);
+
         for (int i=0;i<headers.length();i+=2) {
-            result += headers[i]+"=";
-            result += "\""+headers[i+1]+"\" ";
+            formatted.append(QStringLiteral("%1=\"%2\"").arg(headers.at(i), headers.at(i + 1)));
         }
-        return result;
+        return formatted.join(' ');
     }
 
     QStringList parseHeaderPairs(const QString& rawHeader) {

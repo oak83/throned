@@ -347,9 +347,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y nsis
+          NUM="${GITHUB_REF_NAME#v}"
+          NUM="${NUM#V}"
+          IFS='.' read -r -a parts <<< "${NUM%%-*}"
           makensis -NOCD \
             -DTHRONED_X64_ONLY \
             -DAPP_VERSION="${GITHUB_REF_NAME}" \
+            -DAPP_VERSION_MAJOR="${parts[0]:-0}" \
+            -DAPP_VERSION_MINOR="${parts[1]:-0}" \
+            -DAPP_VERSION_PATCH="${parts[2]:-0}" \
+            -DAPP_VERSION_BUILD="${parts[3]:-0}" \
             -DOUTPUT_FILE="Throned-${GITHUB_REF_NAME}-windows64-installer.exe" \
             script/windows_installer.nsi
       - name: Publish release

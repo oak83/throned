@@ -28,6 +28,7 @@
 #include <QShortcut>
 #include <QKeySequence>
 #include <QSet>
+#include <QHash>
 #include <QCheckBox>
 #include <QSemaphore>
 #include <QMutex>
@@ -50,7 +51,10 @@ namespace Configs_sys {
 
 class TrayProfileSelector;
 class RoutingQuickMenu;
+class TrayOtpCodes;
 class TestRunner;
+class DialogVpnAuth;
+struct VpnAuthChallenge;
 
 namespace Qv2ray::ui { class SyntaxHighlighter; }
 
@@ -91,6 +95,12 @@ public:
     // profile is active.
     qint64 GetCorePid();
     QString GetRunningConfigName();
+
+    // Blocking RPC; never call from the UI thread.
+    static QString liveVpnConnectOkText();
+
+    // Blocking RPC; never call from the UI thread. Empty unless the exit hop is an endpoint.
+    static QString liveVpnStateText(bool *connected = nullptr);
 
     void prepare_exit();
 
@@ -161,6 +171,10 @@ private slots:
     void on_menu_routing_settings_triggered();
 
     void on_menu_vpn_settings_triggered();
+
+    void on_menu_preset_settings_triggered();
+
+    void on_menu_otp_manager_triggered();
 
     void on_menu_hotkey_settings_triggered();
 
@@ -238,6 +252,8 @@ private:
     void showConnectionMenu(const QPoint &pos);
     void addRuleFromConnection(const QString &entry, int action);
     [[nodiscard]] QString existingRuleAction(const QString &entry) const;
+    QPointer<TrayOtpCodes> trayOtpCodes;
+    void openTrayOtpCodes();
     QShortcut *shortcut_esc = new QShortcut(QKeySequence::Cancel, this);
     //
     // Shared by the test sweeps and the batch profile scans (remove-invalid).
@@ -488,6 +504,35 @@ private:
     bool handleXrayGeoAssetError(const QString& error, const QString& contextName);
 
     void url_test_current();
+
+    // vpn endpoints
+
+    // The hop the "proxy" tag lands on, or null when it is not an endpoint.
+    static std::shared_ptr<Configs::Profile> vpn_exit_endpoint(const std::shared_ptr<Configs::Profile> &ent);
+
+    static QString vpn_state_text(const QString &state, const QString &error);
+
+    void start_vpn_challenge_poll();
+
+    void stop_vpn_challenge_poll();
+
+    void poll_vpn_challenges();
+
+    void show_vpn_challenge(const VpnAuthChallenge &challenge);
+
+    // No challenge is pending: the core never prompts for config-supplied credentials.
+    void show_vpn_auth_failure(const QString &endpointTag, const QString &error);
+
+    void clear_vpn_credential_overrides();
+
+    QTimer *m_vpnChallengeTimer = nullptr;
+    std::atomic<bool> m_vpnChallengeBusy{false};
+    QSet<QString> m_vpnChallengeSeen;
+    QPointer<DialogVpnAuth> m_vpnAuthDialog;
+    QString m_vpnEndpointState;
+    // Survives the restart the recovery itself triggers, so a rejected retry cannot loop.
+    QHash<int, int> m_vpnAuthPrompted;
+    int m_vpnAuthRestartID = -1;
 
     bool set_system_dns(bool set, bool save_set = true);
 

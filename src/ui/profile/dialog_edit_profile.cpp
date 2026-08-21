@@ -9,6 +9,8 @@
 #include "include/ui/profile/edit_anytls.h"
 #include "include/ui/profile/edit_mieru.h"
 #include "include/ui/profile/edit_wireguard.h"
+#include "include/ui/profile/edit_openvpn.h"
+#include "include/ui/profile/edit_openconnect.h"
 #include "include/ui/profile/edit_tailscale.h"
 #include "include/ui/profile/edit_ssh.h"
 #include "include/ui/profile/edit_custom.h"
@@ -335,6 +337,8 @@ DialogEditProfile::DialogEditProfile(const QString &_type, int profileOrGroupId,
         LOAD_TYPE("mieru")
         LOAD_TYPE("shadowtls")
         LOAD_TYPE("wireguard")
+        LOAD_TYPE("openvpn")
+        LOAD_TYPE("openconnect")
         LOAD_TYPE("tailscale")
         LOAD_TYPE("ssh")
         LOAD_TYPE("direct")
@@ -450,6 +454,14 @@ void DialogEditProfile::typeSelected(const QString &newType) {
         innerEditor = _innerWidget;
     } else if (type == "wireguard") {
         auto _innerWidget = new EditWireguard(this);
+        innerWidget = _innerWidget;
+        innerEditor = _innerWidget;
+    } else if (type == "openvpn") {
+        auto _innerWidget = new EditOpenVPN(this);
+        innerWidget = _innerWidget;
+        innerEditor = _innerWidget;
+    } else if (type == "openconnect") {
+        auto _innerWidget = new EditOpenConnect(this);
         innerWidget = _innerWidget;
         innerEditor = _innerWidget;
     } else if (type == "tailscale") {

@@ -498,6 +498,65 @@ namespace API {
         return "IPC error";
     }
 
+    libcore::VPNStatusResponse Client::QueryVPNStatus(bool *rpcOK, const QStringList &endpointTags,
+                                                      int timeoutMs) const {
+        libcore::VPNStatusRequest request;
+        for (const auto &tag : endpointTags) request.endpoint_tags.push_back(tag.toStdString());
+        request.timeout_ms = timeoutMs;
+        libcore::VPNStatusResponse reply;
+        std::vector<uint8_t> resp;
+        auto status = channel->Call("QueryVPNStatus", spb::pb::serialize<std::string>(request), resp);
+
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
+            *rpcOK = true;
+            return reply;
+        } else {
+            NOT_OK
+            return {};
+        }
+    }
+
+    QString Client::SubmitVPNChallenge(bool *rpcOK, const QString &endpointTag, const QString &challengeId,
+                                       const QString &username, const QString &password, const QString &secret,
+                                       const QMap<QString, QString> &formValues) const {
+        libcore::SubmitVPNChallengeRequest request;
+        request.endpoint_tag = endpointTag.toStdString();
+        request.challenge_id = challengeId.toStdString();
+        request.username = username.toStdString();
+        request.password = password.toStdString();
+        request.secret = secret.toStdString();
+        for (auto it = formValues.constBegin(); it != formValues.constEnd(); ++it)
+            request.form_values[it.key().toStdString()] = it.value().toStdString();
+        libcore::ErrorResp reply;
+        std::vector<uint8_t> resp;
+        auto status = channel->Call("SubmitVPNChallenge", spb::pb::serialize<std::string>(request), resp);
+
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
+            *rpcOK = true;
+            return QString::fromStdString(reply.error.value());
+        } else {
+            NOT_OK
+            return "IPC error";
+        }
+    }
+
+    QString Client::CancelVPNChallenge(bool *rpcOK, const QString &endpointTag, const QString &challengeId) const {
+        libcore::SubmitVPNChallengeRequest request;
+        request.endpoint_tag = endpointTag.toStdString();
+        request.challenge_id = challengeId.toStdString();
+        libcore::ErrorResp reply;
+        std::vector<uint8_t> resp;
+        auto status = channel->Call("CancelVPNChallenge", spb::pb::serialize<std::string>(request), resp);
+
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
+            *rpcOK = true;
+            return QString::fromStdString(reply.error.value());
+        } else {
+            NOT_OK
+            return "IPC error";
+        }
+    }
+
     QString Client::SetSystemDNS(bool *rpcOK, const bool clear) const {
         libcore::SetSystemDNSRequest request{clear};
         std::vector<uint8_t> resp;

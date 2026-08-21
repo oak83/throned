@@ -4,6 +4,7 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QMutexLocker>
+#include <QSet>
 
 #include "include/database/ProfilesRepo.h"
 #include "include/global/Configs.hpp"
@@ -206,7 +207,24 @@ namespace Configs {
         json["test_items_to_show"] = query->getColumn(15).getInt();
         json["type_sort_by"] = query->getColumn(16).getInt();
 
-        return groupFromJson(json);
+        auto group = groupFromJson(json);
+        // Refreshes used to map several identical servers onto one id, leaving
+        // that id in the list once per server. The list is persisted whole, so
+        // an affected group stays broken until it is repaired here (#1775).
+        QSet<int> seen;
+        QList<int> unique;
+        unique.reserve(group->profiles.size());
+        for (int pid : group->profiles) {
+            if (seen.contains(pid)) continue;
+            seen.insert(pid);
+            unique.append(pid);
+        }
+        if (unique.size() != group->profiles.size()) {
+            group->profiles = std::move(unique);
+            // The caller (GetGroup) already holds the mutex, so write straight through.
+            saveToDatabase(group.get(), group->id);
+        }
+        return group;
     }
 
     std::shared_ptr<Group> GroupsRepo::NewGroup() {

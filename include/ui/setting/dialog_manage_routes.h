@@ -59,6 +59,28 @@ private:
 
     static bool validate_dns_rules(const QString &rawString);
 
+    void show_predefined_dns_editor();
+
+    void show_dns_advanced_editor();
+
+    void show_dns_object_editor();
+
+    struct DnsAdvancedDraft {
+        int cache_capacity;
+        bool disable_cache;
+        bool disable_expire;
+        bool reverse_mapping;
+        bool optimistic;
+        QString optimistic_timeout;
+        QString query_timeout;
+    };
+
+    // Held until accept() so the popups can be cancelled without touching the settings.
+    bool predefined_dns_enabled = true;
+    QString predefined_dns_text;
+    DnsAdvancedDraft dns_advanced{};
+    QString dns_object_text;
+
     QShortcut* deleteShortcut;
 
     AutoCompleteTextEdit* rule_editor;

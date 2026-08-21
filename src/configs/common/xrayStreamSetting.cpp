@@ -13,6 +13,14 @@ namespace Configs {
             return !value.empty();
         }
 
+        QStringList splitList(const QString& value) {
+            QStringList result;
+            for (const auto& part : value.split(',', Qt::SkipEmptyParts)) {
+                if (const auto trimmed = part.trimmed(); !trimmed.isEmpty()) result << trimmed;
+            }
+            return result;
+        }
+
         void addXmuxField(QJsonObject& xmux, const QString& key, const std::string& value) {
             if (hasText(value)) xmux[key] = qs(value);
         }
@@ -749,6 +757,18 @@ namespace Configs {
 
         if (query.hasQueryItem("type")) network = query.queryItemValue("type").replace("tcp", "raw");
         if (!Configs::XrayNetworks.contains(network)) return false;
+        if (network == "raw" && query.queryItemValue("headerType") == "http") {
+            QJsonObject request;
+            if (const auto paths = splitList(query.queryItemValue("path", QUrl::FullyDecoded)); !paths.isEmpty()) {
+                request["path"] = QListStr2QJsonArray(paths);
+            }
+            if (const auto hosts = splitList(query.queryItemValue("host", QUrl::FullyDecoded)); !hosts.isEmpty()) {
+                request["headers"] = QJsonObject{{"Host", QListStr2QJsonArray(hosts)}};
+            }
+            QJsonObject header{{"type", "http"}};
+            if (!request.isEmpty()) header["request"] = request;
+            rawSettings = QJsonObject{{"header", header}};
+        }
         if (query.hasQueryItem("security")) security = query.queryItemValue("security");
         if (security == "tls") TLS->ParseFromLink(link);
         else if (security == "reality") reality->ParseFromLink(link);
@@ -763,8 +783,14 @@ namespace Configs {
     bool xrayStreamSetting::ParseFromJson(const QJsonObject &object) {
         if (object.isEmpty()) return false;
 
-        if (object.contains("network")) network = object.value("network").toString();
+        if (object.contains("method")) network = object.value("method").toString();
+        else if (object.contains("network")) network = object.value("network").toString();
+        if (network == "tcp") network = "raw";
         if (!Configs::XrayNetworks.contains(network)) return false;
+        if (network == "raw") {
+            if (object["rawSettings"].isObject()) rawSettings = object["rawSettings"].toObject();
+            else if (object["tcpSettings"].isObject()) rawSettings = object["tcpSettings"].toObject();
+        }
         if (object.contains("security")) security = object.value("security").toString();
         if (security == "tls" && object["tlsSettings"].isObject()) TLS->ParseFromJson(object["tlsSettings"].toObject());
         else if (security == "reality" && object["realitySettings"].isObject()) reality->ParseFromJson(object["realitySettings"].toObject());
@@ -802,7 +828,21 @@ namespace Configs {
 
     QString xrayStreamSetting::ExportToLink() {
         QUrlQuery query;
-        if (!network.isEmpty()) query.addQueryItem("type", network);
+        if (!network.isEmpty()) query.addQueryItem("type", network == "raw" ? "tcp" : network);
+        // value(), never operator[]: the mutable QJsonObject::operator[] inserts a null
+        // entry for a missing key, which would leave "header": null behind in rawSettings
+        // and end up in the generated Xray config
+        if (const auto header = rawSettings.value("header").toObject();
+            network == "raw" && header.value("type").toString() == "http") {
+            query.addQueryItem("headerType", "http");
+            const auto request = header.value("request").toObject();
+            if (const auto paths = request.value("path").toArray(); !paths.isEmpty()) {
+                query.addQueryItem("path", QJsonArray2QListString(paths).join(','));
+            }
+            if (const auto hosts = request.value("headers").toObject().value("Host").toArray(); !hosts.isEmpty()) {
+                query.addQueryItem("host", QJsonArray2QListString(hosts).join(','));
+            }
+        }
         if (!security.isEmpty()) query.addQueryItem("security", security);
         if (security == "tls") mergeUrlQuery(query, TLS->ExportToLink());
         if (security == "reality") mergeUrlQuery(query, reality->ExportToLink());
@@ -817,6 +857,7 @@ namespace Configs {
         QJsonObject object;
         object["network"] = network;
         object["security"] = security;
+        if (network == "raw" && !rawSettings.isEmpty()) object["rawSettings"] = rawSettings;
         if (security == "tls") object["tlsSettings"] = TLS->ExportToJson();
         else if (security == "reality") object["realitySettings"] = reality->ExportToJson();
         if (network == "xhttp") object["xhttpSettings"] = xhttp->ExportToJson();
@@ -830,6 +871,8 @@ namespace Configs {
         QJsonObject object;
         object["network"] = network;
         object["security"] = security;
+        // no rawSettings here: identity matches a profile across a subscription update,
+        // so it must not carry values the subscription rotates (Host header, paths)
         if (security == "reality") {
             if (!reality->serverName.isEmpty()) object["sni"] = reality->serverName;
             if (!reality->fingerprint.isEmpty()) object["fingerprint"] = reality->fingerprint;

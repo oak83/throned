@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
+    <width>893</width>
     <height>600</height>
    </rect>
   </property>
@@ -362,6 +362,65 @@ QTabBar::tab:hover:!selected {
           <string>Simple DNS Settings</string>
          </property>
          <layout class="QGridLayout" name="gridLayout">
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_8">
+            <property name="toolTip">
+             <string>This is especially important and it is recommended to use the default value of &quot;localhost&quot;.
+If the default value does not work, try changing it to &quot;223.5.5.5&quot;.
+For more information, see the document &quot;Configuration/DNS&quot;.</string>
+            </property>
+            <property name="text">
+             <string>Direct DNS</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="3">
+           <layout class="QHBoxLayout" name="horizontalLayout_7">
+            <item>
+             <widget class="QComboBox" name="remote_dns">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="editable">
+               <bool>true</bool>
+              </property>
+              <item>
+               <property name="text">
+                <string notr="true">tls://8.8.8.8</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string notr="true">tls://1.1.1.1</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string notr="true">8.8.8.8</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string notr="true">1.1.1.1</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_10">
+              <property name="text">
+               <string>Query Strategy</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="remote_dns_strategy"/>
+            </item>
+           </layout>
+          </item>
           <item row="2" column="3">
            <layout class="QHBoxLayout" name="horizontalLayout_8">
             <item>
@@ -414,53 +473,6 @@ QTabBar::tab:hover:!selected {
             </item>
            </layout>
           </item>
-          <item row="1" column="3">
-           <layout class="QHBoxLayout" name="horizontalLayout_7">
-            <item>
-             <widget class="QComboBox" name="remote_dns">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="editable">
-               <bool>true</bool>
-              </property>
-              <item>
-               <property name="text">
-                <string notr="true">tls://8.8.8.8</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string notr="true">tls://1.1.1.1</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string notr="true">8.8.8.8</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string notr="true">1.1.1.1</string>
-               </property>
-              </item>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLabel" name="label_10">
-              <property name="text">
-               <string>Query Strategy</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QComboBox" name="remote_dns_strategy"/>
-            </item>
-           </layout>
-          </item>
           <item row="4" column="3">
            <layout class="QHBoxLayout" name="horizontalLayout_5">
             <item>
@@ -501,6 +513,29 @@ QTabBar::tab:hover:!selected {
               </property>
              </widget>
             </item>
+            <item>
+             <widget class="QCheckBox" name="respect_hosts">
+              <property name="toolTip">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Answer A/AAAA queries from the system hosts file before consulting any DNS server. Only domains actually listed in the file are affected.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="text">
+               <string>Respect Hosts File</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="predefined_dns">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Predefined Answers</string>
+              </property>
+             </widget>
+            </item>
            </layout>
           </item>
           <item row="1" column="0">
@@ -516,25 +551,6 @@ QTabBar::tab:hover:!selected {
             </property>
            </widget>
           </item>
-          <item row="6" column="0">
-           <widget class="QLabel" name="dns_final_out_l">
-            <property name="text">
-             <string>Default DNS server</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="label_8">
-            <property name="toolTip">
-             <string>This is especially important and it is recommended to use the default value of &quot;localhost&quot;.
-If the default value does not work, try changing it to &quot;223.5.5.5&quot;.
-For more information, see the document &quot;Configuration/DNS&quot;.</string>
-            </property>
-            <property name="text">
-             <string>Direct DNS</string>
-            </property>
-           </widget>
-          </item>
           <item row="4" column="0">
            <widget class="QLabel" name="label_2">
             <property name="toolTip">
@@ -545,38 +561,10 @@ For more information, see the document &quot;Configuration/DNS&quot;.</string>
             </property>
            </widget>
           </item>
-          <item row="7" column="3">
-           <layout class="QHBoxLayout" name="horizontalLayout_6">
-            <item>
-             <widget class="QLineEdit" name="cache_cap"/>
-            </item>
-            <item>
-             <widget class="QCheckBox" name="disable_cache">
-              <property name="text">
-               <string>Disable Cache</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QCheckBox" name="disable_expire">
-              <property name="text">
-               <string>Disable Expire</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QCheckBox" name="reverse_mapping">
-              <property name="text">
-               <string>Reverse Mapping</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="7" column="0">
-           <widget class="QLabel" name="label_13">
+          <item row="6" column="0">
+           <widget class="QLabel" name="dns_final_out_l">
             <property name="text">
-             <string>Cache Capacity</string>
+             <string>Default DNS server</string>
             </property>
            </widget>
           </item>
@@ -584,50 +572,56 @@ For more information, see the document &quot;Configuration/DNS&quot;.</string>
         </widget>
        </item>
        <item>
-        <widget class="QGroupBox" name="groupBox_2">
+        <widget class="QGroupBox" name="groupBox">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <property name="title">
-          <string>DNS Object Settings</string>
+          <string>Advanced</string>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_5">
+          <item>
+           <widget class="QPushButton" name="dns_advanced">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Cache behaviour, optimistic cache and query timeout.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="text">
+             <string>Advanced Settings</string>
+            </property>
+           </widget>
+          </item>
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_4">
             <item>
              <widget class="QCheckBox" name="use_dns_object">
               <property name="text">
-               <string>Use DNS Object</string>
+               <string>Use Custom DNS Object</string>
               </property>
              </widget>
             </item>
             <item>
-             <widget class="QPushButton" name="format_dns_object">
+             <widget class="QPushButton" name="dns_object_edit">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
               <property name="text">
-               <string>Format</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="dns_document">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="text">
-               <string>Document</string>
+               <string>Edit DNS Object</string>
               </property>
              </widget>
             </item>
            </layout>
-          </item>
-          <item>
-           <widget class="QPlainTextEdit" name="dns_object"/>
           </item>
          </layout>
         </widget>
@@ -741,10 +735,6 @@ For more information, see the document &quot;Configuration/DNS&quot;.</string>
   <tabstop>direct_dns</tabstop>
   <tabstop>direct_dns_strategy</tabstop>
   <tabstop>dns_final_out</tabstop>
-  <tabstop>use_dns_object</tabstop>
-  <tabstop>format_dns_object</tabstop>
-  <tabstop>dns_document</tabstop>
-  <tabstop>dns_object</tabstop>
  </tabstops>
  <resources/>
  <connections>

@@ -17,6 +17,8 @@
 #include "include/configs/outbounds/mieru.h"
 #include "include/configs/outbounds/shadowtls.h"
 #include "include/configs/outbounds/wireguard.h"
+#include "include/configs/outbounds/openvpn.h"
+#include "include/configs/outbounds/openconnect.h"
 #include "include/configs/outbounds/tailscale.h"
 #include "include/configs/outbounds/ssh.h"
 #include "include/configs/outbounds/custom.h"
@@ -45,6 +47,8 @@ namespace Configs
         if (type == "mieru") return new mieru();
         if (type == "shadowtls") return new shadowtls();
         if (type == "wireguard") return new wireguard();
+        if (type == "openvpn") return new openvpn();
+        if (type == "openconnect") return new openconnect();
         if (type == "tailscale") return new tailscale();
         if (type == "ssh") return new ssh();
         if (type == "custom") return new Custom();

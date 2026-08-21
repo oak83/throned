@@ -20,6 +20,7 @@ namespace Configs
         FullConfig,      // sing-box full config: its own box
         Malformed,       // config does not parse; would break the shared build
         Tailscale,
+        ManagementEndpoint, // openvpn / openconnect: reaches a private network, not the internet
         NameFilter,
         CountryFilter,
         Unavailable,      // last test failed and the profile excludes those

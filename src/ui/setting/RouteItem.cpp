@@ -1,4 +1,6 @@
 #include "include/ui/setting/RouteItem.h"
+
+#include "include/configs/generate.h"
 #include "include/database/ProfilesRepo.h"
 #include "include/database/GroupsRepo.h"
 #include "include/global/Configs.hpp"
@@ -13,6 +15,8 @@
 
 #include <srslist.h>
 
+#include <algorithm>
+
 #include <QComboBox>
 #include <QAbstractButton>
 #include <QAction>
@@ -25,6 +29,8 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScreen>
+#include <QSet>
 #include <QSizePolicy>
 #include <QStackedWidget>
 #include <QGridLayout>
@@ -236,7 +242,7 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     });
 
     connect(ui->rule_attr_tabs, &QTabWidget::currentChanged, this, [this](int index) {
-        if (currentIndex >= 0 && index >= 0 && index < ui->rule_attr_tabs->count())
+        if (currentIndex >= 0 && !currentRuleIsEndpoint() && index >= 0 && index < ui->rule_attr_tabs->count())
             chain->Rules[currentIndex]->uiActiveAttributeTabLabel = ui->rule_attr_tabs->tabText(index);
         if (QWidget* w = ui->rule_attr_tabs->currentWidget()) {
             w->updateGeometry();
@@ -464,9 +470,10 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     modeTabs->setObjectName("routeModeTabs");
     modeTabs->addTab(tr("Simple"));
     modeTabs->addTab(tr("Advanced"));
+    modeTabs->addTab(tr("Endpoints"));
     modeTabs->setUsesScrollButtons(false);
     modeTabs->setExpanding(true);
-    modeTabs->setFixedSize(212, 38);
+    modeTabs->setFixedSize(318, 38);
     ui->tabWidget->tabBar()->hide();
     connect(modeTabs, &QTabBar::currentChanged, ui->tabWidget, &QTabWidget::setCurrentIndex);
     connect(ui->tabWidget, &QTabWidget::currentChanged, modeTabs, &QTabBar::setCurrentIndex);
@@ -568,32 +575,45 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     setMinimumSize(960, 680);
     FitWindowToScreen(this, QSize(1085, 761));
 
-    connect(ui->tabWidget->tabBar(), &QTabBar::currentChanged, this, [=, this]() {
-        if (ui->tabWidget->tabBar()->currentIndex() == 1) {
+    // Dispatch on page identity: literal tab indices misroute as soon as a page is inserted.
+    lastTabPage = ui->tabWidget->currentWidget();
+    connect(ui->tabWidget, &QTabWidget::currentChanged, this, [=, this]() {
+        QWidget* from = lastTabPage;
+        lastTabPage = ui->tabWidget->currentWidget();
+
+        if (from == ui->tab_2) {
             QString res;
             res += chain->UpdateSimpleRules(simpleDirect->toPlainText(), Configs::bypass);
             res += chain->UpdateSimpleRules(simpleBlock->toPlainText(), Configs::block);
             res += chain->UpdateSimpleRules(simpleProxy->toPlainText(), Configs::proxy);
             res += chain->UpdateSimpleRules(simpleWarpBypass->toPlainText(), Configs::warpBypass);
             res += saveViaBuckets();
-            if (currentIndex >= 0)
-                persistCurrentRuleAttrTabLabel();
-            currentIndex = chain->Rules.isEmpty() ? -1 : 0;
-            updateRouteItemsView();
-            updateRuleSection();
-            rebuildAdvancedSummary();
-            advancedStack->setCurrentIndex(0);
-        } else {
-            if (currentIndex >= 0)
-                persistCurrentRuleAttrTabLabel();
-            updateRouteItemsView();
-            updateRuleSection();
+            if (!res.isEmpty()) {
+                runOnUiThread([=] {
+                    MessageBoxWarning(tr("Invalid rules"), tr("Some rules could not be added:\n") + res);
+                });
+            }
+        }
+        if (currentIndex >= 0) persistCurrentRuleAttrTabLabel();
+
+        // UpdateSimpleRules rebuilds and filters chain->Rules, so the selection is stale.
+        if (from == ui->tab_2) currentIndex = -1;
+
+        syncEndpointRules();
+
+        if (lastTabPage == ui->tab_2) {
             simpleDirect->setPlainText(chain->GetSimpleRules(Configs::bypass));
             simpleBlock->setPlainText(chain->GetSimpleRules(Configs::block));
             simpleProxy->setPlainText(chain->GetSimpleRules(Configs::proxy));
             simpleWarpBypass->setPlainText(chain->GetSimpleRules(Configs::warpBypass));
             reloadViaBuckets();
             syncRouteProfileToSimpleEditors();
+        } else if (lastTabPage == advancedHost) {
+            if (currentIndex < 0 && !chain->Rules.isEmpty()) currentIndex = 0;
+            updateRouteItemsView();
+            updateRuleSection();
+            rebuildAdvancedSummary();
+            advancedStack->setCurrentIndex(0);
         }
     });
 
@@ -604,7 +624,7 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     });
 
     connect(ui->rule_name, &QLineEdit::textChanged, this, [=, this](const QString& text) {
-        if (currentIndex == -1) return;
+        if (currentIndex == -1 || currentRuleIsEndpoint()) return;
         chain->Rules[currentIndex]->name = QString(text);
         auto ruleNameCursorPosition = ui->rule_name->cursorPosition();
         updateRouteItemsView();
@@ -626,7 +646,7 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     });
 
     connect(ui->rule_action_combo, &QComboBox::currentTextChanged, this, [=, this](const QString& text) {
-        if (currentIndex < 0) return;
+        if (currentIndex < 0 || currentRuleIsEndpoint()) return;
         chain->Rules[currentIndex]->set_field_value(QStringLiteral("action"), {text});
         updateRulePreview();
     });
@@ -641,10 +661,19 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     deleteShortcut = new QShortcut(QKeySequence(Qt::Key_Delete), this);
 
     connect(deleteShortcut, &QShortcut::activated, this, [=, this] {
+        // The shortcut is dialog-wide, so on the Endpoints page it must not reach the rule list.
+        if (ui->tabWidget->currentWidget() == ui->endpointsTab) {
+            const int row = ui->endpointList->currentRow();
+            if (row >= 0) removeEndpointRow(ui->endpointList->item(row)->data(Qt::UserRole).toInt());
+            return;
+        }
         on_delete_route_item_clicked();
     });
 
     setupRemoteSection();
+    setupEndpointsSection();
+    const int endpointsIndex = ui->tabWidget->indexOf(ui->endpointsTab);
+    modeTabs->setTabVisible(2, endpointsIndex >= 0 && ui->tabWidget->isTabVisible(endpointsIndex));
 
     updateRuleSection();
 }
@@ -1016,12 +1045,189 @@ void RouteItem::fetchRemote(bool applyToChain) {
     });
 }
 
+static QList<QPair<QString, int>> routeItemEndpointCandidates() {
+    QList<QPair<QString, int>> candidates;
+    QList<int> ids = Configs::dataManager->profilesRepo->GetProfileIdsByType("openvpn");
+    ids += Configs::dataManager->profilesRepo->GetProfileIdsByType("openconnect");
+    ids += Configs::dataManager->profilesRepo->GetProfileIdsByType("chain");
+    for (const int id : ids) {
+        const auto ent = Configs::dataManager->profilesRepo->GetProfile(id);
+        if (ent == nullptr || ent->outbound == nullptr) continue;
+        if (!Configs::CanBeAuxEndpoint(ent)) continue;
+        candidates.append({ent->outbound->DisplayTypeAndName(), id});
+    }
+    std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) {
+        return QString::localeAwareCompare(a.first, b.first) < 0;
+    });
+    return candidates;
+}
+
+static bool routeItemIsEndpointRule(const std::shared_ptr<Configs::RouteRule>& rule) {
+    return rule != nullptr && rule->type == Configs::endpointPreferredBy;
+}
+
+static QString routeItemEndpointName(int profileId) {
+    const auto ent = Configs::dataManager->profilesRepo->GetProfile(profileId);
+    if (ent == nullptr || ent->outbound == nullptr) return QString::number(profileId);
+    return ent->outbound->DisplayName();
+}
+
+static QString routeItemUniqueRuleName(const QString& base, const QSet<QString>& taken) {
+    QString name = base;
+    for (int n = 2; taken.contains(name); n++) name = base + " (" + Int2String(n) + ")";
+    return name;
+}
+
+static std::shared_ptr<Configs::RouteRule> routeItemMakeEndpointRule(int profileId) {
+    auto rule = std::make_shared<Configs::RouteRule>();
+    rule->type = Configs::endpointPreferredBy;
+    rule->outboundID = profileId;
+    // Nothing on it is user-editable; seeding attribute tabs from it would only offer edits.
+    rule->uiAttributeTabsSeeded = true;
+    return rule;
+}
+
+void RouteItem::setupEndpointsSection() {
+    endpointCandidates = routeItemEndpointCandidates();
+    QSet<int> listed;
+    for (const int profileId : chain->endpointProfileIDs) {
+        if (listed.contains(profileId)) continue;
+        listed.insert(profileId);
+        addEndpointRow(profileId);
+    }
+
+    syncEndpointRules();
+
+    if (endpointCandidates.isEmpty() && ui->endpointList->count() == 0) {
+        ui->tabWidget->setTabVisible(ui->tabWidget->indexOf(ui->endpointsTab), false);
+        return;
+    }
+
+    connect(ui->endpointAddBtn, &QPushButton::clicked, this, [this] {
+        const int idx = ui->endpointPicker->currentIndex();
+        if (idx < 0) return;
+        addEndpointRow(ui->endpointPicker->itemData(idx).toInt());
+        refreshEndpointCandidates();
+        syncEndpointRules();
+    });
+    connect(ui->endpointRemoveBtn, &QPushButton::clicked, this, [this] {
+        const int row = ui->endpointList->currentRow();
+        if (row < 0) return;
+        removeEndpointRow(ui->endpointList->item(row)->data(Qt::UserRole).toInt());
+    });
+    connect(ui->endpointList, &QListWidget::currentRowChanged, this, [this](const int row) {
+        ui->endpointRemoveBtn->setEnabled(row >= 0);
+    });
+
+    refreshEndpointCandidates();
+}
+
+void RouteItem::refreshEndpointCandidates() const {
+    QSet<int> used;
+    for (int i = 0; i < ui->endpointList->count(); i++)
+        used.insert(ui->endpointList->item(i)->data(Qt::UserRole).toInt());
+
+    ui->endpointPicker->clear();
+    for (const auto& [label, id] : endpointCandidates) {
+        if (used.contains(id)) continue;
+        ui->endpointPicker->addItem(label, id);
+    }
+
+    const bool canAdd = ui->endpointPicker->count() > 0;
+    ui->endpointPicker->setEnabled(canAdd);
+    ui->endpointAddBtn->setEnabled(canAdd);
+    ui->endpointRemoveBtn->setEnabled(ui->endpointList->currentRow() >= 0);
+}
+
+void RouteItem::addEndpointRow(int profileId) const {
+    auto* row = new QListWidgetItem(ui->endpointList);
+    row->setData(Qt::UserRole, profileId);
+    const auto ent = Configs::dataManager->profilesRepo->GetProfile(profileId);
+    if (ent != nullptr && ent->outbound != nullptr) {
+        row->setText(ent->outbound->DisplayTypeAndName());
+        return;
+    }
+    row->setText(tr("Profile #%1 — deleted, dropped when you save").arg(profileId));
+    row->setForeground(QColor(0xc6, 0x28, 0x28));
+}
+
+void RouteItem::removeEndpointRow(int profileId) {
+    for (int i = 0; i < ui->endpointList->count(); i++) {
+        if (ui->endpointList->item(i)->data(Qt::UserRole).toInt() != profileId) continue;
+        delete ui->endpointList->takeItem(i);
+        break;
+    }
+    refreshEndpointCandidates();
+    syncEndpointRules();
+}
+
+QList<int> RouteItem::listedEndpointIDs() const {
+    QList<int> ids;
+    for (int i = 0; i < ui->endpointList->count(); i++) {
+        const int id = ui->endpointList->item(i)->data(Qt::UserRole).toInt();
+        if (ids.contains(id)) continue;
+        const auto ent = Configs::dataManager->profilesRepo->GetProfile(id);
+        if (ent == nullptr || ent->outbound == nullptr) continue;
+        ids << id;
+    }
+    return ids;
+}
+
+void RouteItem::syncEndpointRules() {
+    const QList<int> listed = listedEndpointIDs();
+    const auto selected = currentIndex >= 0 && currentIndex < chain->Rules.size()
+                              ? chain->Rules[currentIndex]
+                              : nullptr;
+
+    QSet<int> paired;
+    QSet<QString> names;
+    QList<std::shared_ptr<Configs::RouteRule>> kept;
+    for (const auto& rule : chain->Rules) {
+        if (routeItemIsEndpointRule(rule)) {
+            if (!listed.contains(rule->outboundID) || paired.contains(rule->outboundID)) continue;
+            paired.insert(rule->outboundID);
+        } else {
+            names.insert(rule->name);
+        }
+        kept << rule;
+    }
+    chain->Rules = kept;
+
+    for (const int id : listed) {
+        if (!paired.contains(id)) chain->Rules << routeItemMakeEndpointRule(id);
+    }
+
+    // The name is only a label for its endpoint, so it follows a renamed profile.
+    for (const auto& rule : chain->Rules) {
+        if (!routeItemIsEndpointRule(rule)) continue;
+        rule->name = routeItemUniqueRuleName(
+            RouteItem::tr("%1 route prefer").arg(routeItemEndpointName(rule->outboundID)), names);
+        names.insert(rule->name);
+    }
+
+    currentIndex = selected == nullptr ? -1 : static_cast<int>(chain->Rules.indexOf(selected));
+    updateRouteItemsView();
+    updateRuleSection();
+}
+
+bool RouteItem::currentRuleIsEndpoint() const {
+    return currentIndex >= 0 && currentIndex < chain->Rules.size()
+        && routeItemIsEndpointRule(chain->Rules[currentIndex]);
+}
+
+void RouteItem::applyRuleEditLock() {
+    const bool managed = currentRuleIsEndpoint();
+    ui->rule_managed_note->setVisible(managed);
+    ui->rule_name->setEnabled(!managed);
+    ui->rule_attr_tabs->setEnabled(!managed);
+    if (managed) ui->rule_action_combo->setEnabled(false);
+}
+
 void RouteItem::reloadRuleViewsFromChain() {
     currentIndex = -1;
     // A Fetch may have adopted the remote profile name (when the field was empty).
     ui->route_name->setText(chain->name);
-    updateRouteItemsView();
-    updateRuleSection();
+    syncEndpointRules();
     simpleDirect->setPlainText(chain->GetSimpleRules(Configs::bypass));
     simpleBlock->setPlainText(chain->GetSimpleRules(Configs::block));
     simpleProxy->setPlainText(chain->GetSimpleRules(Configs::proxy));
@@ -1065,6 +1271,12 @@ void RouteItem::accept() {
     }
     chain->FilterEmptyRules();
 
+    // Endpoints whose profile is gone drop out here, and syncEndpointRules() drops their rules with them.
+    const QList<int> endpointIDs = listedEndpointIDs();
+    const int missingEndpoints = static_cast<int>(ui->endpointList->count() - endpointIDs.size());
+    chain->endpointProfileIDs = endpointIDs;
+    syncEndpointRules();
+
     // A remote profile may legitimately be saved before its first fetch (rules are pulled
     // later via Fetch / Update); only plain profiles must be non-empty.
     if (!chain->isRemote && chain->IsEmpty()) {
@@ -1073,6 +1285,12 @@ void RouteItem::accept() {
     }
 
     chain->defaultOutboundID = Configs::stringToOutboundID(ui->def_out->currentText());
+
+    if (missingEndpoints > 0) {
+        MessageBoxInfo(tr("Endpoints"),
+                       tr("%1 endpoint profile(s) no longer exist and were removed from this routing profile.")
+                           .arg(missingEndpoints));
+    }
 
     emit settingsChanged(chain);
 
@@ -1112,6 +1330,12 @@ void RouteItem::updateRouteItemsView() {
 
     for (const auto& item: chain->Rules) {
         ui->route_items->addItem(item->name);
+        if (!routeItemIsEndpointRule(item)) continue;
+        auto* row = ui->route_items->item(ui->route_items->count() - 1);
+        QFont font = row->font();
+        font.setItalic(true);
+        row->setFont(font);
+        row->setToolTip(tr("Endpoint rule: move it to choose where the endpoint claims traffic. Managed by the Endpoints tab."));
     }
     if (currentIndex != -1) ui->route_items->setCurrentRow(currentIndex);
 }
@@ -1272,7 +1496,7 @@ void RouteItem::syncPlusListCheckStatesFromRule() {
 }
 
 void RouteItem::persistCurrentRuleAttrTabLabel() {
-    if (currentIndex < 0) return;
+    if (currentIndex < 0 || currentRuleIsEndpoint()) return;
     const int idx = ui->rule_attr_tabs->currentIndex();
     if (idx < 0 || idx >= ui->rule_attr_tabs->count()) return;
     chain->Rules[currentIndex]->uiActiveAttributeTabLabel = ui->rule_attr_tabs->tabText(idx);
@@ -1295,7 +1519,7 @@ void RouteItem::applyStoredRuleAttrTabSelection() {
 }
 
 void RouteItem::applyAttributeVisibilityChange(const QString& attr, bool visible) {
-    if (currentIndex < 0) return;
+    if (currentIndex < 0 || currentRuleIsEndpoint()) return;
     persistCurrentRuleAttrTabLabel();
     auto r = chain->Rules[currentIndex];
     r->uiAttributeTabsSeeded = true;
@@ -1348,10 +1572,12 @@ void RouteItem::rebuildRuleAttributeTabs() {
     }
 
     const auto rule = chain->Rules[currentIndex];
-    for (const QString& attr : Configs::RouteRule::tab_attributes()) {
-        if (!rule->uiVisibleAttributes.contains(attr)) continue;
-        const int beforePlus = ui->rule_attr_tabs->count() - 1;
-        ui->rule_attr_tabs->insertTab(beforePlus, makeAttributeEditorPage(attr), attr);
+    if (!routeItemIsEndpointRule(rule)) {
+        for (const QString& attr : Configs::RouteRule::tab_attributes()) {
+            if (!rule->uiVisibleAttributes.contains(attr)) continue;
+            const int beforePlus = ui->rule_attr_tabs->count() - 1;
+            ui->rule_attr_tabs->insertTab(beforePlus, makeAttributeEditorPage(attr), attr);
+        }
     }
 
     syncPlusListCheckStatesFromRule();
@@ -1371,22 +1597,40 @@ void RouteItem::updateRuleSection() {
         ui->rule_action_combo->clear();
         ui->rule_action_combo->blockSignals(false);
         rebuildRuleAttributeTabs();
+        applyRuleEditLock();
         return;
     }
 
     auto rule = chain->Rules[currentIndex];
-    rule->ensure_ui_visible_attribute_tabs_seeded();
     {
         const QSignalBlocker nameBlocker(ui->rule_name);
         ui->rule_name->setText(rule->name);
     }
+    if (routeItemIsEndpointRule(rule)) {
+        updateRulePreview();
+        const QSignalBlocker actionBlocker(ui->rule_action_combo);
+        ui->rule_action_combo->clear();
+        rebuildRuleAttributeTabs();
+        applyRuleEditLock();
+        return;
+    }
+    rule->ensure_ui_visible_attribute_tabs_seeded();
     syncRuleActionCombo();
     rebuildRuleAttributeTabs();
+    applyRuleEditLock();
     updateRulePreview();
 }
 
 void RouteItem::updateRulePreview() {
     if (currentIndex == -1) return;
+    // The endpoint rule is a position marker; its gate is generated at build time.
+    if (currentRuleIsEndpoint()) {
+        ui->rule_preview->setPlainText(
+            tr("This rule installs a 'preferred by' rule so that the networks advertised by the "
+               "endpoint %1 get routed into the endpoint tunnel.")
+                .arg(routeItemEndpointName(chain->Rules[currentIndex]->outboundID)));
+        return;
+    }
 
     ui->rule_preview->setPlainText(QJsonObject2QString(chain->Rules[currentIndex]->get_rule_json(true), false));
 }
@@ -1421,6 +1665,18 @@ void RouteItem::on_movedown_route_item_clicked() {
 
 void RouteItem::on_delete_route_item_clicked() {
     if (currentIndex == -1) return;
+    if (currentRuleIsEndpoint()) {
+        const int endpointID = chain->Rules[currentIndex]->outboundID;
+        if (QMessageBox::question(this, tr("Endpoint rule"),
+                                  tr("This rule belongs to the endpoint \"%1\" and cannot be deleted on its own.\n\n"
+                                     "Remove that endpoint from this routing profile as well?")
+                                      .arg(routeItemEndpointName(endpointID)))
+            != QMessageBox::StandardButton::Yes) {
+            return;
+        }
+        removeEndpointRow(endpointID);
+        return;
+    }
     chain->Rules.removeAt(currentIndex);
     if (chain->Rules.empty()) currentIndex = -1;
     else {

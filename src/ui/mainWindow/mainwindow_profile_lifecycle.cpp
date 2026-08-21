@@ -9,6 +9,7 @@
 #include "include/configs/AutoSelectorPlan.h"
 #include "include/api/RPC.h"
 #include "include/ui/utils/MessageBoxTimer.h"
+#include "include/ui/stats/dialog_endpoint_details.h"
 
 #include <QPushButton>
 #include <QMessageBox>
@@ -20,6 +21,8 @@
 #include "include/configs/common/xrayStreamSetting.h"
 #include "include/database/GroupsRepo.h"
 #include "include/database/ProfilesRepo.h"
+#include "include/global/VpnCredentialOverride.hpp"
+#include "include/ui/profile/dialog_vpn_auth.h"
 
 #include "include/sys/Process.hpp"
 
@@ -232,6 +235,7 @@ void MainWindow::profile_start(int _id) {
         MessageBoxWarning(tr("BuildConfig return error"), result->error);
         return;
     }
+    Stats::SetVpnEndpointProfiles(result->vpnEndpointProfiles);
 
     // Validate Xray while the currently running profile (and therefore the
     // internal download proxy) is still alive.  If a route edit introduces a
@@ -362,12 +366,18 @@ void MainWindow::profile_start(int _id) {
         running = ent;
         if (Configs::dataManager->settingsRepo->spmode_system_proxy) set_system_proxy(true);
 
+        const bool exitIsEndpoint = vpn_exit_endpoint(ent) != nullptr;
+
         runOnUiThread([=, this] {
+            start_vpn_challenge_poll();
             refresh_status();
             refresh_proxy_list({ent->id});
             // Reveals the Tools entry and seeds the data-view panel before the
             // first poll lands, so a selector never starts up invisibly.
             refresh_auto_selector_view();
+
+            // "Only route advertised network" rejects this probe, so the corner carries tunnel state.
+            if (exitIsEndpoint) return;
 
             auto resp = NetworkRequestHelper::HttpGet("http://ip-api.com/json/", false, true);
             if (resp.error.isEmpty()) {
@@ -555,10 +565,170 @@ void MainWindow::profile_stop(bool crash, bool block, bool manual) {
             if (restartMsgbox != nullptr) restartMsgbox->deleteLater();
 
             m_profileDisconnecting = false;
+            // profile_start() stops the old run first, so only a stop outside a restart is the user's.
+            const bool restartingForAuth = manual && id == m_vpnAuthRestartID;
+            m_vpnAuthRestartID = -1;
+            if (manual && !restartingForAuth) clear_vpn_credential_overrides();
+            stop_vpn_challenge_poll();
             refresh_status();
             refresh_proxy_list({id});
 
             mu_stopping.unlock();
         }, true);
     }, block);
+}
+
+void MainWindow::start_vpn_challenge_poll() {
+    if (m_vpnChallengeTimer == nullptr) {
+        m_vpnChallengeTimer = new QTimer(this);
+        // Servers park a challenge on a short timer, so the prompt has to reach the user well inside it.
+        m_vpnChallengeTimer->setInterval(2000);
+        connect(m_vpnChallengeTimer, &QTimer::timeout, this, [this] { poll_vpn_challenges(); });
+    }
+    m_vpnChallengeSeen.clear();
+    m_vpnEndpointState.clear();
+    m_vpnChallengeTimer->start();
+}
+
+void MainWindow::stop_vpn_challenge_poll() {
+    if (m_vpnChallengeTimer != nullptr) m_vpnChallengeTimer->stop();
+    m_vpnChallengeSeen.clear();
+    m_vpnEndpointState.clear();
+    Stats::SetVpnEndpointProfiles({});
+    if (m_vpnAuthDialog != nullptr) m_vpnAuthDialog->close();
+}
+
+void MainWindow::poll_vpn_challenges() {
+    if (Configs::dataManager->settingsRepo->started_id < 0) return;
+    // A slow or dead RPC must not stack polls behind it.
+    if (m_vpnChallengeBusy.exchange(true)) return;
+
+    runOnNewThread([this] {
+        bool rpcOK = false;
+        const auto status = defaultClient->QueryVPNStatus(&rpcOK, {});
+
+        QList<VpnAuthChallenge> pending;
+        QList<QPair<QString, QString>> authFailures;
+        QString exitState;
+        if (rpcOK) {
+            for (const auto &res : status.results) {
+                const auto tag = QString::fromStdString(res.tag.value());
+                if (tag == "proxy") {
+                    exitState = vpn_state_text(QString::fromStdString(res.state.value()),
+                                               QString::fromStdString(res.error.value()));
+                }
+                if (res.auth_failed.value()) {
+                    authFailures.append({tag, QString::fromStdString(res.error.value())});
+                }
+                if (!res.challenge.has_value()) continue;
+                const auto &raw = res.challenge.value();
+
+                VpnAuthChallenge challenge;
+                challenge.endpointTag = QString::fromStdString(raw.endpoint_tag.value());
+                if (challenge.endpointTag.isEmpty()) challenge.endpointTag = tag;
+                challenge.id = QString::fromStdString(raw.id.value());
+                challenge.kind = QString::fromStdString(raw.kind.value());
+                challenge.username = QString::fromStdString(raw.username.value());
+                challenge.message = QString::fromStdString(raw.message.value());
+                challenge.banner = QString::fromStdString(raw.banner.value());
+                challenge.error = QString::fromStdString(raw.error.value());
+                challenge.url = QString::fromStdString(raw.url.value());
+                challenge.echo = raw.echo.value();
+                challenge.deadline = raw.deadline.value();
+                for (const auto &rawField : raw.fields) {
+                    VpnAuthField field;
+                    field.submissionKey = QString::fromStdString(rawField.submission_key.value());
+                    field.label = QString::fromStdString(rawField.label.value());
+                    if (field.label.isEmpty()) field.label = QString::fromStdString(rawField.name.value());
+                    field.kind = QString::fromStdString(rawField.kind.value());
+                    field.value = QString::fromStdString(rawField.value.value());
+                    for (const auto &rawOption : rawField.options) {
+                        field.options.append({QString::fromStdString(rawOption.value.value()),
+                                              QString::fromStdString(rawOption.label.value())});
+                    }
+                    challenge.fields.append(field);
+                }
+                pending.append(challenge);
+            }
+        }
+
+        runOnUiThread([=, this] {
+            m_vpnChallengeBusy.store(false);
+            // The profile may have stopped while this poll was in flight.
+            if (m_vpnChallengeTimer == nullptr || !m_vpnChallengeTimer->isActive()) return;
+            m_vpnEndpointState = exitState;
+            for (const auto &challenge : pending) show_vpn_challenge(challenge);
+            for (const auto &[tag, error] : authFailures) show_vpn_auth_failure(tag, error);
+        });
+    });
+}
+
+void MainWindow::show_vpn_challenge(const VpnAuthChallenge &challenge) {
+    if (challenge.id.isEmpty()) return;
+    // One prompt at a time; whatever else is waiting comes back on the next poll.
+    if (m_vpnAuthDialog != nullptr) return;
+
+    const auto key = challenge.endpointTag + QChar(0x1F) + challenge.id;
+    if (m_vpnChallengeSeen.contains(key)) return;
+    m_vpnChallengeSeen.insert(key);
+
+    auto *dialog = new DialogVpnAuth(this, challenge);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    m_vpnAuthDialog = dialog;
+    dialog->show();
+    ActivateWindow(dialog);
+}
+
+void MainWindow::show_vpn_auth_failure(const QString &endpointTag, const QString &error) {
+    constexpr int maxPrompts = 3;
+
+    if (m_vpnAuthDialog != nullptr || running == nullptr) return;
+    const int profileID = Stats::VpnEndpointProfileID(endpointTag);
+    if (profileID < 0) return;
+
+    const auto key = endpointTag + QChar(0x1F) + "auth-failed";
+    if (m_vpnChallengeSeen.contains(key)) return;
+    m_vpnChallengeSeen.insert(key);
+    if (m_vpnAuthPrompted.value(profileID) >= maxPrompts) return;
+
+    const auto ent = Configs::dataManager->profilesRepo->GetProfile(profileID);
+    if (ent == nullptr) return;
+
+    VpnAuthChallenge challenge;
+    challenge.endpointTag = endpointTag;
+    challenge.kind = "credentials";
+    if (const auto *ovpn = ent->OpenVPN(); ovpn != nullptr) challenge.username = ovpn->username;
+    else if (const auto *ocon = ent->OpenConnect(); ocon != nullptr) {
+        // The core reports a refused password-less login the same way, and credentials cannot fix it.
+        if (ocon->password_authentication_disabled) return;
+        challenge.username = ocon->username;
+    }
+    else return;
+    challenge.error = error;
+    challenge.message = tr("The server refused the credentials saved with this profile. Enter the ones "
+                           "to use for this session; the profile itself is left unchanged.");
+
+    m_vpnAuthPrompted[profileID] = m_vpnAuthPrompted.value(profileID) + 1;
+    MW_show_log(tr("[VPN] %1 rejected the saved credentials.").arg(Stats::VpnEndpointDisplayName(endpointTag)));
+
+    const int runningID = running->id;
+    auto *dialog = new DialogVpnAuth(this, challenge, true);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    m_vpnAuthDialog = dialog;
+    connect(dialog, &QDialog::accepted, this, [=, this] {
+        if (running == nullptr || running->id != runningID) return;
+        Configs::SetVpnCredentialOverride(profileID, {dialog->enteredUsername(), dialog->enteredPassword()});
+        // The stop half of this restart must not take the override back down with it.
+        m_vpnAuthRestartID = runningID;
+        profile_start(runningID);
+    });
+    dialog->show();
+    ActivateWindow(dialog);
+}
+
+void MainWindow::clear_vpn_credential_overrides() {
+    for (auto it = m_vpnAuthPrompted.constBegin(); it != m_vpnAuthPrompted.constEnd(); ++it) {
+        Configs::ClearVpnCredentialOverride(it.key());
+    }
+    m_vpnAuthPrompted.clear();
 }

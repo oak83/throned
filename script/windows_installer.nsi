@@ -5,6 +5,18 @@ Name "Throned"
 !ifndef APP_VERSION
   !define APP_VERSION "dev"
 !endif
+!ifndef APP_VERSION_MAJOR
+  !define APP_VERSION_MAJOR 0
+!endif
+!ifndef APP_VERSION_MINOR
+  !define APP_VERSION_MINOR 0
+!endif
+!ifndef APP_VERSION_PATCH
+  !define APP_VERSION_PATCH 0
+!endif
+!ifndef APP_VERSION_BUILD
+  !define APP_VERSION_BUILD 0
+!endif
 !ifndef THRONED_X64_DIR
   !define THRONED_X64_DIR "deployment\windows-amd64"
 !endif
@@ -71,6 +83,13 @@ UninstPage custom un.DataPageCreate un.DataPageLeave
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
+
+VIProductVersion "${APP_VERSION_MAJOR}.${APP_VERSION_MINOR}.${APP_VERSION_PATCH}.${APP_VERSION_BUILD}"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductName" "Throned"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "FileDescription" "Throned Setup"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion" "${APP_VERSION}"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion" "${APP_VERSION}"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright" "Throned"
 
 UninstallText "This will uninstall Throned. Do you wish to continue?"
 UninstallIcon "res\ThronedDel.ico"
@@ -288,6 +307,10 @@ Section "Install"
   WriteRegStr SHCTX "Software\Throned" "InstallPath" "$INSTDIR"
   WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "DisplayName" "Throned"
   WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "DisplayVersion" "${APP_VERSION}"
+  WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "Publisher" "Throned"
+  WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "DisplayIcon" "$INSTDIR\Throned.exe"
+  WriteRegDWORD SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "VersionMajor" ${APP_VERSION_MAJOR}
+  WriteRegDWORD SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "VersionMinor" ${APP_VERSION_MINOR}
   WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "UninstallString" "$INSTDIR\uninstall.exe"
   WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "InstallLocation" "$INSTDIR"
   WriteRegDWORD SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\Throned" "NoModify" 1

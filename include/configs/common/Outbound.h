@@ -41,6 +41,8 @@ namespace Configs
         QString server;
         int server_port = 0;
         bool invalid = false;
+        // Owning profile, stamped by ProfilesRepo; not part of the serialised outbound.
+        int profile_id = -1;
         std::shared_ptr<DialFields> dialFields = std::make_shared<DialFields>();
 
         void ResolveDomainToIP(const std::function<void()> &onFinished) {
@@ -132,6 +134,11 @@ namespace Configs
         virtual std::shared_ptr<xrayMultiplex> GetXrayMultiplex() { return std::make_shared<xrayMultiplex>(); }
 
         virtual bool IsEndpoint() { return false; };
+
+        // Whether this protocol's class knows how to clear every secret it can hold.
+        virtual bool SupportsCredentialStrip() const { return false; }
+
+        virtual void StripCredentials() {}
 
         virtual BuildResult BuildXray() { return {}; }
 

@@ -59,6 +59,8 @@ namespace Configs
             if (member == nullptr || member->outbound == nullptr) return AutoSelectorSkip::Missing;
             if (member->type == "chain" || member->type == "autoselector") return AutoSelectorSkip::MetaType;
             if (member->type == "tailscale") return AutoSelectorSkip::Tailscale;
+            if (member->type == "openvpn" || member->type == "openconnect")
+                return AutoSelectorSkip::ManagementEndpoint;
             if (member->outbound->IsExtraCore()) return AutoSelectorSkip::ExtraCore;
             if (member->type == "custom") {
                 const auto custom = member->Custom();
@@ -237,6 +239,7 @@ namespace Configs
             case AutoSelectorSkip::FullConfig: return QObject::tr("full config profile");
             case AutoSelectorSkip::Malformed: return QObject::tr("config does not parse");
             case AutoSelectorSkip::Tailscale: return QObject::tr("Tailscale profile");
+            case AutoSelectorSkip::ManagementEndpoint: return QObject::tr("OpenVPN or OpenConnect profile");
             case AutoSelectorSkip::NameFilter: return QObject::tr("filtered out by name");
             case AutoSelectorSkip::CountryFilter: return QObject::tr("filtered out by country");
             case AutoSelectorSkip::Unavailable: return QObject::tr("last test failed");

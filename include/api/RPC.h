@@ -3,7 +3,9 @@
 #ifndef Q_MOC_RUN
 #include <core/server/gen/libcore.pb.h>
 #endif
+#include <QMap>
 #include <QString>
+#include <QStringList>
 
 class QLocalSocket;
 
@@ -76,6 +78,17 @@ namespace API {
         // member. An empty tag targets every auto-selector group.
         QString AutoSelectorAction(bool *rpcOK, const QString &tag, const QString &action,
                                    const QString &member = {}) const;
+
+        // Running instance only; a test box reports through Test itself (TestResp::vpn_status).
+        [[nodiscard]] libcore::VPNStatusResponse QueryVPNStatus(bool *rpcOK, const QStringList &endpointTags,
+                                                                int timeoutMs = 0) const;
+
+        // OpenVPN reads username/password/secret; OpenConnect reads formValues keyed by submission_key.
+        QString SubmitVPNChallenge(bool *rpcOK, const QString &endpointTag, const QString &challengeId,
+                                   const QString &username, const QString &password, const QString &secret,
+                                   const QMap<QString, QString> &formValues = {}) const;
+
+        QString CancelVPNChallenge(bool *rpcOK, const QString &endpointTag, const QString &challengeId) const;
 
     private:
         class LocalSocketChannel;

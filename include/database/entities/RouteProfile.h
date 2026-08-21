@@ -73,6 +73,9 @@ namespace Configs {
         bool autoUpdate = false;
         qint64 remoteLastUpdate = 0; // epoch seconds of the last successful remote fetch
 
+        // Profile ids of openvpn/openconnect profiles run alongside this routing profile.
+        QList<int> endpointProfileIDs;
+
         RouteProfile() = default;
 
         RouteProfile(const RouteProfile& other);
@@ -82,15 +85,16 @@ namespace Configs {
         QJsonArray get_route_rules(bool forView = false, std::map<int, QString> outboundMap = {});
 
         // Lossless share schema: a tagged JSON object carrying the profile name, default
-        // outbound and every rule (with its simple/advanced type).
-        QJsonObject ToShareObject();
+        // Endpoints travel as whole configs with credentials cleared; a class that cannot is skipped into *warnings.
+        QJsonObject ToShareObject(QString* warnings = nullptr);
         // ToShareObject() compacted, base64url-encoded, wrapped as throne://route/<...>
-        QString ToShareLink();
+        QString ToShareLink(QString* warnings = nullptr);
         // Parse any shared form: a throne://route link, a base64 blob, a raw share object,
         // or a legacy bare rule array. Returns nullptr and fills *fatalError on failure;
         // non-fatal notes (e.g. outbound fallbacks) go to *warnings. *wasOldArray is set
         // true when the input was a legacy array (no name / default outbound to import).
-        static std::shared_ptr<RouteProfile> FromShareInput(const QString& input, QString* fatalError, QString* warnings, bool* wasOldArray);
+        // Pass materializeEndpoints false to match shared endpoints without creating local profiles.
+        static std::shared_ptr<RouteProfile> FromShareInput(const QString& input, QString* fatalError, QString* warnings, bool* wasOldArray, bool materializeEndpoints = true);
 
         // Parse a throne://remoteRoute/<...> deep link into unsaved remote route profiles
         // (id=-1, isRemote, remoteURL, autoUpdate, name defaulting to the URL host). *wasRemoteRouteLink
@@ -106,6 +110,12 @@ namespace Configs {
         static QJsonObject TranslateRawOutbounds(const QJsonObject& route, const std::map<int, QString>& outboundMap);
 
         static std::shared_ptr<RouteProfile> GetDefaultChain();
+
+        // The positional placeholder paired with an endpoint, correlated by type + outboundID.
+        static std::shared_ptr<RouteRule> MakeEndpointRule(int endpointProfileID);
+
+        // One endpointPreferredBy rule per listed endpoint; prunes orphans, appends missing. Raw: no-op.
+        void SyncEndpointRules();
 
         std::shared_ptr<QList<int>> get_used_outbounds();
 

@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QFileInfo>
 #include <QHostAddress>
+#include <QRegularExpression>
 
 
 #include "include/database/GroupsRepo.h"
@@ -49,6 +50,8 @@ namespace Configs {
             constexpr auto dnsLocal = "dns-local";
             constexpr auto dnsFake = "dns-fake";
             constexpr auto dnsTailscale = "dns-tailscale";
+            constexpr auto dnsHosts = "dns-hosts";
+            constexpr auto dnsVpnPrefix = "dns-vpn";
 
             constexpr auto dnsIn = "dns-in";
             constexpr auto mixedIn = "mixed-in";
@@ -62,6 +65,7 @@ namespace Configs {
 
             constexpr auto mainChainPrefix = "config";
             constexpr auto routeChainPrefix = "route";
+            constexpr auto auxEndpointPrefix = "aux";
             constexpr auto poolChainPrefix = "pool";
             constexpr auto testChainPrefix = "proxy";
             constexpr auto testXrayFullPrefix = "xrayfull";
@@ -164,6 +168,8 @@ namespace Configs {
                 std::shared_ptr<Profile> chainWrapper;
             };
             QList<RouteOutboundGroup> routeOutboundGroups;
+            // Endpoint profiles the routing profile runs alongside the started profile.
+            QList<QList<int>> auxEndpointGroups;
         };
 
         struct BuildPrerequisites {
@@ -195,6 +201,13 @@ namespace Configs {
             QJsonArray outbounds;
             QJsonArray endpoints;
             QJsonArray xrayOutbounds;
+            // tag -> "openvpn" | "openconnect".
+            QMap<QString, QString> vpnEndpointTags;
+            QList<QString> vpnGateTags;
+            // Auxiliary endpoint tags, in list order.
+            QList<QString> vpnAuxTags;
+            // The gated tunnel that carries the whole profile refuses any DNS it cannot answer.
+            bool vpnBlockOutsideDns = false;
             QList<QString> xrayIngressTags;
             QList<QString> singIngressTags;
             QList<coreBridgeConfig> singToXrayBridges;
@@ -552,6 +565,8 @@ namespace Configs {
             return nullptr;
         }
 
+        QList<int> unwrapChain(int entID);
+
         void calculatePrerequisites(BuildContext &ctx) {
             const auto &settings = *dataManager->settingsRepo;
             ctx.tunEnabled = settings.spmode_vpn;
@@ -628,9 +643,7 @@ namespace Configs {
                     // Map chain ID -> tag of the outermost (first-built) hop
                     preReqs.routing.outboundMap[item] = hopTag(tags::routeChainPrefix, suffix);
                     // Build reversed hop list (matching main-chain build order: outer first)
-                    QList<int> reversedHops;
-                    for (int idx = chain->list.size() - 1; idx >= 0; idx--) reversedHops << chain->list[idx];
-                    preReqs.routing.routeOutboundGroups << RoutingDeps::RouteOutboundGroup{reversedHops, neededEnt};
+                    preReqs.routing.routeOutboundGroups << RoutingDeps::RouteOutboundGroup{{chain->list.rbegin(), chain->list.rend()}, neededEnt};
                     suffix += static_cast<int>(chain->list.size());
                 } else {
                     // Single-hop outbound (existing logic)
@@ -642,6 +655,74 @@ namespace Configs {
                     }
                     preReqs.routing.outboundMap[item] = hopTag(tags::routeChainPrefix, suffix++);
                     preReqs.routing.routeOutboundGroups << RoutingDeps::RouteOutboundGroup{QList<int>{item}, nullptr};
+                }
+            }
+
+            if (!routeChain->endpointProfileIDs.isEmpty()) {
+                QSet<int> usedProfileIDs;
+                for (const auto &routeGroup : preReqs.routing.routeOutboundGroups) {
+                    for (int hopID : routeGroup.hopIDs) usedProfileIDs << hopID;
+                }
+                const auto entHopIDs = unwrapChain(ctx.ent->id);
+                for (int hopID : entHopIDs) usedProfileIDs << hopID;
+                if (auto entGroup = dataManager->groupsRepo->GetGroup(ctx.ent->gid); entGroup != nullptr) {
+                    if (entGroup->front_proxy_id >= 0) usedProfileIDs << entGroup->front_proxy_id;
+                    if (entGroup->landing_proxy_id >= 0) usedProfileIDs << entGroup->landing_proxy_id;
+                }
+                int auxSuffix = 0;
+                for (int endpointID : routeChain->endpointProfileIDs) {
+                    auto endpointEnt = dataManager->profilesRepo->GetProfile(endpointID);
+                    if (endpointEnt == nullptr || endpointEnt->outbound == nullptr) {
+                        ctx.error = QObject::tr("The routing profile lists an endpoint profile (id %1) that no longer exists").arg(endpointID);
+                        return;
+                    }
+                    const auto endpointName = endpointEnt->outbound->DisplayTypeAndName();
+                    // unwrapChain reverses the stored list, so hop 0 is the exit that carries the tag.
+                    const auto hopIDs = unwrapChain(endpointID);
+                    if (hopIDs.isEmpty()) {
+                        ctx.error = QObject::tr("%1 is listed as a routing profile endpoint but is empty or corrupted").arg(endpointName);
+                        return;
+                    }
+                    auto exitEnt = dataManager->profilesRepo->GetProfile(hopIDs.first());
+                    if (exitEnt == nullptr || exitEnt->outbound == nullptr) {
+                        ctx.error = QObject::tr("%1 is listed as a routing profile endpoint but a hop of it no longer exists").arg(endpointName);
+                        return;
+                    }
+                    if (exitEnt->type != "openvpn" && exitEnt->type != "openconnect") {
+                        ctx.error = QObject::tr("%1 is listed as a routing profile endpoint, so its last hop must be an OpenVPN or OpenConnect profile").arg(endpointName);
+                        return;
+                    }
+                    for (int hopID : hopIDs) {
+                        auto hopEnt = dataManager->profilesRepo->GetProfile(hopID);
+                        if (hopEnt == nullptr || hopEnt->outbound == nullptr) {
+                            ctx.error = QObject::tr("%1 is listed as a routing profile endpoint but a hop of it no longer exists").arg(endpointName);
+                            return;
+                        }
+                        if (hopEnt->outbound->IsExtraCore() || isCustomFullConfig(hopEnt) || isXrayFullConfig(hopEnt)
+                            || hopEnt->type == "chain") {
+                            ctx.error = QObject::tr("Hops of the routing profile endpoint %1 cannot use an extra core, a full config, or be a chain").arg(endpointName);
+                            return;
+                        }
+                        // An auxiliary endpoint is reached only through preferred_by, so there is no ingress to bridge.
+                        if (usesXrayCore(hopEnt)) {
+                            ctx.error = QObject::tr("Hops of the routing profile endpoint %1 cannot run on the Xray core").arg(endpointName);
+                            return;
+                        }
+                        if (usedProfileIDs.contains(hopID)) {
+                            ctx.error = QObject::tr("%1 is used as an endpoint of the routing profile and by the started profile at the same time, remove it from one of them").arg(hopEnt->outbound->DisplayTypeAndName());
+                            return;
+                        }
+                    }
+                    if (usedProfileIDs.contains(endpointID)) {
+                        ctx.error = QObject::tr("%1 is listed twice in the endpoints of the routing profile").arg(endpointName);
+                        return;
+                    }
+                    usedProfileIDs << endpointID;
+                    for (int hopID : hopIDs) usedProfileIDs << hopID;
+                    preReqs.routing.auxEndpointGroups << hopIDs;
+                    // same suffix walk buildOutboundsSection repeats over auxEndpointGroups
+                    preReqs.routing.outboundMap[endpointID] = hopTag(tags::auxEndpointPrefix, auxSuffix);
+                    auxSuffix += static_cast<int>(hopIDs.size());
                 }
             }
 
@@ -876,6 +957,8 @@ namespace Configs {
             bool independentCache = false;
             QJsonArray servers;
             QJsonArray rules;
+            // Merged in front of `rules` at the end; the tailscale block below prepends.
+            QJsonArray headRules;
             // remote
             if (!ctx.forTest) {
                 auto remoteDnsObj = buildDnsObj(ctx, settings.remote_dns);
@@ -955,22 +1038,81 @@ namespace Configs {
             directDnsObj["domain_resolver"] = tags::dnsLocal;
             servers.append(directDnsObj);
 
-            // Handle localhost
-            if (!ctx.forTest) {
-                rules += QJsonObject{
-                        {"domain", "localhost"},
-                        {"action", "predefined"},
-                        {"query_type", "A"},
-                        {"rcode", "NOERROR"},
-                        {"answer", "localhost. IN A 127.0.0.1"},
-                    };
+            // Predefined
+            if (!ctx.forTest && settings.dns_predefined_enable) {
+                QList<PredefinedDNSEntry> predefined;
+                if (!ParsePredefinedDNS(settings.dns_predefined_rules, predefined)) predefined.clear();
 
-                rules += QJsonObject{
-                        {"domain", "localhost"},
+                // "*." is rewritten to the queried name by the core; a literal owner would have to parse as a zone name.
+                auto emitFamily = [&](const QString &domain, const QStringList &addrs, const QString &type) {
+                    // Refused rather than passed through, else the other family defeats the override.
+                    if (addrs.isEmpty()) {
+                        headRules += QJsonObject{
+                            {"domain", domain},
+                            {"action", "predefined"},
+                            {"query_type", type},
+                            {"rcode", "NXDOMAIN"},
+                        };
+                        return;
+                    }
+                    QJsonArray answers;
+                    for (const auto &addr : addrs) answers += QString("*. IN %1 %2").arg(type, addr);
+                    headRules += QJsonObject{
+                        {"domain", domain},
                         {"action", "predefined"},
-                        {"query_type", "AAAA"},
-                        {"rcode", "NXDOMAIN"},
+                        {"query_type", type},
+                        {"rcode", "NOERROR"},
+                        {"answer", answers},
                     };
+                };
+
+                for (const auto &entry : predefined) {
+                    emitFamily(entry.domain, entry.v4, "A");
+                    emitFamily(entry.domain, entry.v6, "AAAA");
+                }
+            }
+
+            // Hosts file
+            if (!ctx.forTest && settings.dns_use_hosts) {
+                servers += QJsonObject{{"tag", tags::dnsHosts}, {"type", "hosts"}};
+                // The transport NXDOMAINs whatever it cannot answer, hence the preferred_by
+                // gate and the query_type limit.
+                headRules += QJsonObject{
+                    {"preferred_by", QJsonArray{tags::dnsHosts}},
+                    {"query_type", QJsonArray{"A", "AAAA"}},
+                    {"action", "route"},
+                    {"server", tags::dnsHosts},
+                    {"disable_cache", true},
+                };
+            }
+
+            // A gated tunnel takes the fall-through only where unmatched traffic can reach it.
+            QString vpnFinalDnsTag;
+            bool vpnDirectFinalDns = false;
+            if (!ctx.forTest) {
+                for (auto it = ctx.vpnEndpointTags.cbegin(); it != ctx.vpnEndpointTags.cend(); ++it) {
+                    const auto dnsTag = QString(tags::dnsVpnPrefix) + "-" + it.key();
+                    QJsonObject server{
+                        {"tag", dnsTag},
+                        {"type", it.value()},
+                        {"endpoint", it.key()},
+                    };
+                    if (ctx.vpnGateTags.contains(it.key())) {
+                        server["accept_default_resolvers"] = true;
+                        server["accept_search_domain"] = true;
+                        if (it.key() == tags::proxy || it.key() == tags::warpBypass) {
+                            // dns-remote detours through this tunnel, so direct is the only reachable fallback.
+                            if (ctx.vpnBlockOutsideDns) { if (vpnFinalDnsTag.isEmpty()) vpnFinalDnsTag = dnsTag; }
+                            else vpnDirectFinalDns = true;
+                        }
+                    }
+                    servers += server;
+                    headRules += QJsonObject{
+                        {"preferred_by", QJsonArray{dnsTag}},
+                        {"action", "route"},
+                        {"server", dnsTag},
+                    };
+                }
             }
 
             // Xray bridge hops resolve their own server domains through dns-in
@@ -1008,7 +1150,7 @@ namespace Configs {
                     v4["query_type"] = "A";
                     v4["action"] = "predefined";
                     v4["rcode"] = "NOERROR";
-                    v4["answer"] = QString("* IN A %1").arg(settings.dns_v4_resp);
+                    v4["answer"] = QString("*. IN A %1").arg(settings.dns_v4_resp);
                     rules += v4;
 
                     if (settings.dns_v6_resp.isEmpty()) return;
@@ -1016,7 +1158,7 @@ namespace Configs {
                     v6["query_type"] = "AAAA";
                     v6["action"] = "predefined";
                     v6["rcode"] = "NOERROR";
-                    v6["answer"] = QString("* IN AAAA %1").arg(settings.dns_v6_resp);
+                    v6["answer"] = QString("*. IN AAAA %1").arg(settings.dns_v6_resp);
                     rules += v6;
                 };
 
@@ -1085,9 +1227,12 @@ namespace Configs {
 
             // final rule: proxy
             rules += QJsonObject{
-                {"strategy", useDirectFinalDNS ? settings.direct_dns_strategy : settings.remote_dns_strategy},
+                {"strategy", useDirectFinalDNS || vpnDirectFinalDns ? settings.direct_dns_strategy
+                                                                   : settings.remote_dns_strategy},
                 {"action", "route"},
-                {"server", useDirectFinalDNS ? tags::dnsDirect : remoteDnsTag},
+                {"server", !vpnFinalDnsTag.isEmpty() ? vpnFinalDnsTag
+                           : useDirectFinalDNS || vpnDirectFinalDns ? QString(tags::dnsDirect)
+                                                                    : QString(remoteDnsTag)},
             };
 
             // Local
@@ -1095,6 +1240,11 @@ namespace Configs {
             auto dnsLocalObj = buildDnsObj(ctx, dnsLocalAddress);
             dnsLocalObj["tag"] = tags::dnsLocal;
             servers += dnsLocalObj;
+
+            if (!headRules.isEmpty()) {
+                for (const auto &rule : rules) headRules.append(rule);
+                rules = headRules;
+            }
 
             auto dnsObj = QJsonObject{
                 {"servers", servers},
@@ -1105,6 +1255,15 @@ namespace Configs {
             if (settings.dns_disable_expire) dnsObj["disable_expire"] = true;
             if (settings.dns_reverse_mapping) dnsObj["reverse_mapping"] = true;
             if (independentCache) dnsObj["independent_cache"] = true;
+            if (!settings.dns_query_timeout.isEmpty()) dnsObj["timeout"] = settings.dns_query_timeout;
+            // The core refuses the config outright when optimistic meets either cache switch.
+            if (settings.dns_optimistic && !settings.dns_disable_cache && !settings.dns_disable_expire) {
+                if (settings.dns_optimistic_timeout.isEmpty()) dnsObj["optimistic"] = true;
+                else dnsObj["optimistic"] = QJsonObject{
+                    {"enabled", true},
+                    {"timeout", settings.dns_optimistic_timeout},
+                };
+            }
             ctx.result->coreConfig["dns"] = dnsObj;
         }
 
@@ -1342,9 +1501,7 @@ namespace Configs {
             if (ent->type == "chain") {
                 auto chain = ent->Chain();
                 if (chain == nullptr) return {};
-                QList<int> reversed;
-                for (int idx = chain->list.size() - 1; idx >= 0; idx--) reversed.append(chain->list[idx]);
-                return reversed;
+                return {chain->list.rbegin(), chain->list.rend()};
             }
             return {entID};
         }
@@ -1357,6 +1514,7 @@ namespace Configs {
             int startSuffix = 0;
             bool markIngress = false;
             bool warpWrap = false;
+            bool auxiliary = false;
         };
 
         void buildSingboxChain(BuildContext &ctx, const QList<std::shared_ptr<Profile>> &ents, const hopChainOptions &opts) {
@@ -1372,6 +1530,25 @@ namespace Configs {
                 if (opts.warpWrap && idx == 1) tag = tags::warpBypass;
                 if (opts.markIngress && idx == 0) ctx.singIngressTags << tag;
                 const auto& ent = ents[idx];
+                // Only the head hop (and warp's wrapped outbound) gets a tag rules can name.
+                const bool addressableHop = idx == 0 || (opts.warpWrap && idx == 1);
+                if (addressableHop && (ent->type == "openvpn" || ent->type == "openconnect")) {
+                    ctx.result->vpnEndpointProfiles.insert(tag, ent->id);
+                    const auto *ovpn = ent->OpenVPN();
+                    const auto *ocon = ent->OpenConnect();
+                    const bool gated = !opts.auxiliary &&
+                                       ((ovpn != nullptr && ovpn->only_advertised_routes) ||
+                                        (ocon != nullptr && ocon->only_advertised_routes));
+                    const bool tunnelDNS = (ovpn != nullptr && ovpn->use_tunnel_dns) ||
+                                           (ocon != nullptr && ocon->use_tunnel_dns);
+                    // dns-remote detours through this tunnel, so it cannot be the fallback here.
+                    const bool carriesProfile = tag == tags::proxy || tag == tags::warpBypass;
+                    if (tunnelDNS || (gated && carriesProfile)) ctx.vpnEndpointTags.insert(tag, ent->type);
+                    if (gated && carriesProfile)
+                        ctx.vpnBlockOutsideDns = (ovpn != nullptr && ovpn->block_outside_dns) ||
+                                                 (ocon != nullptr && ocon->block_outside_dns);
+                    if (gated) ctx.vpnGateTags << tag;
+                }
                 auto [object, error] = ent->outbound->Build();
                 if (!error.isEmpty())
                 {
@@ -1444,6 +1621,7 @@ namespace Configs {
             // subscription repeat the same ports and would fail to bind.
             bool soleXrayInbound = false;
             bool warpWrap = false;
+            bool auxiliary = false;
         };
 
         // Emits the chain and returns the sing-box outbound tag traffic enters it
@@ -1552,6 +1730,7 @@ namespace Configs {
                 .startSuffix = req.startSuffix,
                 .markIngress = false,
                 .warpWrap = req.warpWrap,
+                .auxiliary = req.auxiliary,
             };
             const int tailingStartSuffix = req.startSuffix + static_cast<int>(initialSingEnts.size());
             if (!initialSingEnts.isEmpty()) {
@@ -1843,7 +2022,9 @@ namespace Configs {
                         ctx.error = "Ent is nullptr after cast to chain, data is corrupted";
                         return;
                     }
-                    for (int idx = chain->list.size()-1; idx >=0; idx--) entIDs.append(chain->list[idx]);
+                    entIDs.reserve(entIDs.size() + chain->list.size());
+                    std::copy(chain->list.crbegin(), chain->list.crend(),
+                             std::back_inserter(entIDs));
                 } else
                 {
                     entIDs.append(ctx.ent->id);
@@ -1877,6 +2058,24 @@ namespace Configs {
                     ctx.result->chainGroups.last().profiles.append(routeGroup.chainWrapper);
                 }
                 routeSuffix += static_cast<int>(routeGroup.hopIDs.size());
+            }
+
+            // preferred_by resolves an endpoint out of the endpoint manager, so nothing detours into these.
+            if (!ctx.forTest) {
+                int auxSuffix = 0;
+                for (const auto &hopIDs : ctx.prerequisites.routing.auxEndpointGroups) {
+                    const auto tag = buildOutboundChain(ctx, {
+                        .hopIDs = hopIDs,
+                        .prefix = tags::auxEndpointPrefix,
+                        .includeProxy = false,
+                        .link = hopIDs.size() > 1,
+                        .startSuffix = auxSuffix,
+                        .auxiliary = true,
+                    });
+                    if (!ctx.error.isEmpty()) return;
+                    ctx.vpnAuxTags << tag;
+                    auxSuffix += static_cast<int>(hopIDs.size());
+                }
             }
 
             if (auto mismatch = bridgeIngressMismatch(ctx); !mismatch.isEmpty()) {
@@ -1957,6 +2156,18 @@ namespace Configs {
                 }
                 rawRouteObj = RouteProfile::TranslateRawOutbounds(rawRouteObj, routeDeps.outboundMap);
                 if (routeChain->preventModifications) {
+                    // The raw JSON is verbatim, but endpoint tags are internal so the user cannot name them.
+                    if (!ctx.vpnAuxTags.isEmpty()) {
+                        auto rawRules = rawRouteObj.value("rules").toArray();
+                        for (const auto &auxTag : ctx.vpnAuxTags) {
+                            rawRules.append(QJsonObject{
+                                {"preferred_by", QJsonArray{auxTag}},
+                                {"action", "route"},
+                                {"outbound", auxTag},
+                            });
+                        }
+                        rawRouteObj["rules"] = rawRules;
+                    }
                     ctx.result->coreConfig["route"] = rawRouteObj;
                     return;
                 }
@@ -2069,6 +2280,39 @@ namespace Configs {
 
             // apply
             const int defOut = routeChain->defaultOutboundID;
+            const QString finalTag = routeChain->isRaw
+                ? (rawRouteObj.contains("final") ? rawRouteObj.value("final").toString() : QString(tags::proxy))
+                : defOut == blockID       ? QString(tags::direct)
+                : defOut == warpBypassID  ? QString(settings.enable_warp ? tags::warpBypass : tags::proxy)
+                                          : outboundIDToString(defOut);
+
+            // An endpoint rule the user positioned already emitted this tag's gate.
+            auto carriesGate = [](const QJsonArray &rules, const QString &tag) {
+                for (const auto &r : rules) {
+                    for (const auto &p : r.toObject().value("preferred_by").toArray())
+                        if (p.toString() == tag) return true;
+                }
+                return false;
+            };
+            QJsonArray vpnAuxRules;
+            for (const auto &auxTag : ctx.vpnAuxTags) {
+                if (!routeChain->isRaw && carriesGate(profileRules, auxTag)) continue;
+                vpnAuxRules.append(QJsonObject{
+                    {"preferred_by", QJsonArray{auxTag}},
+                    {"action", "route"},
+                    {"outbound", auxTag},
+                });
+            }
+
+            QJsonArray vpnFallthroughRules;
+            if (!ctx.forTest && ctx.vpnGateTags.contains(finalTag)) {
+                vpnFallthroughRules.append(QJsonObject{
+                    {"preferred_by", QJsonArray{finalTag}},
+                    {"action", "route"},
+                    {"outbound", finalTag},
+                });
+                vpnFallthroughRules.append(QJsonObject{{"action", "reject"}});
+            }
 
             QJsonArray routeRules;
             for (const auto& r : bridgeRules) routeRules.append(r);
@@ -2083,6 +2327,9 @@ namespace Configs {
             appendIfSet(injected.dnsInReject);
             appendIfSet(injected.redirectSniff);
             for (const auto& r : profileRules) routeRules.append(r);
+            for (const auto& r : vpnAuxRules) routeRules.append(r);
+            // final still names the tunnel, but nothing may reach it unmatched.
+            for (const auto& r : vpnFallthroughRules) routeRules.append(r);
             if (!routeChain->isRaw && defOut == blockID) {
                 routeRules.append(QJsonObject{{"action", "reject"}});
             }
@@ -2100,12 +2347,8 @@ namespace Configs {
             route["rule_set"] = ruleSetArray;
             if (routeChain->isRaw) {
                 if (!route.contains("final")) route["final"] = tags::proxy; // user's final, else a safe default
-            } else if (defOut == blockID) {
-                route["final"] = tags::direct;
-            } else if (defOut == warpBypassID) {
-                route["final"] = settings.enable_warp ? tags::warpBypass : tags::proxy;
             } else {
-                route["final"] = outboundIDToString(defOut);
+                route["final"] = finalTag;
             }
             // Process lookup is what makes process_name/process_path rules match
             // at all, so a profile that uses them needs it even when the traffic
@@ -2234,6 +2477,45 @@ namespace Configs {
 
     } // namespace
 
+    bool ParsePredefinedDNS(const QStringList& lines, QList<PredefinedDNSEntry>& out, QString* error) {
+        QMap<QString, int> indexOf;
+        for (const auto& rawLine : lines) {
+            auto line = rawLine;
+            if (const auto hash = line.indexOf('#'); hash != -1) line = line.left(hash);
+            const auto fields = line.simplified().split(' ', Qt::SkipEmptyParts);
+            if (fields.isEmpty()) continue;
+
+            QHostAddress addr;
+            if (fields.size() < 2 || !addr.setAddress(fields[0])) {
+                if (error != nullptr) *error = rawLine.trimmed();
+                return false;
+            }
+            addr.setScopeId({});
+            const bool isV6 = addr.protocol() == QAbstractSocket::IPv6Protocol;
+
+            for (qsizetype i = 1; i < fields.size(); i++) {
+                auto domain = fields[i].toLower();
+                while (domain.endsWith('.')) domain.chop(1);
+                if (domain.isEmpty()) {
+                    if (error != nullptr) *error = rawLine.trimmed();
+                    return false;
+                }
+                if (!indexOf.contains(domain)) {
+                    indexOf[domain] = static_cast<int>(out.size());
+                    out.append(PredefinedDNSEntry{domain, {}, {}});
+                }
+                auto& bucket = isV6 ? out[indexOf[domain]].v6 : out[indexOf[domain]].v4;
+                if (const auto text = addr.toString(); !bucket.contains(text)) bucket.append(text);
+            }
+        }
+        return true;
+    }
+
+    bool IsValidDuration(const QString& text) {
+        static const QRegularExpression re(R"(^(?:\d+(?:\.\d+)?(?:ns|us|ms|s|m|h|d))+$)");
+        return re.match(text).hasMatch();
+    }
+
     std::shared_ptr<BuildConfigResult> BuildSingBoxConfig(const std::shared_ptr<Profile>& ent) {
         if (ent->type == "custom")
         {
@@ -2266,14 +2548,15 @@ namespace Configs {
 
         buildLogSection(ctx);
         buildNTPSection(ctx);
-        buildDNSSection(ctx);
-        if (failed()) return ctx.result;
-
         buildCertificateSection(ctx);
         buildInboundSection(ctx);
         if (failed()) return ctx.result;
 
         buildOutboundsSection(ctx);
+        if (failed()) return ctx.result;
+
+        // Ordered after the outbounds: it needs the tags the VPN endpoint hops landed on.
+        buildDNSSection(ctx);
         if (failed()) return ctx.result;
 
         buildRouteSection(ctx);
@@ -2330,6 +2613,19 @@ namespace Configs {
             }},
         };
         return result;
+    }
+
+    bool CanBeAuxEndpoint(const std::shared_ptr<Profile>& ent)
+    {
+        if (ent == nullptr || ent->outbound == nullptr) return false;
+        if (ent->type == "openvpn" || ent->type == "openconnect") return true;
+        if (ent->type != "chain") return false;
+        // unwrapChain reverses the stored list, so hop 0 is the exit.
+        const auto hopIDs = unwrapChain(ent->id);
+        if (hopIDs.isEmpty()) return false;
+        const auto exitEnt = dataManager->profilesRepo->GetProfile(hopIDs.first());
+        if (exitEnt == nullptr) return false;
+        return exitEnt->type == "openvpn" || exitEnt->type == "openconnect";
     }
 
     bool IsValid(const std::shared_ptr<Profile>& ent)

@@ -1,6 +1,7 @@
 #pragma once
 #include <QUrl>
 #include <QJsonObject>
+#include <QObject>
 #include <QSet>
 
 namespace Configs {
@@ -25,8 +26,8 @@ namespace Configs {
         return proxyID;
     }
 
-    // New rule types MUST be appended: RouteRule::type is persisted as the raw int.
-    enum ruleType {custom, simpleAddressProxy, simpleAddressBypass, simpleAddressBlock, simpleProcessNameProxy, simpleProcessNameBypass, simpleProcessNameBlock, simpleProcessPathProxy, simpleProcessPathBypass, simpleProcessPathBlock, simpleAddressWarpBypass, simpleProcessNameWarpBypass, simpleProcessPathWarpBypass, simpleAddressViaProfile, simpleProcessNameViaProfile, simpleProcessPathViaProfile};
+    // endpointPreferredBy trails our via-profile types: the raw int is persisted, so upstream's numbering cannot displace existing rules.
+    enum ruleType {custom, simpleAddressProxy, simpleAddressBypass, simpleAddressBlock, simpleProcessNameProxy, simpleProcessNameBypass, simpleProcessNameBlock, simpleProcessPathProxy, simpleProcessPathBypass, simpleProcessPathBlock, simpleAddressWarpBypass, simpleProcessNameWarpBypass, simpleProcessPathWarpBypass, simpleAddressViaProfile, simpleProcessNameViaProfile, simpleProcessPathViaProfile, endpointPreferredBy};
 
     inline QString ruleTypeToString(ruleType type)
     {
@@ -46,6 +47,7 @@ namespace Configs {
         if (type == simpleAddressViaProfile) return {"Simple Address Via Profile"};
         if (type == simpleProcessNameViaProfile) return {"Simple Process Name Via Profile"};
         if (type == simpleProcessPathViaProfile) return {"Simple Process Path Via Profile"};
+        if (type == endpointPreferredBy) return QObject::tr("Endpoint");
         return {"invalid"};
     }
 
@@ -69,6 +71,7 @@ namespace Configs {
             case simpleAddressViaProfile: return {"simple_address_via_profile"};
             case simpleProcessNameViaProfile: return {"simple_process_name_via_profile"};
             case simpleProcessPathViaProfile: return {"simple_process_path_via_profile"};
+            case endpointPreferredBy: return {"endpoint_preferred_by"};
             default: return {"custom"};
         }
     }
@@ -90,6 +93,7 @@ namespace Configs {
         if (token == "simple_address_via_profile") return simpleAddressViaProfile;
         if (token == "simple_process_name_via_profile") return simpleProcessNameViaProfile;
         if (token == "simple_process_path_via_profile") return simpleProcessPathViaProfile;
+        if (token == "endpoint_preferred_by") return endpointPreferredBy;
         return custom;
     }
 
@@ -166,7 +170,6 @@ namespace Configs {
         void ensure_ui_visible_attribute_tabs_seeded();
         static inputType get_input_type(const QString& fieldName);
         static QStringList get_values_for_field(const QString& fieldName);
-        static std::shared_ptr<RouteRule> get_processPath_direct_rule(QString processPath);
         QStringList get_current_value_string(const QString& fieldName);
         [[nodiscard]] QString get_current_value_bool(const QString& fieldName) const;
         void set_field_value(const QString& fieldName, const QStringList& value);

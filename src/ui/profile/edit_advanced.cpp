@@ -1,9 +1,24 @@
 #include "include/ui/profile/edit_advanced.h"
 
+#include "include/global/GuiUtils.hpp"
+
 #include <QInputDialog>
 #include <QNetworkInterface>
 #include <QAbstractSocket>
 #include "include/database/DatabaseManager.h"
+#include "include/ui/profile/editor_table_utils.h"
+
+EditAdvanced::InterfaceFields EditAdvanced::GetInterfaceFields() const {
+    if (auto *openvpn = ent->OpenVPN(); openvpn != nullptr) {
+        return {&openvpn->system, &openvpn->interface_name, &openvpn->udp_timeout,
+                &openvpn->udp_mapping, &openvpn->udp_filtering, &openvpn->udp_nat_max};
+    }
+    if (auto *openconnect = ent->OpenConnect(); openconnect != nullptr) {
+        return {&openconnect->system, &openconnect->interface_name, &openconnect->udp_timeout,
+                &openconnect->udp_mapping, &openconnect->udp_filtering, &openconnect->udp_nat_max};
+    }
+    return {};
+}
 
 EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profile> &_ent)
     : QDialog(parent)
@@ -70,8 +85,23 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
         }
     } else {
         ui->tls_box->hide();
-        adjustSize();
     }
+
+    if (auto fields = GetInterfaceFields(); fields.system != nullptr) {
+        ui->udp_mapping->addItems({"", "endpoint_independent", "address_dependent", "address_and_port_dependent"});
+        ui->udp_filtering->addItems({"", "endpoint_independent", "address_dependent", "address_and_port_dependent"});
+        ui->system->setChecked(*fields.system);
+        ui->interface_name->setText(*fields.interface_name);
+        ui->udp_timeout->setText(*fields.udp_timeout);
+        ui->udp_mapping->setCurrentText(*fields.udp_mapping);
+        ui->udp_filtering->setCurrentText(*fields.udp_filtering);
+        ui->udp_nat_max->setText(EditorNumText(*fields.udp_nat_max));
+    } else {
+        ui->interface_box->hide();
+    }
+
+    ADD_ASTERISK(this)
+    adjustSize();
 }
 
 EditAdvanced::~EditAdvanced()
@@ -114,6 +144,15 @@ void EditAdvanced::accept() {
         tlsObj->client_certificate = CACHE.clientCert;
         tlsObj->client_key = CACHE.clientKey;
         tlsObj->certificate_public_key_sha256 = CACHE.certSha256;
+    }
+
+    if (auto fields = GetInterfaceFields(); fields.system != nullptr) {
+        *fields.system = ui->system->isChecked();
+        *fields.interface_name = ui->interface_name->text().trimmed();
+        *fields.udp_timeout = ui->udp_timeout->text().trimmed();
+        *fields.udp_mapping = ui->udp_mapping->currentText();
+        *fields.udp_filtering = ui->udp_filtering->currentText();
+        *fields.udp_nat_max = ui->udp_nat_max->text().toInt();
     }
     QDialog::accept();
 }

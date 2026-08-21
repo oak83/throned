@@ -10,7 +10,9 @@
 
 #include "include/api/RPC.h"
 #include "include/database/GroupsRepo.h"
+#include "include/database/ProfilesRepo.h"
 #include "include/database/RoutesRepo.h"
+#include "include/database/SettingsRepo.h"
 #include "include/stats/autoselector/AutoSelectorMonitor.hpp"
 #include "include/ui/setting/Icon.hpp"
 #include "include/ui/stats/dialog_auto_selector.h"
@@ -151,6 +153,11 @@ void MainWindow::refresh_status(const QString &traffic_update) {
         if (group != nullptr) group_name = group->name;
     }
 
+    // An endpoint profile never resolves a country, so its tunnel state takes that slot.
+    const QString runningDetail = m_vpnEndpointState.isEmpty()
+                                      ? (running ? running->runningCountryInfo : QString())
+                                      : m_vpnEndpointState;
+
     if (QDateTime::currentSecsSinceEpoch() - last_test_time > 2) {
         QString runningLabelText;
         if (running) {
@@ -161,8 +168,8 @@ void MainWindow::refresh_status(const QString &traffic_update) {
         setStatusText(ui->label_running, runningLabelText);
         if (statusConnectionCaption != nullptr) {
             setStatusText(statusConnectionCaption,
-                          running && !running->runningCountryInfo.isEmpty()
-                              ? tr("Connection") + QStringLiteral(" · ") + running->runningCountryInfo
+                          running && !runningDetail.isEmpty()
+                              ? tr("Connection") + QStringLiteral(" · ") + runningDetail
                               : tr("Connection"));
         }
     }
@@ -199,8 +206,8 @@ void MainWindow::refresh_status(const QString &traffic_update) {
         }
         if (running != nullptr) {
             tt << running->outbound->DisplayTypeAndName() + "@" + group_name;
-            if (!running->runningCountryInfo.isEmpty()) {
-                tt << running->runningCountryInfo;
+            if (!runningDetail.isEmpty()) {
+                tt << runningDetail;
             }
         }
         return tt.join(isTray ? "\n" : " ");
@@ -365,6 +372,51 @@ void MainWindow::refresh_proxy_list_impl_refresh_data(const QList<int>& ids, boo
     }
 }
 
+std::shared_ptr<Configs::Profile> MainWindow::vpn_exit_endpoint(const std::shared_ptr<Configs::Profile> &ent) {
+    auto hop = ent;
+    // The "proxy" tag lands on the exit hop, and the stored list runs in to out.
+    if (hop != nullptr && hop->type == "chain") {
+        const auto *chain = hop->Chain();
+        if (chain == nullptr || chain->list.isEmpty()) return nullptr;
+        hop = Configs::dataManager->profilesRepo->GetProfile(chain->list.back());
+    }
+    if (hop == nullptr) return nullptr;
+    if (hop->type != "openvpn" && hop->type != "openconnect") return nullptr;
+    return hop;
+}
+
+QString MainWindow::vpn_state_text(const QString &state, const QString &error) {
+    if (state == "connected") return MainWindow::tr("Connect OK");
+    if (state == "connecting") return MainWindow::tr("Connecting");
+    if (state == "auth-pending") return MainWindow::tr("Waiting for authentication");
+    if (state == "error") {
+        return error.isEmpty() ? MainWindow::tr("Tunnel error")
+                               : MainWindow::tr("Tunnel error") + ": " + error;
+    }
+    return state;
+}
+
+QString MainWindow::liveVpnStateText(bool *connected) {
+    if (connected != nullptr) *connected = false;
+    const int startedID = Configs::dataManager->settingsRepo->started_id;
+    if (startedID < 0) return {};
+    if (vpn_exit_endpoint(Configs::dataManager->profilesRepo->GetProfile(startedID)) == nullptr) return {};
+
+    bool ok = false;
+    const auto status = API::defaultClient->QueryVPNStatus(&ok, {"proxy"});
+    if (!ok || status.results.empty()) return {};
+    const auto &res = status.results.front();
+    if (connected != nullptr) *connected = res.connected.value();
+    return vpn_state_text(QString::fromStdString(res.state.value()),
+                          QString::fromStdString(res.error.value()));
+}
+
+QString MainWindow::liveVpnConnectOkText() {
+    bool connected = false;
+    const auto text = liveVpnStateText(&connected);
+    return connected ? text : QString();
+}
+
 // Owns no test session, so unlike the group sweeps it stays out of TestRunner.
 void MainWindow::url_test_current() {
     last_test_time = QDateTime::currentSecsSinceEpoch();
@@ -381,13 +433,16 @@ void MainWindow::url_test_current() {
 
         auto latency = result.results[0].latency_ms.value();
         last_test_time = QDateTime::currentSecsSinceEpoch();
+        // Blocking RPC, so it has to resolve here rather than on the UI thread.
+        const auto vpnText = latency <= 0 ? liveVpnStateText() : QString();
 
         runOnUiThread([=,this] {
             if (!result.results[0].error.value().empty()) {
                 MW_show_log(QString("UrlTest error: %1").arg(QString::fromStdString(result.results[0].error.value())));
             }
             if (latency <= 0) {
-                setStatusText(ui->label_running, tr("Test Result") + ": " + tr("Unavailable"));
+                setStatusText(ui->label_running,
+                              tr("Test Result") + ": " + (vpnText.isEmpty() ? tr("Unavailable") : vpnText));
             } else if (latency > 0) {
                 setStatusText(ui->label_running, tr("Test Result") + ": " + QString("%1 ms").arg(latency));
             }
