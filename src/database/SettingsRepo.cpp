@@ -313,7 +313,7 @@ namespace Configs {
         if (user_agent.isEmpty() || isDefault) {
             const QStringView version = SubStrBefore(QStringLiteral(NKR_VERSION), u"-");
             if (version.contains(u'.')) {
-                return QStringLiteral("Throned/") + version;
+                return QStringLiteral("Throned/") + version.toString();
             }
             return QStringLiteral("Throned/1.0.0");
         }
