@@ -8,7 +8,6 @@
 
 #include "include/ui/widget/TrayOtpCodes.hpp"
 #include "include/ui/widget/TrayProfileSelector.hpp"
-#include "include/ui/widget/RoutingQuickMenu.hpp"
 #include "include/ui/setting/RouteItem.h"
 
 void MainWindow::trayClickEvent() {
@@ -208,62 +207,11 @@ void MainWindow::on_toolButton_link3_clicked() {
 }
 
 void MainWindow::refreshRoutingStatus() {
-    if (auto *label = findChild<QLabel *>(QStringLiteral("routingStatus")))
-        setStatusText(label, RoutingQuickMenu::statusSummary());
+    // Routing quick menu is not part of this build; nothing to refresh.
 }
 
 void MainWindow::openRoutingQuickMenu(const QPoint &globalPos) {
-    if (routingQuickMenu) routingQuickMenu->close();
-
-    // Applying a routing change means regenerating the config, so a running
-    // profile has to be restarted for it to take effect.
-    const auto applyToRunningProfile = [this] {
-        refreshRoutingStatus();
-        if (Configs::dataManager->settingsRepo->started_id >= 0)
-            profile_start(Configs::dataManager->settingsRepo->started_id);
-    };
-    const auto withActiveProfile = [applyToRunningProfile](const std::function<void(Configs::RouteProfile &)> &change) {
-        auto profile = Configs::dataManager->routesRepo->GetRouteProfile(
-            Configs::dataManager->settingsRepo->current_route_id);
-        if (!profile) return;
-        change(*profile);
-        Configs::dataManager->routesRepo->Save(profile);
-        applyToRunningProfile();
-    };
-
-    RoutingQuickMenu::Callbacks cb;
-    cb.setDefaultOutbound = [withActiveProfile](int outboundID) {
-        withActiveProfile([outboundID](Configs::RouteProfile &profile) { profile.defaultOutboundID = outboundID; });
-    };
-    cb.setApplyProfileRules = [withActiveProfile](bool enabled) {
-        withActiveProfile([enabled](Configs::RouteProfile &profile) { profile.applyProfileRules = enabled; });
-    };
-    cb.openProfile = [this, applyToRunningProfile] {
-        auto profile = Configs::dataManager->routesRepo->GetRouteProfile(
-            Configs::dataManager->settingsRepo->current_route_id);
-        // Raw profiles have their own editor; the structured one cannot show them.
-        if (!profile || profile->isRaw) {
-            on_menu_routing_settings_triggered();
-            return;
-        }
-        if (dialog_is_using) return;
-        dialog_is_using = true;
-        auto *editor = new RouteItem(this, profile);
-        connect(editor, &RouteItem::settingsChanged, this,
-                [applyToRunningProfile](const std::shared_ptr<Configs::RouteProfile> &edited) {
-                    Configs::dataManager->routesRepo->Save(edited);
-                    applyToRunningProfile();
-                });
-        connect(editor, &QDialog::finished, this, [this, editor] {
-            editor->deleteLater();
-            dialog_is_using = false;
-        });
-        editor->show();
-    };
-    cb.manageProfiles = [this] { on_menu_routing_settings_triggered(); };
-
-    routingQuickMenu = new RoutingQuickMenu(cb, this);
-    routingQuickMenu->popupAt(globalPos);
+    Q_UNUSED(globalPos)
 }
 
 void MainWindow::refreshQuickLinkButtons() {

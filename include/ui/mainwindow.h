@@ -49,7 +49,6 @@ namespace Configs_sys {
 }
 
 class TrayProfileSelector;
-class RoutingQuickMenu;
 class TrayOtpCodes;
 class TestRunner;
 
@@ -220,7 +219,6 @@ private:
     QMenu *trayMenu = nullptr;    // tray context menu
     QPointer<TrayProfileSelector> traySelector;
     void openTraySelector(bool routing);
-    QPointer<RoutingQuickMenu> routingQuickMenu;
     void openRoutingQuickMenu(const QPoint &globalPos);
     // Refresh the routing segment of the status bar from the active profile.
     void refreshRoutingStatus();
