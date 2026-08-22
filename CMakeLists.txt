@@ -527,10 +527,10 @@ target_link_libraries(Throne PRIVATE
         ${PLATFORM_LIBRARIES}
 )
 
-# Aggressive optimizations for Release builds
+# Aggressive optimizations for Release builds (MSVC)
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     target_compile_options(Throne PRIVATE
-        $<$<CONFIG:Release>:/O2 /GL /Gy /arch:AVX2>
+        $<$<CONFIG:Release>:/O2 /GL /Gy>
     )
     target_link_options(Throne PRIVATE
         $<$<CONFIG:Release>:/LTCG /OPT:REF /OPT:ICF /INCREMENTAL:NO>
