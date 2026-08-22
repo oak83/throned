@@ -428,6 +428,9 @@ private:
     void setupConnectionList();
 
     void setupConnectionSortMenu();
+    void showConnectionMenu(const QPoint &pos);          // right-click menu on connections table
+    QString existingRuleAction(const QString &entry) const;
+    void addRuleFromConnection(const QString &entry, int action);
 
     friend class TestRunner;
 

@@ -10,6 +10,11 @@
 namespace Stats
 {
     constexpr int IDKEY = 242315;
+    constexpr int DESTKEY = 242316;
+    constexpr int DOMAINKEY = 242317;
+    constexpr int PROCESSKEY = 242318;
+    constexpr int PROCESSPATHKEY = 242319;
+    constexpr int OUTBOUNDKEY = 242320;
 
     enum ConnectionSort
     {
