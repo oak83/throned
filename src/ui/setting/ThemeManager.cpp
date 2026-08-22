@@ -75,45 +75,6 @@ static const QMap<QString, QPalette> &customThemePalettes() {
     static const QMap<QString, QPalette> palettes = [] {
         QMap<QString, QPalette> m;
 
-        // Light gray, near-monochrome.
-        m["flatgray"] = buildThemePalette({
-            .window = "#FFFFFF", .windowText = "#57595B",
-            .base = "#FFFFFF", .alternateBase = "#F6F6F6",
-            .text = "#57595B",
-            .button = "#F2F2F2", .buttonText = "#57595B",
-            .brightText = "#FFFFFF",
-            .highlight = "#D6D6D6", .highlightedText = "#2D2F31",
-            .link = "#2A6CB0",
-            .tooltipBase = "#FFFFFF", .tooltipText = "#57595B",
-            .placeholder = "#9AA0A6", .disabledText = "#B0B0B0",
-        });
-
-        // Light blue.
-        m["lightblue"] = buildThemePalette({
-            .window = "#EAF7FF", .windowText = "#386487",
-            .base = "#FFFFFF", .alternateBase = "#DAEFFF",
-            .text = "#386487",
-            .button = "#DEF0FE", .buttonText = "#386487",
-            .brightText = "#FFFFFF",
-            .highlight = "#C0DCF2", .highlightedText = "#1B3B57",
-            .link = "#1D6FB8",
-            .tooltipBase = "#EAF7FF", .tooltipText = "#386487",
-            .placeholder = "#7F9DB5", .disabledText = "#A6BCCE",
-        });
-
-        // Light pink.
-        m["softpink"] = buildThemePalette({
-            .window = "#FFF0FB", .windowText = "#883983",
-            .base = "#FFFFFF", .alternateBase = "#FBDDF5",
-            .text = "#883983",
-            .button = "#FCE1F6", .buttonText = "#883983",
-            .brightText = "#FFFFFF",
-            .highlight = "#F1C1E7", .highlightedText = "#5A2456",
-            .link = "#B92BA6",
-            .tooltipBase = "#FFF0FB", .tooltipText = "#883983",
-            .placeholder = "#C08BBA", .disabledText = "#CBA6C6",
-        });
-
         // Dark gray.
         m["blacksoft"] = buildThemePalette({
             .window = "#444444", .windowText = "#DCDCDC",

@@ -228,31 +228,14 @@ int main(int argc, char* argv[]) {
 
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication::setQuitOnLastWindowClosed(false);
-    QApplication a(argc, argv);
+        QApplication a(argc, argv);
 
-#ifdef Q_OS_MACOS
-    // Install before the event loop so launch-by-deeplink FileOpen events are caught.
-    a.installEventFilter(new MacOpenEventFilter(&a));
-#endif
+    #ifdef Q_OS_MACOS
+        // Install before the event loop so launch-by-deeplink FileOpen events are caught.
+        a.installEventFilter(new MacOpenEventFilter(&a));
+    #endif
 
-#if !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6,9,0))
-    // Load the emoji fonts
-#ifdef Q_OS_WIN
-    int fontId = QFontDatabase::addApplicationFont(WinVersion::IsBuildNumGreaterOrEqual(BuildNumber::Windows_11_22H2) ? ":/font/notoEmoji" : ":/font/Twemoji");
-#else
-    int fontId = QFontDatabase::addApplicationFont(":/font/notoEmoji");
-#endif
-    if (fontId >= 0)
-    {
-        QStringList fontFamilies = QFontDatabase::applicationFontFamilies(fontId);
-        QFontDatabase::setApplicationEmojiFontFamilies(fontFamilies);
-    } else
-    {
-        qDebug() << "could not load emoji font!";
-    }
-#endif
-
-    QStringList arguments = QApplication::arguments();
+        QStringList arguments = QApplication::arguments();
     // A throne:// URL may be passed as a launch argument (Windows/Linux), and so may
     // config files opened with the app. Both are delivered after the window is up, or
     // forwarded to the primary instance via the socket below. Files are resolved

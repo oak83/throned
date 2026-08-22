@@ -448,18 +448,8 @@ set(PROJECT_SOURCES
         include/configs/sub/warp.h
         src/configs/sub/warp.cpp
         include/global/Common.h
-        src/global/Common.cpp
-)
-
-if (NOT APPLE AND Qt6_VERSION VERSION_GREATER_EQUAL 6.9.0)
-    list(APPEND PROJECT_SOURCES res/EmojiFont.qrc)
-    if (WIN32)
-        list(APPEND PROJECT_SOURCES res/EmojiFontWin.qrc)
-    endif ()
-    # rcc's default threshold leaves these TTFs uncompressed.
-    set_property(SOURCE res/EmojiFont.qrc res/EmojiFontWin.qrc
-            PROPERTY AUTORCC_OPTIONS "--compress-algo;zlib;--compress;9;--threshold;5")
-endif ()
+                src/global/Common.cpp
+        )
 
 # Qt exe
 qt_add_executable(Throne
@@ -517,8 +507,6 @@ target_compile_definitions(Throne PRIVATE
 # Target Source Translations
 
 set(TS_FILES
-        res/translations/zh_CN.ts
-        res/translations/fa_IR.ts
         res/translations/ru_RU.ts
 )
 set(LUPDATE_OPTIONS
@@ -538,5 +526,22 @@ target_link_libraries(Throne PRIVATE
         ${NKR_EXTERNAL_TARGETS}
         ${PLATFORM_LIBRARIES}
 )
+
+# Aggressive optimizations for Release builds
+if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(Throne PRIVATE
+        $<$<CONFIG:Release>:/O2 /GL /Gy /arch:AVX2>
+    )
+    target_link_options(Throne PRIVATE
+        $<$<CONFIG:Release>:/LTCG /OPT:REF /OPT:ICF /INCREMENTAL:NO>
+    )
+else()
+    target_compile_options(Throne PRIVATE
+        $<$<CONFIG:Release>:-O3 -flto -ffat-lto-objects -march=native -ffunction-sections -fdata-sections>
+    )
+    target_link_options(Throne PRIVATE
+        $<$<CONFIG:Release>:-flto -Wl,--gc-sections -Wl,--strip-all>
+    )
+endif()
 
 qt_finalize_executable(Throne)
