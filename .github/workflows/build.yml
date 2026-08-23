@@ -209,6 +209,21 @@ jobs:
     steps:
       - name: Checking out sources
         uses: actions/checkout@v4.3.1
+      - name: Checking out the web dashboard
+        uses: actions/checkout@v4.3.1
+        with:
+          repository: SagerNet/sing-box-dashboard
+          ref: gh-pages
+          path: dashboard-src
+      - name: Bundling the web dashboard
+        shell: bash
+        run: |
+          # Read-only pack files make this flaky on Windows; cmake filters .git out anyway.
+          rm -rf dashboard-src/.git || true
+          cp -R dashboard-src/. res/dashboard/
+          # cmake globs res/dashboard at configure time and silently ships nothing if it
+          # is empty, so fail here instead of releasing a build without the dashboard.
+          test -f res/dashboard/index.html
       - name: Install MSVC compiler
         if: contains( matrix.platform, 'windows' )
         uses: ilammy/msvc-dev-cmd@v1

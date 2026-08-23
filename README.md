@@ -299,8 +299,8 @@ the design notes behind the redesign.
 
 Throned inherits Throne's sing-box and Xray protocol support, including VLESS,
 VMess, Trojan, Shadowsocks, SOCKS, HTTP(S), TUIC, Hysteria, Hysteria2, AnyTLS,
-WireGuard/AmneziaWG, SSH, Mieru, NaiveProxy, Juicity, TrustTunnel, custom
-outbounds, custom configs, chains, and extra cores.
+ShadowTLS, Snell, WireGuard/AmneziaWG, SSH, Mieru, NaiveProxy, Juicity,
+TrustTunnel, custom outbounds, custom configs, chains, and extra cores.
 
 ---
 

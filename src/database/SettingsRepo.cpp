@@ -3,6 +3,7 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QDebug>
+#include <QUuid>
 
 #include "include/global/Utils.hpp"
 
@@ -11,6 +12,11 @@ namespace Configs {
         initMaps();
         createTables();
         loadAllSettings();
+        // An empty secret disables authentication on the API service outright.
+        if (core_box_api_secret.isEmpty()) {
+            core_box_api_secret = QUuid::createUuid().toString(QUuid::WithoutBraces).remove('-');
+            Save();
+        }
     }
 
     void SettingsRepo::initMaps() {
@@ -30,6 +36,7 @@ namespace Configs {
             {"vpn_ipv6",                      &vpn_ipv6},
             {"vpn_strict_route",              &vpn_strict_route},
             {"vpn_auto_redirect",             &vpn_auto_redirect},
+            {"vpn_l3_bridge",                 &vpn_l3_bridge},
             {"sub_clear",                     &sub_clear},
             {"sub_show_change_popup",         &sub_show_change_popup},
             {"net_insecure",                  &net_insecure},
@@ -94,6 +101,7 @@ namespace Configs {
             {"dns_server_listen_port", &dns_server_listen_port},
             {"redirect_listen_port",   &redirect_listen_port},
             {"core_box_clash_api",     &core_box_clash_api},
+            {"core_box_api_port",      &core_box_api_port},
             {"speed_test_mode",        &speed_test_mode},
             {"speed_test_timeout_ms",  &speed_test_timeout_ms},
             {"url_test_timeout_ms",    &url_test_timeout_ms},
@@ -133,6 +141,7 @@ namespace Configs {
             {"utlsFingerprint",            &utlsFingerprint},
             {"core_box_clash_listen_addr", &core_box_clash_listen_addr},
             {"core_box_clash_api_secret",  &core_box_clash_api_secret},
+            {"core_box_api_secret",        &core_box_api_secret},
             {"core_box_underlying_dns",    &core_box_underlying_dns},
             {"ntp_server_address",         &ntp_server_address},
             {"ntp_interval",               &ntp_interval},
@@ -173,6 +182,7 @@ namespace Configs {
             {"log_exclude_keyword",      &log_exclude_keyword},
             {"log_exclude_regex",        &log_exclude_regex},
             {"warp_ifc_addrs",           &warp_ifc_addrs},
+            {"vpn_private_ranges",       &vpn_private_ranges},
             {"dial_bind_ifc_history",    &dial_bind_interface_history},
             {"dial_inet4_bind_history",  &dial_inet4_bind_address_history},
             {"dial_inet6_bind_history",  &dial_inet6_bind_address_history},

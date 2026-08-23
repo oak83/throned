@@ -66,6 +66,8 @@ namespace API {
 
         libcore::GenWgKeyPairResponse GenWgKeyPair(bool *rpcOK);
 
+        QString InstallDashboard(bool *rpcOK, const QString &archivePath, const QString &targetDir) const;
+
         // Empty name = the OS has no default route. A local, censorship-proof
         // way to tell "my network died" from "the servers died".
         [[nodiscard]] libcore::GetDefaultInterfaceResponse GetDefaultInterface(bool *rpcOK) const;

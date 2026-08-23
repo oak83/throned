@@ -273,13 +273,17 @@ def main(scr, y):
             y = message(scr, y, "Creating .desktop file")
             with open(tmpdir / "Throned.desktop", "w") as file:
                 file.write(f"""[Desktop Entry]
+Version={version}
 Name=Throned
+GenericName=Proxy Manager
 Comment=Qt based cross-platform GUI proxy configuration manager (backend: sing-box)
 Exec={APPDIR}/Throned -appdata
 Icon={APPDIR}/Throned.png
+StartupWMClass=Throned
 Terminal=false
 Type=Application
 Categories=Network;Application;
+Keywords=proxy;vpn;network;privacy;
 """)
 
             with open(tmpdir / "Version", "w") as file:

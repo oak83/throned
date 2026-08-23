@@ -292,6 +292,7 @@ private:
     ExitReason exit_reason = ExitReason::None;
     //
     QMutex mu_download_update;
+    QMutex mu_download_dashboard;
     //
     QMutex connectionListMu;
     //
@@ -542,6 +543,10 @@ private:
     void CheckUpdate(bool silent = false);
     // Set when a silent check found a release; run when the tray notification is clicked.
     std::function<void()> pendingUpdatePrompt;
+
+    void OpenDashboard();
+
+    void SeedDashboard();
 
     void setupConnectionList();
 

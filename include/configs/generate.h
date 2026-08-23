@@ -6,6 +6,9 @@
 
 namespace Configs
 {
+    // Not "dashboard": that one is the Clash external_ui dir, holding a different UI.
+    inline constexpr auto apiDashboardDir = "sb-dashboard";
+
     class ExtraCoreData
     {
         public:

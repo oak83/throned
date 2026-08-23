@@ -788,6 +788,8 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
             dashFile.close();
         }
     }
+    // Leaving the dir non-empty marks it user-provided, disabling the core's own updater.
+    SeedDashboard();
     if (auto iconsDir = QDir("icons"); !iconsDir.exists()) {
         QDir().mkdir("icons") ? qDebug("created icons dir") : qDebug("Failed to create icons dir");
     }
@@ -1217,6 +1219,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
 
     connect(ui->actionHide_window, &QAction::triggered, this, [=, this](){ HideWindow(this); });
     connect(ui->menu_open_config_folder, &QAction::triggered, this, [=,this] { QDesktopServices::openUrl(QUrl::fromLocalFile(QDir::currentPath())); });
+    connect(ui->menu_open_dashboard, &QAction::triggered, this, [=,this] { OpenDashboard(); });
     connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=,this] {
         runOnThread([=, this] {
             profile_stop(true, true, true);

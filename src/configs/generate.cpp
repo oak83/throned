@@ -44,6 +44,8 @@ namespace Configs {
             constexpr auto proxy = "proxy";
             constexpr auto direct = "direct";
             constexpr auto warpBypass = "warp-bypass";
+            // Not bridgePrefix below, which names the unrelated sing-box <-> Xray socks bridges.
+            constexpr auto l3Direct = "l3-direct";
 
             constexpr auto dnsRemote = "dns-remote";
             constexpr auto dnsDirect = "dns-direct";
@@ -189,6 +191,7 @@ namespace Configs {
         struct BuildContext {
             bool forTest = false;
             bool tunEnabled = false;
+            bool l3Bridge = false;
             bool isResolvedUsed = false;
             bool singToXrayTransitioned = false;
             bool xrayToSingTransitioned = false;
@@ -219,6 +222,39 @@ namespace Configs {
             if (ctx.xrayToSingBridges.size() != ctx.singIngressTags.size())
                 return "xray to sing-box bridges count does not match ingress tags count";
             return {};
+        }
+
+        // The core has no bridge backend for Windows on ARM, and a failed one aborts the config.
+        bool l3BridgeEnabled(const BuildContext &ctx) {
+#if defined(Q_OS_WIN) && defined(Q_PROCESSOR_ARM)
+            return false;
+#else
+            return ctx.tunEnabled && !ctx.forTest && dataManager->settingsRepo->vpn_l3_bridge;
+#endif
+        }
+
+        // preferred_by matches only during pre-match, leaving the copy inert at L4.
+        QJsonObject l3BridgeTwin(const QJsonObject &rule) {
+            auto twin = rule;
+            twin["preferred_by"] = QJsonArray{tags::l3Direct};
+            twin["action"] = "route";
+            twin["outbound"] = tags::l3Direct;
+            return twin;
+        }
+
+        // Twins must stay below the sniff rule, or UDP would reach them before it has a domain.
+        QJsonArray withL3BridgeTwins(const QJsonArray &rules) {
+            QJsonArray res;
+            for (const auto &value : rules) {
+                const auto rule = value.toObject();
+                const auto action = rule.value("action").toString();
+                if ((action.isEmpty() || action == "route") && !rule.contains("preferred_by") &&
+                    rule.value("outbound").toString() == tags::direct) {
+                    res.append(l3BridgeTwin(rule));
+                }
+                res.append(rule);
+            }
+            return res;
         }
 
         // Whether two CIDRs share any address. A bare IP counts as a /32 (or /128);
@@ -582,6 +618,8 @@ namespace Configs {
                 ctx.error = "Routing profile does not exist, try resetting the route profile in Routing Settings";
                 return;
             }
+            // A verbatim raw profile takes no twins, and an unreachable bridge still starts a tun.
+            ctx.l3Bridge = l3BridgeEnabled(ctx) && !(routeChain->isRaw && routeChain->preventModifications);
 
             if (settings.enable_warp &&
                 (settings.warp_private_key.isEmpty() ||
@@ -796,7 +834,7 @@ namespace Configs {
 
             // Which private ranges the profile still needs the Tun to carry.
             for (const auto &cidr : routeChain->get_hijacked_ips()) {
-                for (const auto &range : tunBypassablePrivateRanges()) {
+                for (const auto &range : settings.vpn_private_ranges) {
                     if (prefixesOverlap(range, cidr)) preReqs.tun.hijackedPrivateRanges << range;
                 }
             }
@@ -1338,7 +1376,7 @@ namespace Configs {
                 QStringList excludedRanges;
                 if (!settings.disable_private_range_bypass) {
                     routeExcludeAddrs = {"127.0.0.0/8", "255.255.255.255/32"};
-                    for (const auto &range : tunBypassablePrivateRanges()) {
+                    for (const auto &range : settings.vpn_private_ranges) {
                         if (!tun.hijackedPrivateRanges.contains(range)) excludedRanges << range;
                     }
                 }
@@ -2097,6 +2135,13 @@ namespace Configs {
             {"tag", tags::direct}
             });
 
+            if (ctx.l3Bridge) {
+                ctx.outbounds.append(QJsonObject{
+                {"type", "bridge"},
+                {"tag", tags::l3Direct}
+                });
+            }
+
             ctx.result->coreConfig["endpoints"] = ctx.endpoints;
             ctx.result->coreConfig["outbounds"] = ctx.outbounds;
         }
@@ -2246,6 +2291,7 @@ namespace Configs {
 
             auto profileRules = routeChain->isRaw ? rawRouteObj.value("rules").toArray()
                                                   : routeChain->get_route_rules(false, routeDeps.outboundMap);
+            if (ctx.l3Bridge) profileRules = withL3BridgeTwins(profileRules);
 
             QJsonObject extraCoreDirect;
             if (!ctx.result->extraCoreData->path.isEmpty())
@@ -2304,6 +2350,16 @@ namespace Configs {
                 });
             }
 
+            // defOut == blockID also yields finalTag "direct", but rejects before reaching it.
+            QJsonArray l3BridgeFinalRules;
+            if (ctx.l3Bridge && finalTag == tags::direct && (routeChain->isRaw || defOut == directID)) {
+                l3BridgeFinalRules.append(QJsonObject{
+                    {"preferred_by", QJsonArray{tags::l3Direct}},
+                    {"action", "route"},
+                    {"outbound", tags::l3Direct},
+                });
+            }
+
             QJsonArray vpnFallthroughRules;
             if (!ctx.forTest && ctx.vpnGateTags.contains(finalTag)) {
                 vpnFallthroughRules.append(QJsonObject{
@@ -2328,6 +2384,7 @@ namespace Configs {
             appendIfSet(injected.redirectSniff);
             for (const auto& r : profileRules) routeRules.append(r);
             for (const auto& r : vpnAuxRules) routeRules.append(r);
+            for (const auto& r : l3BridgeFinalRules) routeRules.append(r);
             // final still names the tunnel, but nothing may reach it unmatched.
             for (const auto& r : vpnFallthroughRules) routeRules.append(r);
             if (!routeChain->isRaw && defOut == blockID) {
@@ -2372,29 +2429,53 @@ namespace Configs {
             const auto &settings = *dataManager->settingsRepo;
 
             QJsonObject experimentalObj;
-            QJsonObject clash_api = {
-                {"default_mode", ""} // dummy to make sure it is created
-            };
-            if (settings.core_box_clash_api > 0){
-                clash_api = {
+            // Only the yacd listener now; the stats tracker comes from buildServicesSection.
+            if (settings.core_box_clash_api > 0) {
+                experimentalObj["clash_api"] = QJsonObject{
                     {"external_controller", settings.core_box_clash_listen_addr + ":" + Int2String(settings.core_box_clash_api)},
                     {"secret", settings.core_box_clash_api_secret},
                     {"external_ui", "dashboard"},
-                    };
-            }
-            if (settings.core_box_clash_api > 0 || settings.enable_stats)
-            {
-                experimentalObj["clash_api"] = clash_api;
+                };
             }
 
             experimentalObj["cache_file"] = QJsonObject{
                 {"enabled", true},
                 {"store_fakeip", true},
-                {"store_rdrc", true}
+                {"store_dns", true}
             };
 
             // apply
             ctx.result->coreConfig["experimental"] = experimentalObj;
+        }
+
+        // ------------------------------------------------------------- services
+
+        // The core builds the traffic tracker from the mere presence of an api service.
+        void buildServicesSection(BuildContext &ctx) {
+            if (ctx.forTest) return;
+            const auto &settings = *dataManager->settingsRepo;
+
+            const bool dashboard = settings.core_box_api_port > 0;
+            if (!dashboard && !settings.enable_stats) return;
+
+            QJsonObject api = {
+                {"type", "api"},
+                {"listen", "127.0.0.1"},
+                {"listen_port", dashboard ? settings.core_box_api_port : 0},
+                {"secret", settings.core_box_api_secret},
+            };
+            if (dashboard) {
+                // Defaults to "*", i.e. any page the user visits could reach loopback.
+                api["access_control_allow_origin"] = QJsonArray{
+                    "http://127.0.0.1:" + Int2String(settings.core_box_api_port)
+                };
+                api["dashboard"] = QJsonObject{
+                    {"enabled", true},
+                    {"path", apiDashboardDir},
+                };
+            }
+
+            ctx.result->coreConfig["services"] = QJsonArray{api};
         }
 
         // ----------------------------------------------------------------- xray
@@ -2565,6 +2646,9 @@ namespace Configs {
         buildExperimentalSection(ctx);
         if (failed()) return ctx.result;
 
+        buildServicesSection(ctx);
+        if (failed()) return ctx.result;
+
         buildXrayConfig(ctx);
         if (failed()) return ctx.result;
 
@@ -2596,7 +2680,7 @@ namespace Configs {
         // leaving the machine, not to cut the printer off.
         QJsonArray exclude{"127.0.0.0/8", "255.255.255.255/32"};
         if (!settings.disable_private_range_bypass)
-            for (const auto &range : tunBypassablePrivateRanges()) exclude << range;
+            for (const auto &range : settings.vpn_private_ranges) exclude << range;
         tun["route_exclude_address"] = exclude;
 
         result->tunIPv4CIDR = settings.vpn_tun_ipv4_cidr;

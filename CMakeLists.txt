@@ -237,6 +237,9 @@ set(PROJECT_SOURCES
         include/ui/profile/edit_mieru.h
         src/ui/profile/edit_mieru.cpp
         include/ui/profile/edit_mieru.ui
+        include/ui/profile/edit_snell.h
+        src/ui/profile/edit_snell.cpp
+        include/ui/profile/edit_snell.ui
         include/ui/profile/edit_tailscale.h
         src/ui/profile/edit_tailscale.cpp
         include/ui/profile/edit_tailscale.ui
@@ -412,11 +415,13 @@ set(PROJECT_SOURCES
         include/configs/outbounds/shadowtls.h
         include/configs/outbounds/anyTLS.h
         include/configs/outbounds/mieru.h
+        include/configs/outbounds/snell.h
         include/configs/outbounds/ssh.h
         
         # outbounds impl
         src/configs/outbounds/anyTLS.cpp
         src/configs/outbounds/mieru.cpp
+        src/configs/outbounds/snell.cpp
         src/configs/outbounds/http.cpp
         src/configs/outbounds/hysteria.cpp
         src/configs/outbounds/shadowsocks.cpp
@@ -515,6 +520,22 @@ if (NOT APPLE AND Qt6_VERSION VERSION_GREATER_EQUAL 6.9.0)
     endif ()
     # rcc's default threshold leaves these TTFs uncompressed.
     set_property(SOURCE res/EmojiFont.qrc res/EmojiFontWin.qrc
+            PROPERTY AUTORCC_OPTIONS "--compress-algo;zlib;--compress;9;--threshold;5")
+endif ()
+
+file(GLOB_RECURSE DASHBOARD_FILES RELATIVE ${CMAKE_SOURCE_DIR}/res/dashboard ${CMAKE_SOURCE_DIR}/res/dashboard/*)
+# Bracket syntax: in a quoted argument "\\." reaches the regex as ".", matching everything.
+list(FILTER DASHBOARD_FILES EXCLUDE REGEX [[(^|/)\.]])
+if (DASHBOARD_FILES)
+    set(DASHBOARD_QRC_ENTRIES "")
+    foreach (DASHBOARD_FILE ${DASHBOARD_FILES})
+        string(APPEND DASHBOARD_QRC_ENTRIES
+                "        <file alias=\"${DASHBOARD_FILE}\">${CMAKE_SOURCE_DIR}/res/dashboard/${DASHBOARD_FILE}</file>\n")
+    endforeach ()
+    file(WRITE ${CMAKE_BINARY_DIR}/dashboard.qrc
+            "<RCC>\n    <qresource prefix=\"/dashboard\">\n${DASHBOARD_QRC_ENTRIES}    </qresource>\n</RCC>\n")
+    list(APPEND PROJECT_SOURCES ${CMAKE_BINARY_DIR}/dashboard.qrc)
+    set_property(SOURCE ${CMAKE_BINARY_DIR}/dashboard.qrc
             PROPERTY AUTORCC_OPTIONS "--compress-algo;zlib;--compress;9;--threshold;5")
 endif ()
 

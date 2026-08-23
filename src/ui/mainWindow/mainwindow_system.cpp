@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QDesktopServices>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -16,6 +17,9 @@
 #include <QVBoxLayout>
 
 #include "3rdparty/qv2ray/v2/proxy/QvProxyConfigurator.hpp"
+#include "include/api/RPC.h"
+#include "include/configs/generate.h"
+#include "include/global/Configs.hpp"
 #include "include/global/HTTPRequestHelper.hpp"
 #include "include/global/Logger.hpp"
 #include "include/sys/Process.hpp"
@@ -400,7 +404,107 @@ bool isNewer(QString assetName) {
     return false;
 }
 
+constexpr auto dashboardDownloadURL = "https://github.com/SagerNet/sing-box-dashboard/archive/refs/heads/gh-pages.zip";
+
+bool copyOut(const QString &from, const QString &to) {
+    QFile::remove(to);
+    if (!QFile::copy(from, to)) return false;
+    // Resource files are read-only, and QFile::copy carries that onto the copy.
+    return QFile::setPermissions(to, QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                                     QFileDevice::ReadGroup | QFileDevice::ReadOther);
+}
+
+bool unpackBundledDashboard(const QDir &dest) {
+    if (!QFile::exists(":/dashboard/index.html")) return false;
+    const QDir bundle(":/dashboard");
+    QDirIterator it(bundle.path(), QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        const auto source = it.next();
+        const auto target = dest.filePath(bundle.relativeFilePath(source));
+        if (!dest.mkpath(QFileInfo(target).path()) || !copyOut(source, target)) return false;
+    }
+    return true;
+}
+
 } // namespace
+
+void MainWindow::SeedDashboard() {
+    QDir dashDir(Configs::apiDashboardDir);
+    if (!dashDir.exists() && !QDir().mkpath(Configs::apiDashboardDir)) return;
+    if (!QFile::exists(dashDir.filePath("index.html"))) unpackBundledDashboard(dashDir);
+    // Reinstalling replaces the whole directory, so this cannot be a one-time copy.
+    auto src = QFile(":/Throned/dashboard-bootstrap.html");
+    if (!src.open(QIODevice::ReadOnly)) return;
+    const auto data = src.readAll();
+    src.close();
+    if (auto dest = QFile(dashDir.filePath("throne.html")); dest.open(QIODevice::Truncate | QIODevice::WriteOnly)) {
+        dest.write(data);
+        dest.close();
+    }
+}
+
+void MainWindow::OpenDashboard() {
+    const auto &settings = *Configs::dataManager->settingsRepo;
+    const auto port = settings.core_box_api_port;
+    if (port <= 0) {
+        MessageBoxWarning(software_name, tr("The sing-box API is disabled. Set a listen port in Preferences > Basic Settings > Core."));
+        return;
+    }
+    if (settings.started_id < 0) {
+        MessageBoxWarning(software_name, tr("Start a profile first; the dashboard is served by the running core."));
+        return;
+    }
+
+    const auto show = [this, port] {
+        SeedDashboard();
+        // Fragment, not query: browsers never send it to the server.
+        QUrl url(QString("http://127.0.0.1:%1/dashboard/throne.html").arg(port));
+        url.setFragment(QString("secret=%1&url=127.0.0.1:%2")
+                            .arg(QString::fromUtf8(QUrl::toPercentEncoding(Configs::dataManager->settingsRepo->core_box_api_secret)))
+                            .arg(port),
+                        QUrl::StrictMode);
+        QDesktopServices::openUrl(url);
+    };
+
+    SeedDashboard();
+    if (QFile::exists(QDir(Configs::apiDashboardDir).filePath("index.html"))) {
+        show();
+        return;
+    }
+
+    if (QMessageBox::question(this, tr("Web dashboard"),
+                              tr("The dashboard is not installed yet. Download it now?"))
+        != QMessageBox::StandardButton::Yes) {
+        return;
+    }
+
+    runOnNewThread([=, this] {
+        if (!mu_download_dashboard.tryLock()) {
+            runOnUiThread([=, this] {
+                MessageBoxWarning(tr("Cannot start"), tr("A dashboard download is already running"));
+            });
+            return;
+        }
+        const auto archive = QString("throne-dashboard.zip");
+        auto error = NetworkRequestHelper::DownloadAsset(dashboardDownloadURL, archive, true);
+        if (error.isEmpty()) {
+            bool ok = false;
+            error = API::defaultClient->InstallDashboard(&ok, Configs::GetBasePath() + "/" + archive,
+                                                         QDir(Configs::apiDashboardDir).absolutePath());
+            if (!ok && error.isEmpty()) error = tr("The core did not answer.");
+        }
+        QFile::remove(Configs::GetBasePath() + "/" + archive);
+        mu_download_dashboard.unlock();
+
+        runOnUiThread([=, this] {
+            if (!error.isEmpty()) {
+                MessageBoxWarning(tr("Failed to install the dashboard"), error);
+                return;
+            }
+            show();
+        });
+    });
+}
 
 void MainWindow::CheckUpdate(bool silent) {
     QString search;

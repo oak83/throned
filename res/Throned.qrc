@@ -31,5 +31,6 @@
         <file alias="Proxy-Dns.png">public/Proxy-Dns.png</file>
         <file alias="Tun.png">public/Tun.png</file>
         <file>dashboard-notice.html</file>
+        <file>dashboard-bootstrap.html</file>
     </qresource>
 </RCC>

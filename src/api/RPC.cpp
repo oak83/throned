@@ -694,4 +694,22 @@ namespace API {
         }
     }
 
+    QString Client::InstallDashboard(bool *rpcOK, const QString &archivePath, const QString &targetDir) const
+    {
+        libcore::InstallDashboardRequest request;
+        request.archive_path = archivePath.toStdString();
+        request.target_dir = targetDir.toStdString();
+        libcore::ErrorResp reply;
+        std::vector<uint8_t> resp;
+        auto status = channel->Call("InstallDashboard", spb::pb::serialize<std::string>(request), resp);
+
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
+            *rpcOK = true;
+            return QString::fromStdString(reply.error.value());
+        } else {
+            NOT_OK
+            return "IPC error";
+        }
+    }
+
 } // namespace API
