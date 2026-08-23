@@ -117,14 +117,14 @@ void DialogVPNSettings::on_troubleshooting_clicked() {
         QMessageBox::NoButton,
         this
     );
-    msg.addButton(tr("Reset"), QMessageBox::ActionRole);
+    auto reset = msg.addButton(tr("Reset"), QMessageBox::ActionRole);
     auto cancel = msg.addButton(tr("Cancel"), QMessageBox::ActionRole);
 
     msg.setDefaultButton(cancel);
     msg.setEscapeButton(cancel);
 
-    auto r = msg.exec() - 2;
-    if (r == 0) {
+    msg.exec();
+    if (msg.clickedButton() == reset) {
         GetMainWindow()->StopVPNProcess();
     }
 }
