@@ -129,7 +129,7 @@ namespace Configs {
 
         if (action == "reject")
         {
-            if (!rejectMethod.isEmpty()) obj["reject_method"] = rejectMethod;
+            if (!rejectMethod.isEmpty()) obj["method"] = rejectMethod;
             if (no_drop) obj["no_drop"] = no_drop;
         }
         if (action == "route" || action == "route-options" || action == "bypass")
