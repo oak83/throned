@@ -221,6 +221,8 @@ namespace Configs {
         else fragment_unspecified = true;
         if (query.hasQueryItem("tls_fragment_fallback_delay")) fragment_fallback_delay = query.queryItemValue("tls_fragment_fallback_delay");
         if (query.hasQueryItem("tls_record_fragment")) record_fragment = query.queryItemValue("tls_record_fragment") == "true";
+        if (query.hasQueryItem("tls_spoof")) spoof = query.queryItemValue("tls_spoof");
+        if (query.hasQueryItem("tls_spoof_method")) spoof_method = query.queryItemValue("tls_spoof_method");
         if (query.hasQueryItem("tls_tricks")) { tls_tricks = query.queryItemValue("tls_tricks") == "true"; tls_tricks_unspecified = false; }
         else tls_tricks_unspecified = true;
         if (!server_name.isEmpty()) enabled = true;
@@ -270,6 +272,8 @@ namespace Configs {
         else fragment_unspecified = true;
         if (object.contains("fragment_fallback_delay")) fragment_fallback_delay = object["fragment_fallback_delay"].toString();
         if (object.contains("record_fragment")) record_fragment = object["record_fragment"].toBool();
+        if (object.contains("spoof")) spoof = object["spoof"].toString();
+        if (object.contains("spoof_method")) spoof_method = object["spoof_method"].toString();
         if (object.contains("tls_tricks")) { tls_tricks = object["tls_tricks"].toObject()["mixedcase_sni"].toBool(); tls_tricks_unspecified = false; }
         else tls_tricks_unspecified = true;
         if (object.contains("ech")) ech->ParseFromJson(object["ech"].toObject());
@@ -318,6 +322,8 @@ namespace Configs {
         if (!fragment_unspecified) query.addQueryItem("tls_fragment", fragment ? "true" : "false");
         if (!fragment_fallback_delay.isEmpty()) query.addQueryItem("tls_fragment_fallback_delay", fragment_fallback_delay);
         if (record_fragment) query.addQueryItem("tls_record_fragment", "true");
+        if (!spoof.isEmpty()) query.addQueryItem("tls_spoof", spoof);
+        if (!spoof.isEmpty() && !spoof_method.isEmpty()) query.addQueryItem("tls_spoof_method", spoof_method);
         if (!tls_tricks_unspecified) query.addQueryItem("tls_tricks", tls_tricks ? "true" : "false");
         mergeUrlQuery(query, ech->ExportToLink());
         mergeUrlQuery(query, utls->ExportToLink());
@@ -361,6 +367,8 @@ namespace Configs {
         if (!fragment_unspecified) object["fragment"] = fragment;
         if (!fragment_fallback_delay.isEmpty()) object["fragment_fallback_delay"] = fragment_fallback_delay;
         if (record_fragment) object["record_fragment"] = record_fragment;
+        if (!spoof.isEmpty()) object["spoof"] = spoof;
+        if (!spoof.isEmpty() && !spoof_method.isEmpty()) object["spoof_method"] = spoof_method;
         if (!tls_tricks_unspecified) object["tls_tricks"] = QJsonObject{{"mixedcase_sni", tls_tricks}};
         if (ech->enabled) object["ech"] = ech->ExportToJson();
         if (utls->enabled) object["utls"] = utls->ExportToJson();
@@ -419,6 +427,10 @@ namespace Configs {
             if (!fragment_fallback_delay.isEmpty()) object["fragment_fallback_delay"] = fragment_fallback_delay;
         }
         if (record_fragment) object["record_fragment"] = record_fragment;
+        if (!spoof.isEmpty()) {
+            object["spoof"] = spoof;
+            if (!spoof_method.isEmpty()) object["spoof_method"] = spoof_method;
+        }
         if (TlsTricksEffectivelyOn()) object["tls_tricks"] = QJsonObject{{"mixedcase_sni", true}};
         if (auto obj = ech->Build().object;!obj.isEmpty()) object["ech"] = obj;
         if (auto obj = utls->Build().object;!obj.isEmpty()) {

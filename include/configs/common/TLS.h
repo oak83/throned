@@ -82,6 +82,9 @@ namespace Configs
         bool fragment_unspecified = true;
         QString fragment_fallback_delay;
         bool record_fragment = false;
+        // Fake-ClientHello DPI desync; spoof carries the decoy SNI, method how the decoy is made invalid for the server.
+        QString spoof;
+        QString spoof_method;
         bool tls_tricks = false;
         bool tls_tricks_unspecified = true;
         std::shared_ptr<ECH> ech = std::make_shared<ECH>();

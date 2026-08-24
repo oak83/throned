@@ -232,6 +232,14 @@ DialogEditProfile::DialogEditProfile(const QString &_type, int profileOrGroupId,
         ui->tls_frag_fall_delay->setEnabled(index != 2);
     });
 
+    ui->tls_spoof_method->addItems(Configs::SingboxOptions::tlsSpoofMethods);
+    // The core rejects spoof_method without spoof, so the picker follows the SNI field.
+    connect(ui->tls_spoof, &QLineEdit::textChanged, this, [=,this](const QString &text)
+    {
+        ui->tls_spoof_method->setEnabled(!text.trimmed().isEmpty());
+    });
+    ui->tls_spoof_method->setEnabled(false);
+
     // mux setting changed
     connect(ui->multiplex, &QComboBox::currentTextChanged, this, [=,this](const QString &txt) {
         if (txt == "Off") {
@@ -575,6 +583,9 @@ void DialogEditProfile::typeSelected(const QString &newType) {
         ui->tls_frag_fall_delay->setEnabled(tls->getFragmentState() != 2);
         ui->tls_frag_fall_delay->setText(tls->fragment_fallback_delay);
         ui->tls_rec_frag->setChecked(tls->record_fragment);
+        ui->tls_spoof->setText(tls->spoof);
+        ui->tls_spoof_method->setCurrentText(tls->spoof_method);
+        ui->tls_spoof_method->setEnabled(!tls->spoof.trimmed().isEmpty());
         ui->tls_tricks->setCurrentIndex(tls->getTlsTricksState());
         ui->insecure->setChecked(tls->insecure);
         ui->headers->setText(Configs::getHeadersString(transport->headers));
@@ -797,6 +808,8 @@ bool DialogEditProfile::onEnd() {
         tls->saveFragmentState(ui->fragment->currentIndex());
         tls->fragment_fallback_delay = ui->tls_frag_fall_delay->text();
         tls->record_fragment = ui->tls_rec_frag->isChecked();
+        tls->spoof = ui->tls_spoof->text().trimmed();
+        tls->spoof_method = tls->spoof.isEmpty() ? QString() : ui->tls_spoof_method->currentText();
         tls->saveTlsTricksState(ui->tls_tricks->currentIndex());
         tls->insecure = ui->insecure->isChecked();
         transport->headers = Configs::parseHeaderPairs(ui->headers->text());
