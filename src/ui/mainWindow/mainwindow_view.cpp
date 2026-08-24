@@ -339,6 +339,10 @@ void MainWindow::refresh_proxy_list_column_size() {
             }
             ui->profilesTableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         }
+        // Everything else keeps the width it was given and stays draggable; the name
+        // column absorbs whatever the window has left over, so the rows reach the right
+        // edge without any other column being inflated to get them there.
+        hHeader->setSectionResizeMode(ProfilesTableModel::ColName, QHeaderView::Stretch);
         hHeader->adjustPositions();
         hHeader->blockSignals(false);
         vBar->blockSignals(vBarBlocked);

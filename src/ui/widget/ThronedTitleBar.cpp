@@ -111,7 +111,8 @@ ThronedTitleBar::ThronedTitleBar(const QString &context, QWidget *parent) : QFra
     auto *brand = new QLabel(QStringLiteral("Throned"), this);
     brand->setObjectName(QStringLiteral("titleBrand"));
     layout->addWidget(brand);
-    if (context.isEmpty()) {
+    // A source build with no -DINPUT_VERSION would otherwise show a bare "v".
+    if (context.isEmpty() && !QStringLiteral(NKR_VERSION).isEmpty()) {
         auto *version = new QLabel(QStringLiteral("v%1").arg(QStringLiteral(NKR_VERSION)), this);
         version->setObjectName(QStringLiteral("titleVersion"));
         version->setToolTip(QStringLiteral("Throned %1").arg(QStringLiteral(NKR_VERSION)));
