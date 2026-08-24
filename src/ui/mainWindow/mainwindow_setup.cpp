@@ -1381,7 +1381,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
             return;
         }
     });
-    ui->profilesTableView->horizontalHeader()->setStretchLastSection(false);
     refreshUdpColumnVisibility();
     ui->profilesTableView->verticalHeader()->setStretchLastSection(false);
     ui->profilesTableView->verticalHeader()->setDefaultSectionSize(34);
