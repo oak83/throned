@@ -197,10 +197,22 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
                                                                  : QStringLiteral("System");
     ui->theme->setCurrentText(selectedTheme);
     //
-    connect(ui->theme, &QComboBox::currentTextChanged, this, [=,this](const QString &theme) {
+    // Applying a theme restyles the whole application: qApp->setStyle, setPalette and
+    // setStyleSheet each walk every widget. The combo hands out one change per wheel
+    // notch and per arrow key, so a burst has to collapse into a single apply or the
+    // dialog freezes for as long as the user keeps scrolling.
+    auto *themeApplyDebounce = new QTimer(this);
+    themeApplyDebounce->setSingleShot(true);
+    themeApplyDebounce->setInterval(250);
+    connect(themeApplyDebounce, &QTimer::timeout, this, [this] {
+        const auto theme = ui->theme->currentText();
+        if (theme.isEmpty()) return;
         themeManager->ApplyTheme(theme);
         Configs::dataManager->settingsRepo->theme = theme;
         Configs::dataManager->settingsRepo->Save();
+    });
+    connect(ui->theme, &QComboBox::currentTextChanged, this, [themeApplyDebounce](const QString &) {
+        themeApplyDebounce->start();
     });
 
     // Subscription
@@ -310,6 +322,12 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     setWindowTitle(tr("Settings"));
     setWindowFlag(Qt::FramelessWindowHint, true);
     new ThronedWindowResizer(this);
+
+    const auto retireLegacyPage = [this](QWidget *page) {
+        if (page == nullptr) return;
+        page->hide();
+        page->setParent(this);
+    };
 
     const auto makeFieldRow = [this](const QString &title, const QString &hint, QWidget *control) {
         auto *row = new QFrame(this);
@@ -721,7 +739,11 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
         pageLayout->addStretch(1);
         pageScroll->setWidget(pageHost);
         stack->addWidget(pageScroll);
-        if (index <= 7) delete legacyPages[index];
+        // Destroying the page also destroys every control that was not moved into the
+        // new tree, while ui->name keeps pointing at the corpse -- that is what crashed
+        // Save in 1.3.6. Keeping the husk alive but detached turns a missed move into an
+        // invisible control instead of a use-after-free.
+        if (index <= 7) retireLegacyPage(legacyPages[index]);
     }
 
     auto *navGroup = new QButtonGroup(this);
@@ -765,7 +787,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     }
     bodyLayout->addWidget(ui->buttonBox, 0, Qt::AlignRight);
     oldRoot->addWidget(body, 1, 0);
-    delete legacyPages.value(0);
+    retireLegacyPage(legacyPages.value(0));
     delete ui->tabWidget;
 
     const QString settingsStyleTemplate = RouteProfileSimpleEditor::dialogStyleSheet() + QStringLiteral(R"(
