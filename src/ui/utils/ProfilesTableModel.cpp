@@ -118,6 +118,9 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
         }
     }
     if (role == Qt::ToolTipRole) {
+        if (index.column() == ColUDP && !profile->udp_error.isEmpty()) {
+            return tr("UDP probe error: %1").arg(profile->udp_error);
+        }
         if (index.column() == ColType && Configs::dataManager->settingsRepo->show_config_security
             && profile->outbound && profile->outbound->GetSecurity().isDangerous()) {
             return tr("This config's traffic is not properly protected.");

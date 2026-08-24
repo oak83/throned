@@ -4,8 +4,11 @@
 #include <QPaintEvent>
 #include <QPainterPath>
 #include <QFontMetricsF>
+#include <QPolygonF>
 
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace {
     // Round a positive value up to a "nice" 1/2/5 * 10^n ceiling, so the scale
@@ -89,37 +92,75 @@ void MiniChartWidget::paintEvent(QPaintEvent*) {
     p.setRenderHint(QPainter::Antialiasing, true);
 
     const QColor textColor = palette().color(QPalette::WindowText);
-    // Vertical scale: fixed if requested, otherwise a nice ceiling above the peak.
+    QColor mutedColor = textColor;
+    mutedColor.setAlpha(150);
+    QColor gridColor(128, 128, 128, 128);
+
+    // Scale against the normal range in the most recent minute, not its single
+    // highest value. Brief lag spikes therefore stay obvious as clipped triangles
+    // without flattening 20-50 ms traffic against a 2000 ms ceiling. A sustained
+    // slowdown still moves the 90th percentile and expands the scale naturally.
+    // Missing probes are ignored here and rendered separately at the upper edge.
     double maxV = fixedMax_;
     if (maxV <= 0) {
-        double peak = 0;
-        for (const auto &series : series_)
-            for (const double value : series.values) peak = qMax(peak, value);
-        maxV = niceCeil(peak);
+        constexpr int scaleWindow = 30;
+        std::vector<double> recent;
+        for (const auto &series : series_) {
+            const int first = qMax(0, static_cast<int>(series.values.size()) - scaleWindow);
+            for (int i = first; i < static_cast<int>(series.values.size()); ++i) {
+                const double value = series.values[static_cast<std::size_t>(i)];
+                if (std::isfinite(value) && value >= 0) recent.push_back(value);
+            }
+        }
+        std::sort(recent.begin(), recent.end());
+        const double normalPeak = recent.empty()
+            ? 0.0
+            : recent.size() < 5
+                ? recent.back()
+                : recent[static_cast<std::size_t>(std::floor((recent.size() - 1) * 0.90))];
+        maxV = niceCeil(qMax(50.0, normalPeak * 1.20));
     }
     if (maxV <= 0) maxV = 1.0;
 
-    // The whole widget is the panel. Labels live in top/bottom strips *inside* it,
-    // so the data band keeps a fixed geometry no matter how wide the labels are —
-    // that's what keeps sibling charts aligned to the same length.
-    const QRectF panel = QRectF(rect()).adjusted(1.5, 1.5, -1.5, -1.5);
+    const QRectF panel = QRectF(rect()).adjusted(4, 4, 0, -4);
     if (panel.width() <= 2 || panel.height() <= 2) return;
 
-    QColor bg = textColor;
-    bg.setAlpha(12);
-    p.setPen(Qt::NoPen);
-    p.setBrush(bg);
-    p.drawRoundedRect(panel, 4, 4);
-
     QFont labelFont = font();
-    labelFont.setPointSizeF(qMax(6.5, labelFont.pointSizeF() - 1.5));
+    labelFont.setPointSizeF(qMax(7.0, labelFont.pointSizeF() - 1.0));
     const QFontMetricsF fm(labelFont);
-    const double strip = qMin(fm.height(), panel.height() / 3.0);
-    const double padX = 5.0;
+    p.setFont(labelFont);
 
-    const QRectF plot(panel.left() + padX, panel.top() + strip,
-                      panel.width() - 2 * padX, panel.height() - 2 * strip);
+    constexpr int gridIntervals = 4;
+    QStringList scaleLabels;
+    double yAxisWidth = 0;
+    for (int i = gridIntervals; i >= 0; --i) {
+        const double value = maxV * i / gridIntervals;
+        const QString label = formatter_ ? formatter_(value) : QString::number(value);
+        scaleLabels << label;
+        yAxisWidth = qMax(yAxisWidth, fm.horizontalAdvance(label));
+    }
+
+    const QRectF plot(panel.left() + yAxisWidth + 8, panel.top() + fm.height() / 2.0,
+                      panel.width() - yAxisWidth - 8, panel.height() - fm.height());
     if (plot.width() <= 1 || plot.height() <= 1) return;
+
+    // Use the same five dashed horizontal levels and six time divisions as the
+    // throughput graph beside this widget.
+    QPen gridPen(gridColor, 1.0, Qt::DashLine);
+    for (int i = 0; i <= gridIntervals; ++i) {
+        const double y = plot.top() + i * plot.height() / gridIntervals;
+        p.setPen(gridPen);
+        p.drawLine(QPointF(panel.left(), y), QPointF(plot.right(), y));
+        p.setPen(mutedColor);
+        p.drawText(QRectF(panel.left(), y - fm.height() / 2.0, yAxisWidth, fm.height()),
+                   Qt::AlignRight | Qt::AlignVCenter, scaleLabels.at(i));
+    }
+    constexpr int timeDivisions = 6;
+    p.setPen(gridPen);
+    for (int i = 0; i < timeDivisions; ++i) {
+        const double x = plot.left() + i * plot.width() / timeDivisions;
+        p.drawLine(QPointF(x, panel.top()), QPointF(x, panel.bottom()));
+    }
 
     const double stepX = plot.width() / static_cast<double>(cap_ - 1 > 0 ? cap_ - 1 : 1);
 
@@ -131,26 +172,27 @@ void MiniChartWidget::paintEvent(QPaintEvent*) {
             color = index == 0 ? palette().color(QPalette::Highlight) : textColor;
             if (index != 0) color.setAlpha(120);
         }
-        const int n = s.size();
+        const int n = static_cast<int>(s.size());
         // Newest sample hugs the right edge; older samples extend left.
+        const auto xAt = [&](int i) {
+            return plot.right() - stepX * (n - 1 - i);
+        };
         const auto pointAt = [&](int i) {
-            const double x = plot.right() - stepX * (n - 1 - i);
+            const double x = xAt(i);
             const double y = plot.bottom() - qBound(0.0, s[i] / maxV, 1.0) * plot.height();
             return QPointF(x, y);
         };
         if (n >= 2) {
-            QPainterPath line(pointAt(0));
-            for (int i = 1; i < n; ++i) line.lineTo(pointAt(i));
-            if (series.style.fill) {
-                QPainterPath poly(line);
-                poly.lineTo(pointAt(n - 1).x(), plot.bottom());
-                poly.lineTo(pointAt(0).x(), plot.bottom());
-                poly.closeSubpath();
-                QColor fillColor = color;
-                fillColor.setAlpha(36);
-                p.setPen(Qt::NoPen);
-                p.setBrush(fillColor);
-                p.drawPath(poly);
+            QPainterPath line;
+            bool segmentOpen = false;
+            for (int i = 0; i < n; ++i) {
+                if (!std::isfinite(s[i]) || s[i] < 0) {
+                    segmentOpen = false;
+                    continue;
+                }
+                if (segmentOpen) line.lineTo(pointAt(i));
+                else line.moveTo(pointAt(i));
+                segmentOpen = true;
             }
             QPen pen(color, 1.6);
             pen.setStyle(series.style.penStyle);
@@ -160,28 +202,43 @@ void MiniChartWidget::paintEvent(QPaintEvent*) {
             p.setBrush(Qt::NoBrush);
             p.drawPath(line);
         }
-        // Dot on the latest sample so the current level is easy to spot.
-        p.setPen(Qt::NoPen);
-        p.setBrush(color);
-        p.drawEllipse(pointAt(n - 1), 2.2, 2.2);
+
+        // Missing probes and clipped lag spikes are distinct: a cross means no
+        // reply, while a triangle means a real value above the current scale.
+        for (int i = 0; i < n; ++i) {
+            const double x = xAt(i);
+            if (!std::isfinite(s[i]) || s[i] < 0) {
+                QPen markerPen(color, 1.8);
+                markerPen.setCapStyle(Qt::RoundCap);
+                p.setPen(markerPen);
+                p.drawLine(QPointF(x - 3.0, plot.top() + 2.0), QPointF(x + 3.0, plot.top() + 8.0));
+                p.drawLine(QPointF(x + 3.0, plot.top() + 2.0), QPointF(x - 3.0, plot.top() + 8.0));
+            } else if (s[i] > maxV) {
+                p.setPen(Qt::NoPen);
+                p.setBrush(color);
+                p.drawPolygon(QPolygonF{QPointF(x, plot.top() + 1.0),
+                                        QPointF(x - 4.0, plot.top() + 7.0),
+                                        QPointF(x + 4.0, plot.top() + 7.0)});
+            }
+        }
+
+        // A larger, haloed latest point stays legible even with only one sample.
+        if (std::isfinite(s.back()) && s.back() >= 0) {
+            const QPointF latest = pointAt(n - 1);
+            QColor halo = color;
+            halo.setAlpha(70);
+            p.setPen(Qt::NoPen);
+            p.setBrush(halo);
+            p.drawEllipse(latest, 5.0, 5.0);
+            p.setBrush(color);
+            p.drawEllipse(latest, 2.8, 2.8);
+        }
     };
 
     // Later series are usually baselines; paint them first so the primary target
     // remains on top when paths overlap.
     for (int i = static_cast<int>(series_.size()) - 1; i >= 0; --i)
         drawSeries(series_[static_cast<std::size_t>(i)], i);
-
-    // Labels last, so they stay legible over the series: scale ceiling top-left,
-    // 0 bottom-left, caption (metric name) bottom-right.
-    p.setFont(labelFont);
-    QColor scaleColor = textColor;
-    scaleColor.setAlpha(150);
-    p.setPen(scaleColor);
-    const QRectF topStrip(panel.left() + padX, panel.top(), panel.width() - 2 * padX, strip);
-    const QRectF botStrip(panel.left() + padX, panel.bottom() - strip, panel.width() - 2 * padX, strip);
-    const QString topLabel = formatter_ ? formatter_(maxV) : QString::number(maxV);
-    p.drawText(topStrip, Qt::AlignLeft | Qt::AlignVCenter, topLabel);
-    p.drawText(botStrip, Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("0"));
 
     if (!caption_.isEmpty()) {
         QColor capColor = textColor;
@@ -190,6 +247,7 @@ void MiniChartWidget::paintEvent(QPaintEvent*) {
         QFont capFont = labelFont;
         capFont.setBold(true);
         p.setFont(capFont);
-        p.drawText(botStrip, Qt::AlignRight | Qt::AlignVCenter, caption_);
+        p.drawText(QRectF(plot.left(), plot.bottom() - fm.height(), plot.width() - 4, fm.height()),
+                   Qt::AlignRight | Qt::AlignVCenter, caption_);
     }
 }

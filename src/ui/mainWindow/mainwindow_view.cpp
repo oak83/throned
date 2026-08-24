@@ -479,11 +479,11 @@ void MainWindow::recordPingSample(const QStringList &targets, const QList<int> &
     while (pingHistory_.size() > kPingHistoryCap) pingHistory_.removeFirst();
 
     if (pingChartWidget) {
-        // A lost probe is the worst outcome, so it is drawn at the ceiling. Plotting
-        // zero would plant it at the bottom of the chart, where it reads as perfect.
+        // Keep loss distinct from latency. The chart renders negative samples as
+        // ceiling markers, but excludes them from the dynamic scale.
         QList<double> values;
-        for (const auto value : proxyMs) values << (value < 0 ? kPingTimeoutMs : value);
-        values << (directMs < 0 ? kPingTimeoutMs : directMs);
+        for (const auto value : proxyMs) values << value;
+        values << directMs;
         pingChartWidget->pushValues(values);
     }
     updatePingLegend(targets, proxyMs, directMs);

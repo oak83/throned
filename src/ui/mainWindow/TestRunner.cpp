@@ -157,11 +157,13 @@ void TestRunner::applyUdpResult(const std::shared_ptr<Configs::Profile>& ent, co
         ent->udp_avg = -1;
         ent->udp_jitter = 0;
         ent->udp_loss = 100;
+        ent->udp_error = error;
         return;
     }
     ent->udp_avg = res.avg_ms.value();
     ent->udp_jitter = res.jitter_ms.value();
     ent->udp_loss = sent > 0 ? (sent - received) * 100 / sent : 0;
+    ent->udp_error.clear();
 }
 
 void TestRunner::runUdpProbe(const Target& target) {

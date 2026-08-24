@@ -74,6 +74,7 @@ namespace Configs {
         int udp_avg = 0;    // ms; 0 = never measured, -1 = nothing came back
         int udp_jitter = 0; // ms
         int udp_loss = 0;   // percent
+        QString udp_error;  // runtime-only; explains timeout vs an explicit server rejection
         [[nodiscard]] QString DisplayUDPResult() const;
 
         [[nodiscard]] QColor DisplayLatencyColor() const;

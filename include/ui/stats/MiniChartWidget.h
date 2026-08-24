@@ -14,21 +14,12 @@ struct MiniChartSeriesStyle {
     bool fill = false;
 };
 
-// A minimal self-painted sparkline for the runtime panel: up to two overlaid
-// series over a fixed-size rolling window, auto-scaled to a "nice" ceiling above
-// the visible peak. All text is drawn *inside* the panel so the plot geometry is
-// identical across charts (no external caption or variable-width gutter to knock
-// them out of alignment): the scale ceiling sits top-left, 0 bottom-left, and an
-// optional caption (e.g. "CPU"/"RAM") bottom-right, with a dot on each series'
-// latest sample — so a value can actually be read off the chart. A formatter
-// turns raw values into label text (e.g. "%", or a byte size). Thin antialiased
-// lines with a faint fill under the primary series, on a subtle rounded backdrop.
-// Theme-aware (colours default from the palette, overridable to match a legend).
-// Qt Charts isn't a dependency, so this is drawn directly with QPainter (like
-// TrafficChartWidget).
+// A lightweight rolling line chart. The vertical scale follows the normal data
+// range while isolated spikes are clipped at, and visibly marked on, the upper
+// edge. This keeps the useful part of a latency graph readable without hiding
+// exceptional events. Negative samples represent a missing measurement and are
+// drawn as crosses at the ceiling without taking part in auto-scaling.
 class MiniChartWidget : public QWidget {
-    Q_OBJECT
-
 public:
     explicit MiniChartWidget(QWidget* parent = nullptr);
 

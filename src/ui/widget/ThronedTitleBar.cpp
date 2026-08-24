@@ -1,4 +1,5 @@
 #include "include/ui/widget/ThronedTitleBar.h"
+#include "NkrVersion.h"
 
 #include <QEvent>
 #include <QHBoxLayout>
@@ -110,6 +111,12 @@ ThronedTitleBar::ThronedTitleBar(const QString &context, QWidget *parent) : QFra
     auto *brand = new QLabel(QStringLiteral("Throned"), this);
     brand->setObjectName(QStringLiteral("titleBrand"));
     layout->addWidget(brand);
+    if (context.isEmpty()) {
+        auto *version = new QLabel(QStringLiteral("v%1").arg(QStringLiteral(NKR_VERSION)), this);
+        version->setObjectName(QStringLiteral("titleVersion"));
+        version->setToolTip(QStringLiteral("Throned %1").arg(QStringLiteral(NKR_VERSION)));
+        layout->addWidget(version);
+    }
     if (!context.isEmpty()) {
         auto *divider = new QFrame(this);
         divider->setObjectName(QStringLiteral("vSeparator"));

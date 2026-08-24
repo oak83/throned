@@ -36,7 +36,11 @@ namespace Configs
 
     QString Profile::DisplayUDPResult() const {
         if (udp_avg == 0) return {};
-        if (udp_avg < 0) return QObject::tr("No UDP");
+        if (udp_avg < 0) {
+            if (udp_error.contains(QStringLiteral("UDP disabled by server"), Qt::CaseInsensitive))
+                return QObject::tr("UDP disabled");
+            return QObject::tr("No reply");
+        }
         QString result = QString("%1 ms").arg(udp_avg);
         if (udp_jitter > 0) result += QString(" ±%1").arg(udp_jitter);
         if (udp_loss > 0) result += QString(" / %1%").arg(udp_loss);

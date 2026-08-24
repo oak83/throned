@@ -5196,6 +5196,52 @@ Please try again.</source>
         <translation>Скопировать диагностику</translation>
     </message>
     <message>
+        <source>Monitor UDP</source>
+        <translation>Мониторинг UDP</translation>
+    </message>
+    <message>
+        <source>Continuously probes the selected DNS-over-UDP targets through the running profile.</source>
+        <translation>Постоянно проверяет выбранные DNS-over-UDP цели через запущенный профиль.</translation>
+    </message>
+    <message>
+        <source>UDP targets (%1/%2):
+%3</source>
+        <translation>Цели UDP (%1/%2):
+%3</translation>
+    </message>
+    <message>
+        <source>Choose UDP monitor targets</source>
+        <translation>Выбрать цели мониторинга UDP</translation>
+    </message>
+    <message>
+        <source>No DNS/UDP reply through proxy; direct works</source>
+        <translation>DNS/UDP через прокси не отвечает; напрямую работает</translation>
+    </message>
+    <message>
+        <source>direct (%1)</source>
+        <translation>напрямую (%1)</translation>
+    </message>
+    <message>
+        <source>UDP monitor</source>
+        <translation>Мониторинг UDP</translation>
+    </message>
+    <message>
+        <source>Choose at most three targets.</source>
+        <translation>Выберите не больше трёх целей.</translation>
+    </message>
+    <message>
+        <source>Keep at least one target selected.</source>
+        <translation>Оставьте выбранной хотя бы одну цель.</translation>
+    </message>
+    <message>
+        <source>Custom target is configured in Settings → Testing</source>
+        <translation>Своя цель настраивается в «Настройки» → «Тестирование»</translation>
+    </message>
+    <message>
+        <source>Each coloured line is one selected UDP target through the proxy. The dashed gray line is direct for the first target. A cross is a lost probe; a triangle is a latency spike above the current scale.</source>
+        <translation>Каждая цветная линия — выбранная UDP-цель через прокси. Серая пунктирная линия — прямой путь к первой цели. Крестик означает отсутствие ответа, треугольник — скачок задержки выше текущего масштаба.</translation>
+    </message>
+    <message>
         <source>Copies the ping history and the rest of the diagnostics, with secrets masked.</source>
         <translation>Копирует историю пинга и остальную диагностику; секреты скрыты.</translation>
     </message>
@@ -5464,6 +5510,10 @@ Name: %1</source>
         <translation>UDP</translation>
     </message>
     <message>
+        <source>UDP probe error: %1</source>
+        <translation>Ошибка UDP-пробы: %1</translation>
+    </message>
+    <message>
         <source>This config&apos;s traffic is not properly protected.</source>
         <translation>Трафик этой конфигурации не защищен должным образом.</translation>
     </message>
@@ -5720,6 +5770,14 @@ Deleted %5 Profiles:
     <message>
         <source>No UDP</source>
         <translation>Нет UDP</translation>
+    </message>
+    <message>
+        <source>No reply</source>
+        <translation>Нет ответа</translation>
+    </message>
+    <message>
+        <source>UDP disabled</source>
+        <translation>UDP отключён сервером</translation>
     </message>
     <message>
         <source>[%1] Full config profile: DNS, routing and inbound settings from Preferences are not applied; the profile supplies its own.</source>

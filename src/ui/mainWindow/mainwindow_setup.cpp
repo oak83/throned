@@ -151,9 +151,15 @@ void MainWindow::updatePingLegend(const QStringList &targets, const QList<int> &
 
     QStringList items;
     const auto &colors = pingTargetColors();
+    const bool allProxyMissing = !proxyMs.isEmpty()
+        && std::all_of(proxyMs.cbegin(), proxyMs.cend(), [](const int value) { return value < 0; });
+    if (allProxyMissing && directMs >= 0) {
+        items << QStringLiteral("<span style='color:#ff6b6b'><b>%1</b></span>")
+                     .arg(tr("No DNS/UDP reply through proxy; direct works").toHtmlEscaped());
+    }
     for (int i = 0; i < targets.size(); ++i) {
         const auto latest = i < proxyMs.size()
-            ? (proxyMs.at(i) < 0 ? tr("lost") : QStringLiteral("%1 ms").arg(proxyMs.at(i)))
+            ? (proxyMs.at(i) < 0 ? tr("no reply") : QStringLiteral("%1 ms").arg(proxyMs.at(i)))
             : QString{};
         items << QStringLiteral("<span style='color:%1'>●</span> %2%3")
                      .arg(colors.at(i).name(), targets.at(i).toHtmlEscaped(),
@@ -161,7 +167,7 @@ void MainWindow::updatePingLegend(const QStringList &targets, const QList<int> &
     }
     if (!targets.isEmpty()) {
         const auto latest = directMs == -2 ? QString{}
-            : directMs < 0 ? tr("lost") : QStringLiteral("%1 ms").arg(directMs);
+            : directMs < 0 ? tr("no reply") : QStringLiteral("%1 ms").arg(directMs);
         items << QStringLiteral("<span style='color:#8295A6'>┄</span> %1%2")
                      .arg(tr("direct (%1)").arg(targets.first()).toHtmlEscaped(),
                           latest.isEmpty() ? QString{} : QStringLiteral(" <b>%1</b>").arg(latest));
@@ -190,7 +196,7 @@ void MainWindow::setPingMonitorTargets(const QStringList &requested, const bool 
         for (int i = 0; i < targets.size(); ++i) styles << MiniChartSeriesStyle{colors.at(i), Qt::SolidLine, false};
         styles << MiniChartSeriesStyle{QColor(QStringLiteral("#8295A6")), Qt::DashLine, false};
         pingChartWidget->setSeriesStyles(styles);
-        pingChartWidget->setCaption(tr("UDP · loss = ceiling"));
+        pingChartWidget->setCaption(QStringLiteral("UDP"));
     }
     updatePingLegend(targets);
 }
@@ -633,6 +639,7 @@ QWidget#previewRoot { background: #1B1E23; border: 1px solid #2F3136; }
 QWidget#body { background: #1B1E23; }
 QFrame#titleBar { background: #1B1E23; border: none; }
 QLabel#titleBrand { font-size: 18px; font-weight: 700; }
+QLabel#titleVersion { color: #747B85; font-size: 10px; font-weight: 500; padding-top: 5px; }
 QLabel#titleContext { font-size: 14px; font-weight: 650; color: #D8DCE1; }
 QFrame#titleBar QToolButton { background: transparent; border: none; }
 QFrame#titleBar QToolButton:hover { background: #292D33; }
@@ -1047,8 +1054,8 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     // costs a probe through the running core.
     auto *pingColumn = new QWidget(this);
     auto *pingColumnLayout = new QVBoxLayout(pingColumn);
-    pingColumnLayout->setContentsMargins(8, 4, 2, 4);
-    pingColumnLayout->setSpacing(6);
+    pingColumnLayout->setContentsMargins(4, 4, 4, 4);
+    pingColumnLayout->setSpacing(4);
     auto *pingHeader = new QWidget(pingColumn);
     auto *pingHeaderLayout = new QHBoxLayout(pingHeader);
     pingHeaderLayout->setContentsMargins(0, 0, 0, 0);
@@ -1057,6 +1064,13 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     pingMonitorToggle->setToolTip(tr("Continuously probes the selected DNS-over-UDP targets through the running profile."));
     pingHeaderLayout->addWidget(pingMonitorToggle);
     pingHeaderLayout->addStretch(1);
+    auto *pingCopyButton = new QPushButton(tr("Copy Diagnostics"), pingHeader);
+    pingCopyButton->setObjectName(QStringLiteral("routeSecondaryButton"));
+    pingCopyButton->setCursor(Qt::PointingHandCursor);
+    pingCopyButton->setMaximumHeight(24);
+    pingCopyButton->setToolTip(tr("Copies the ping history and the rest of the diagnostics, with secrets masked."));
+    connect(pingCopyButton, &QPushButton::clicked, this, [this] { copyDiagnostics(); });
+    pingHeaderLayout->addWidget(pingCopyButton);
     pingTargetsButton = new QToolButton(pingHeader);
     pingTargetsButton->setObjectName(QStringLiteral("udpTargetsButton"));
     pingTargetsButton->setAutoRaise(true);
@@ -1077,25 +1091,18 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     pingLegendLabel->setStyleSheet(QStringLiteral("font-size: 10px;"));
     pingColumnLayout->addWidget(pingLegendLabel);
     pingChartWidget = new MiniChartWidget(pingColumn);
-    pingChartWidget->setCapacity(150);
+    pingChartWidget->setCapacity(120);
     pingChartWidget->setFormatter([](const double value) { return QString::number(qRound(value)) + " ms"; });
+    pingChartWidget->setCaption(QStringLiteral("UDP"));
     pingChartWidget->setToolTip(tr("Each coloured line is one selected UDP target through the proxy. "
-                                   "The dashed gray line is direct for the first target; lost probes touch the ceiling."));
+                                   "The dashed gray line is direct for the first target. A cross is a lost probe; "
+                                   "a triangle is a latency spike above the current scale."));
     pingColumnLayout->addWidget(pingChartWidget, 1);
     setPingMonitorTargets(pingMonitorTargets(), false);
-
-    // The dump belongs where the problem is seen; the menu entry is for people who
-    // already know it exists.
-    auto *pingCopyButton = new QPushButton(tr("Copy Diagnostics"), pingColumn);
-    pingCopyButton->setObjectName(QStringLiteral("routeSecondaryButton"));
-    pingCopyButton->setCursor(Qt::PointingHandCursor);
-    pingCopyButton->setToolTip(tr("Copies the ping history and the rest of the diagnostics, with secrets masked."));
-    connect(pingCopyButton, &QPushButton::clicked, this, [this] { copyDiagnostics(); });
-    pingColumnLayout->addWidget(pingCopyButton);
     if (auto *graphLayout = qobject_cast<QHBoxLayout *>(ui->graph_tab->layout())) {
         graphLayout->addWidget(pingColumn);
-        graphLayout->setStretch(0, 3);
-        graphLayout->setStretch(1, 2);
+        graphLayout->setStretch(0, 1);
+        graphLayout->setStretch(1, 1);
     } else {
         ui->graph_tab->layout()->addWidget(pingColumn);
     }
