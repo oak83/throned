@@ -2,6 +2,7 @@
 #include "NkrVersion.h"
 
 #include <QApplication>
+#include <QScopeGuard>
 #include <QFrame>
 #include <QHeaderView>
 #include <QScrollBar>
@@ -446,6 +447,40 @@ void MainWindow::url_test_current() {
             } else if (latency > 0) {
                 setStatusText(ui->label_running, tr("Test Result") + ": " + QString("%1 ms").arg(latency));
             }
+        });
+    });
+}
+
+// One UDP round trip through the running core, plotted beside the speed chart.
+// Skipped while nothing runs, and never overlapped: a slow probe must not queue
+// more of itself behind the timer.
+void MainWindow::pollPingMonitor() {
+    if (running == nullptr || pingChartWidget == nullptr) return;
+    bool idle = false;
+    if (!pingProbeInFlight_.compare_exchange_strong(idle, true)) return;
+
+    runOnNewThread([this] {
+        // A throw here would otherwise leave the guard raised and stall the monitor for good.
+        const auto release = qScopeGuard([this] { pingProbeInFlight_.store(false); });
+        libcore::UDPTestRequest req;
+        req.test_current = true;
+        req.probe_count = 3;
+        req.test_timeout_ms = 2000;
+
+        bool rpcOK = false;
+        const auto response = API::defaultClient->UDPTest(&rpcOK, req);
+
+        int average = -1;
+        int jitter = 0;
+        if (rpcOK && !response.results.empty()) {
+            const auto &result = response.results.front();
+            if (result.error.value().empty() && result.received.value() > 0) {
+                average = result.avg_ms.value();
+                jitter = result.jitter_ms.value();
+            }
+        }
+        runOnUiThread([this, average, jitter] {
+            if (pingChartWidget) pingChartWidget->push(average < 0 ? 0 : average, jitter);
         });
     });
 }

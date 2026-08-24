@@ -5184,6 +5184,14 @@ Please try again.</source>
         <translation>Задержка TCP</translation>
     </message>
     <message>
+        <source>Monitor ping</source>
+        <translation>Следить за пингом</translation>
+    </message>
+    <message>
+        <source>Probes the running profile over UDP every few seconds. The line is the round trip, the second series its jitter.</source>
+        <translation>Раз в несколько секунд проверяет запущенный профиль по UDP. Линия — время отклика, вторая серия — джиттер.</translation>
+    </message>
+    <message>
         <source>UDP latency</source>
         <translation>Задержка UDP</translation>
     </message>

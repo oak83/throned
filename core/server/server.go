@@ -696,7 +696,7 @@ func (s *server) QueryIPTest(ctx context.Context, in *gen.EmptyReq) (out *gen.Qu
 }
 
 func (s *server) UDPTest(ctx context.Context, in *gen.UDPTestRequest) (*gen.UDPTestResp, error) {
-	env, err := prepareTestEnv(false, in.GetNeedXray(), in.GetXrayConfig(),
+	env, err := prepareTestEnv(in.GetTestCurrent(), in.GetNeedXray(), in.GetXrayConfig(),
 		in.XrayFullConfigs, in.GetConfig(), in.OutboundTags, in.GetUseDefaultOutbound())
 	if err != nil {
 		return nil, err

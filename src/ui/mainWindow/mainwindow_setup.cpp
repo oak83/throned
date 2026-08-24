@@ -876,6 +876,42 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     speedChartWidget = new SpeedWidget(this);
     ui->graph_tab->layout()->addWidget(speedChartWidget);
 
+    // Second column: UDP round trip over time. Off by default because each sample
+    // costs a probe through the running core.
+    auto *pingColumn = new QWidget(this);
+    auto *pingColumnLayout = new QVBoxLayout(pingColumn);
+    pingColumnLayout->setContentsMargins(8, 4, 2, 4);
+    pingColumnLayout->setSpacing(6);
+    pingMonitorToggle = new QCheckBox(tr("Monitor ping"), pingColumn);
+    pingMonitorToggle->setToolTip(tr("Probes the running profile over UDP every few seconds. The line is the round trip, the second series its jitter."));
+    pingColumnLayout->addWidget(pingMonitorToggle);
+    pingChartWidget = new MiniChartWidget(pingColumn);
+    pingChartWidget->setCapacity(120);
+    pingChartWidget->setCaption(tr("UDP"));
+    pingChartWidget->setFormatter([](const double value) { return QString::number(qRound(value)) + " ms"; });
+    pingColumnLayout->addWidget(pingChartWidget, 1);
+    if (auto *graphLayout = qobject_cast<QHBoxLayout *>(ui->graph_tab->layout())) {
+        graphLayout->addWidget(pingColumn);
+        graphLayout->setStretch(0, 3);
+        graphLayout->setStretch(1, 2);
+    } else {
+        ui->graph_tab->layout()->addWidget(pingColumn);
+    }
+
+    pingMonitorTimer = new QTimer(this);
+    pingMonitorTimer->setInterval(5000);
+    connect(pingMonitorTimer, &QTimer::timeout, this, [this] { pollPingMonitor(); });
+    connect(pingMonitorToggle, &QCheckBox::toggled, this, [this](const bool enabled) {
+        Configs::dataManager->settingsRepo->monitor_ping = enabled;
+        if (enabled) {
+            pingMonitorTimer->start();
+        } else {
+            pingMonitorTimer->stop();
+            if (pingChartWidget) pingChartWidget->clear();
+        }
+    });
+    pingMonitorToggle->setChecked(Configs::dataManager->settingsRepo->monitor_ping);
+
     // table UI: model-backed view with on-demand row data
     profilesTableModel = new ProfilesTableModel(this);
     profilesFilterModel = new ProfilesFilterProxyModel(this);

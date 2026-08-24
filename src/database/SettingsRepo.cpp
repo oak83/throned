@@ -58,6 +58,7 @@ namespace Configs {
             {"show_system_dns",               &show_system_dns},
             {"dpi_bypass_block_quic",         &dpi_bypass_block_quic},
             {"apply_dns_to_full_config",      &apply_dns_to_full_config},
+            {"monitor_ping",                  &monitor_ping},
             {"use_custom_icons",              &use_custom_icons},
             {"xray_mux_default_on",           &xray_mux_default_on},
             {"use_dns_object",                &use_dns_object},

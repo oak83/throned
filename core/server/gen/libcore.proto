@@ -340,6 +340,9 @@ message UDPTestRequest {
   repeated string xray_full_configs = 8;
   optional string target = 9 [default = ""];
   optional int32 probe_count = 10 [default = 0];
+  // Probe through the running instance instead of building a throwaway box, so a
+  // periodic monitor costs one dial rather than a whole core start.
+  optional bool test_current = 11 [default = false];
 }
 
 message UDPTestResp {
