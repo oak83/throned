@@ -962,8 +962,36 @@ namespace Subscription {
     // Subscriptions announce themselves in leading comment lines ("# profile-title:",
     // "# profile-update-interval:"). Honouring the title means a bundled preset arrives
     // already named instead of showing up as a bare URL.
-    static void applySubscriptionHeaders(const QString &body, const std::shared_ptr<Configs::Group> &group) {
+    // A name nobody chose. Adding a subscription seeds the group with the URL host,
+    // so "still automatic" has to cover that too or a title can never land.
+    static bool groupNameIsAutomatic(const std::shared_ptr<Configs::Group> &group) {
+        if (group->name.isEmpty()) return true;
+        if (group->name == group->url) return true;
+        return group->name == QUrl(group->url).host();
+    }
+
+    // Servers send the title as a header value that may itself be wrapped, because the
+    // header has to stay ASCII while the name usually is not.
+    static QString decodeTitleValue(const QString &raw) {
+        const auto value = raw.trimmed();
+        if (!value.startsWith("base64:", Qt::CaseInsensitive)) return value;
+        const auto decoded = DecodeB64IfValid(value.mid(7).trimmed());
+        return decoded.isEmpty() ? QString() : decoded.trimmed();
+    }
+
+    static void applyGroupTitle(const QString &raw, const std::shared_ptr<Configs::Group> &group) {
+        const auto title = decodeTitleValue(raw);
+        if (title.isEmpty() || !groupNameIsAutomatic(group)) return;
+        group->name = title;
+        MW_show_log(QObject::tr("Subscription named itself \"%1\".").arg(title));
+    }
+
+    static void applySubscriptionHeaders(const QString &body, const QString &httpTitle,
+                                         const std::shared_ptr<Configs::Group> &group) {
         if (group == nullptr) return;
+        // The header wins: it is the documented channel, the comment line is the fallback.
+        if (!httpTitle.isEmpty()) applyGroupTitle(httpTitle, group);
+
         const QString decoded = DecodeB64IfValid(body);
         const QString &text = decoded.isEmpty() ? body : decoded;
 
@@ -979,11 +1007,7 @@ namespace Subscription {
             if (value.isEmpty()) continue;
 
             if (key == "profile-title") {
-                // Never fight a name the user chose; only fill one in that was never set.
-                if (group->name.isEmpty() || group->name == group->url) {
-                    group->name = value;
-                    MW_show_log(QObject::tr("Subscription named itself \"%1\".").arg(value));
-                }
+                applyGroupTitle(value, group);
             } else if (key == "profile-update-interval") {
                 // Per-group scheduling does not exist yet, so this is reported rather than applied.
                 MW_show_log(QObject::tr("Subscription asks to be refreshed every %1 h; auto-update is configured globally.").arg(value));
@@ -999,6 +1023,7 @@ namespace Subscription {
 
         // 准备
         QString sub_user_info;
+        QString sub_profile_title;
         bool asURL = _sub_gid >= 0 || _not_sub_as_url; // 把 _str 当作 url 处理（下载内容）
         auto content = _str.trimmed();
         auto group = Configs::dataManager->groupsRepo->GetGroup(_sub_gid);
@@ -1017,6 +1042,7 @@ namespace Subscription {
 
             content = resp.data;
             sub_user_info = NetworkRequestHelper::GetHeader(resp.header, "Subscription-UserInfo");
+            sub_profile_title = NetworkRequestHelper::GetHeader(resp.header, "Profile-Title");
 
             MW_show_log("<<<<<<<< " + QObject::tr("Subscription request fininshed: %1").arg(groupName));
         }
@@ -1040,7 +1066,7 @@ namespace Subscription {
         if (group != nullptr) {
             group->sub_last_update = QDateTime::currentMSecsSinceEpoch() / 1000;
             group->info = sub_user_info;
-            applySubscriptionHeaders(content, group);
+            applySubscriptionHeaders(content, sub_profile_title, group);
             Configs::dataManager->groupsRepo->Save(group);
             //
             for (int i = 0; i < group->profiles.size(); i++) {
