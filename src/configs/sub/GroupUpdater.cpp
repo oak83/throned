@@ -959,6 +959,38 @@ namespace Subscription {
         return outcome;
     }
 
+    // Subscriptions announce themselves in leading comment lines ("# profile-title:",
+    // "# profile-update-interval:"). Honouring the title means a bundled preset arrives
+    // already named instead of showing up as a bare URL.
+    static void applySubscriptionHeaders(const QString &body, const std::shared_ptr<Configs::Group> &group) {
+        if (group == nullptr) return;
+        const QString decoded = DecodeB64IfValid(body);
+        const QString &text = decoded.isEmpty() ? body : decoded;
+
+        for (const auto &rawLine : text.split(QChar(0x0A))) {
+            const auto line = rawLine.trimmed();
+            if (line.isEmpty()) continue;
+            if (!line.startsWith(QChar(0x23))) break; // the headers only lead the body
+            const auto entry = line.mid(1).trimmed();
+            const int separator = entry.indexOf(QChar(0x3A));
+            if (separator <= 0) continue;
+            const auto key = entry.left(separator).trimmed().toLower();
+            const auto value = entry.mid(separator + 1).trimmed();
+            if (value.isEmpty()) continue;
+
+            if (key == "profile-title") {
+                // Never fight a name the user chose; only fill one in that was never set.
+                if (group->name.isEmpty() || group->name == group->url) {
+                    group->name = value;
+                    MW_show_log(QObject::tr("Subscription named itself \"%1\".").arg(value));
+                }
+            } else if (key == "profile-update-interval") {
+                // Per-group scheduling does not exist yet, so this is reported rather than applied.
+                MW_show_log(QObject::tr("Subscription asks to be refreshed every %1 h; auto-update is configured globally.").arg(value));
+            }
+        }
+    }
+
     void GroupUpdater::Update(const QString &_str, int _sub_gid, bool _not_sub_as_url, bool showDiff) {
         // 创建 rawUpdater
         Configs::dataManager->settingsRepo->imported_count = 0;
@@ -990,6 +1022,7 @@ namespace Subscription {
         }
 
         QList<std::shared_ptr<Configs::Profile>> in;
+
         // Profiles the subscription does not own and must never touch. An auto
         // selector is local state that tracks the group rather than a server the
         // remote sent us, so leaving it in the diff would report it as removed
@@ -1007,6 +1040,7 @@ namespace Subscription {
         if (group != nullptr) {
             group->sub_last_update = QDateTime::currentMSecsSinceEpoch() / 1000;
             group->info = sub_user_info;
+            applySubscriptionHeaders(content, group);
             Configs::dataManager->groupsRepo->Save(group);
             //
             for (int i = 0; i < group->profiles.size(); i++) {
