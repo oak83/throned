@@ -60,6 +60,7 @@ find_package(Qt6 QUIET COMPONENTS Test)
 # what the caption draws, the way Chrome and VS Code do it. Pinned to a commit so a
 # release never depends on whatever the branch looked like that day.
 include(FetchContent)
+find_package(Git REQUIRED)
 set(QWINDOWKIT_BUILD_STATIC ON CACHE BOOL "" FORCE)
 set(QWINDOWKIT_BUILD_WIDGETS ON CACHE BOOL "" FORCE)
 set(QWINDOWKIT_BUILD_QUICK OFF CACHE BOOL "" FORCE)
@@ -69,7 +70,13 @@ set(QWINDOWKIT_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(qwindowkit
         GIT_REPOSITORY https://github.com/stdware/qwindowkit.git
         GIT_TAG 4f683f2e0e4f3a7d6061d0224de9ed30e7c17e0f
-        GIT_SUBMODULES_RECURSE ON)
+        GIT_SUBMODULES_RECURSE ON
+        PATCH_COMMAND
+            ${CMAKE_COMMAND}
+            "-DGIT_EXECUTABLE=${GIT_EXECUTABLE}"
+            "-DPATCH_SOURCE_DIR=<SOURCE_DIR>"
+            "-DPATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/qwindowkit-qt62-wayland.patch"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ApplyGitPatch.cmake")
 FetchContent_MakeAvailable(qwindowkit)
 
 include("cmake/nkr.cmake")

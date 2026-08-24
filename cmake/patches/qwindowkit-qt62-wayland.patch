@@ -1,0 +1,51 @@
+diff --git a/src/core/contexts/linuxwaylandcontext.cpp b/src/core/contexts/linuxwaylandcontext.cpp
+index 48b34ca..f5a7e76 100644
+--- a/src/core/contexts/linuxwaylandcontext.cpp
++++ b/src/core/contexts/linuxwaylandcontext.cpp
+@@ -10,2 +10,2 @@
+-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
++#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+ #include <QtGui/qpa/qplatformnativeinterface.h>
+@@ -65,2 +65,2 @@ namespace QWK {
+ }
+-#endif // QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
++#endif // QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+diff --git a/src/core/contexts/linuxwaylandcontext_p.h b/src/core/contexts/linuxwaylandcontext_p.h
+index e67f516..0a43a1f 100644
+--- a/src/core/contexts/linuxwaylandcontext_p.h
++++ b/src/core/contexts/linuxwaylandcontext_p.h
+@@ -22,2 +22,2 @@
+-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
++#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+ namespace QWK {
+@@ -35,3 +35,3 @@ namespace QWK {
+ }
+-#endif // QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
++#endif // QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+ #endif // LINUXWAYLANDCONTEXT_P_H
+diff --git a/src/core/windowagentbase.cpp b/src/core/windowagentbase.cpp
+index d5844a3..baeb24d 100644
+--- a/src/core/windowagentbase.cpp
++++ b/src/core/windowagentbase.cpp
+@@ -13,7 +13,9 @@
+ #  include "cocoawindowcontext_p.h"
+ #elif defined(Q_OS_LINUX) && QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+ #  include "qwindowkit_linux.h"
++#  if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+ #  include "linuxwaylandcontext_p.h"
++#  endif
+ #  include "linuxx11context_p.h"
+ #endif
+ #include "qtwindowcontext_p.h"
+@@ -60,9 +62,11 @@ namespace QWK {
+ #  elif defined(Q_OS_MAC)
+         return new CocoaWindowContext();
+ #  elif defined(Q_OS_LINUX) && QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
++#    if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+         if (Private::isWaylandPlatform() && Private::waylandAPI().isValid()) {
+             return new LinuxWaylandContext();
+         }
++#    endif
+         if (Private::isX11Platform() && Private::x11API().isValid()) {
+             return new LinuxX11Context();
+         }
