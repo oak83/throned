@@ -200,18 +200,12 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     // setStyleSheet each walk every widget. The combo hands out one change per wheel
     // notch and per arrow key, so a burst has to collapse into a single apply or the
     // dialog freezes for as long as the user keeps scrolling.
-    auto *themeApplyDebounce = new QTimer(this);
-    themeApplyDebounce->setSingleShot(true);
-    themeApplyDebounce->setInterval(250);
-    connect(themeApplyDebounce, &QTimer::timeout, this, [this] {
-        const auto theme = ui->theme->currentText();
-        if (theme.isEmpty()) return;
-        themeManager->ApplyTheme(theme);
-        Configs::dataManager->settingsRepo->theme = theme;
-        Configs::dataManager->settingsRepo->Save();
-    });
-    connect(ui->theme, &QComboBox::currentTextChanged, this, [themeApplyDebounce](const QString &) {
-        themeApplyDebounce->start();
+    themeApplyDebounce_ = new QTimer(this);
+    themeApplyDebounce_->setSingleShot(true);
+    themeApplyDebounce_->setInterval(250);
+    connect(themeApplyDebounce_, &QTimer::timeout, this, &DialogBasicSettings::applySelectedTheme);
+    connect(ui->theme, &QComboBox::currentTextChanged, this, [this](const QString &) {
+        themeApplyDebounce_->start();
     });
 
     // Subscription
@@ -352,6 +346,8 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
         auto *toggle = new ThronedToggle(source->isChecked(), this);
         toggle->bindTo(source);
         toggle->setToolTip(source->toolTip());
+        toggle->setAccessibleName(source->text());
+        toggle->setAccessibleDescription(source->toolTip());
         // Keep the original checkbox alive because accept() and existing signal
         // handlers still read it.  The legacy Designer page is deleted after
         // its controls are moved into the redesigned shell.
@@ -627,13 +623,16 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
             addToggleRow(layout, ui->tls_tricks_default_on->text(), ui->tls_tricks_default_on);
             pageLayout->addWidget(fragment);
 
-            // These two were loaded and saved but never re-hosted into the redesigned
-            // page, so they died with the legacy one and accept() then read a destroyed
-            // QLineEdit. That also left the dashboard\x27s endpoint with nowhere to set it.
+            // Keep the complete controller setup together. All four widgets come from
+            // the retired Designer page, so every one of them must be re-hosted here.
             auto *singboxApi = makeSection(tr("sing-box API"), tr("Local controller endpoint used by the built-in dashboard."));
             layout = qobject_cast<QVBoxLayout *>(singboxApi->layout());
             addControlRow(layout, tr("API port"), ui->core_box_api_port);
-            addControlRow(layout, tr("API secret"), ui->core_box_api_secret);
+            addControlRow(layout, tr("API secret"), makeInlineControl(ui->core_box_api_secret, ui->core_box_api_regen));
+            ui->core_box_api_hint->setParent(singboxApi);
+            ui->core_box_api_hint->setObjectName(QStringLiteral("settingsMuted"));
+            ui->core_box_api_hint->setWordWrap(true);
+            layout->addWidget(ui->core_box_api_hint);
             pageLayout->addWidget(singboxApi);
 
             auto *clash = makeSection(tr("Clash API"), tr("Local controller endpoint exposed by the core."));
@@ -718,10 +717,9 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
             auto *permissions = makeSection(tr("Permissions"), tr("Administrative privileges and startup behavior."));
             auto *layout = qobject_cast<QVBoxLayout *>(permissions->layout());
             addToggle(layout, tr("Disable Privilege request"), settings.disable_privilege_req);
+#ifdef Q_OS_WIN
             alwaysStandardUser_ = addToggle(layout, tr("Always Start as Standard User"), settings.disable_run_admin,
                                             tr("Do not attempt to start as Admin unless explicitly requested"));
-#ifndef Q_OS_WIN
-            alwaysStandardUser_->parentWidget()->hide();
 #endif
             pageLayout->addWidget(permissions);
 
@@ -943,6 +941,14 @@ void DialogBasicSettings::applyRegexHighlighting() {
     highlightRegexLines(ui->log_exclude_regex);
 }
 
+void DialogBasicSettings::applySelectedTheme() {
+    const auto theme = ui->theme->currentText();
+    if (theme.isEmpty()) return;
+    themeManager->ApplyTheme(theme);
+    Configs::dataManager->settingsRepo->theme = theme;
+    Configs::dataManager->settingsRepo->Save();
+}
+
 void DialogBasicSettings::accept() {
     // Common
     bool needChoosePort = false;
@@ -1073,6 +1079,13 @@ void DialogBasicSettings::accept() {
         CACHE.updateDisableAdmin = true;
     }
     bindings_.save();
+
+    // A quick Save can arrive before the preview debounce fires. Flush it while
+    // the dialog and its combo still exist instead of silently losing the choice.
+    if (themeApplyDebounce_ != nullptr && themeApplyDebounce_->isActive()) {
+        themeApplyDebounce_->stop();
+        applySelectedTheme();
+    }
 
     QStringList changes;
     if (CACHE.needRestart) changes << MwArg::NeedRestart;

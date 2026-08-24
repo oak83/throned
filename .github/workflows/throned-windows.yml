@@ -201,7 +201,7 @@ jobs:
           mkdir build
           cd build
           curl -fLso srslist.h https://raw.githubusercontent.com/throneproj/routeprofiles/rule-set/srslist.h
-          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTHRONED_PRECOMPILE_HEADERS=OFF $LAUNCHER_ARGS ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTHRONED_PRECOMPILE_HEADERS=OFF -DTHRONED_UNITY_BUILD=OFF $LAUNCHER_ARGS ..
           ninja
           ctest --output-on-failure --no-tests=ignore
           cd ..
@@ -249,7 +249,7 @@ jobs:
           mkdir build
           cd build
           curl -fLso srslist.h https://raw.githubusercontent.com/throneproj/routeprofiles/rule-set/srslist.h
-          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTHRONED_PRECOMPILE_HEADERS=OFF -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++" $LAUNCHER_ARGS ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTHRONED_PRECOMPILE_HEADERS=OFF -DTHRONED_UNITY_BUILD=OFF -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++" $LAUNCHER_ARGS ..
           ninja
           cd ..
           ./script/deploy_linux64.sh
@@ -257,11 +257,11 @@ jobs:
         if: ${{ matrix.system_qt }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y qt6-base-dev qt6-tools-dev qt6-tools-dev-tools qt6-l10n-tools libqt6svg6-dev qt6-translations-l10n libglx-dev libgl1-mesa-dev
+          sudo apt-get install -y qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-tools-dev-tools qt6-l10n-tools libqt6svg6-dev qt6-translations-l10n libglx-dev libgl1-mesa-dev
           mkdir build
           cd build
           curl -fLso srslist.h https://raw.githubusercontent.com/throneproj/routeprofiles/rule-set/srslist.h
-          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTHRONED_PRECOMPILE_HEADERS=OFF -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc" $LAUNCHER_ARGS ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTHRONED_PRECOMPILE_HEADERS=OFF -DTHRONED_UNITY_BUILD=OFF -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc" $LAUNCHER_ARGS ..
           ninja
           cd ..
           ./script/deploy_linux64_system_qt.sh

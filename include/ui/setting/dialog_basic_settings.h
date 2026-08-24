@@ -28,9 +28,11 @@ private:
     // has to be remembered in accept(). Pages still on the .ui are unaffected.
     SettingsBindings bindings_;
     QCheckBox *alwaysStandardUser_ = nullptr;
+    QTimer *themeApplyDebounce_ = nullptr;
 
     Ui::DialogBasicSettings *ui;
 
+    void applySelectedTheme();
     void applyRegexHighlighting();
 
     // Downloads an Xray geo asset (`fileName`, e.g. "geoip.dat") from `url` into the

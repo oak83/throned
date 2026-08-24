@@ -1206,8 +1206,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         int columnIndex = header->logicalIndexAt(pos);
         auto group = Configs::dataManager->groupsRepo->CurrentGroup();
         if (group == nullptr) return;
-        if (columnIndex == ProfilesTableModel::ColUDP
-            || columnIndex == ProfilesTableModel::ColTraffic) {
+        if (columnIndex == ProfilesTableModel::ColUDP) {
             QMenu menu(this);
             auto* toggle = menu.addAction(tr("Show UDP column"));
             toggle->setCheckable(true);
@@ -1355,8 +1354,20 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
                 act->setChecked(static_cast<int>(group->traffic_sort_by) == opt.value);
             }
 
+            menu.addSeparator();
+            auto* toggleUdp = menu.addAction(tr("Show UDP column"));
+            toggleUdp->setCheckable(true);
+            toggleUdp->setChecked(Configs::dataManager->settingsRepo->show_udp_column);
+
             auto* chosen = menu.exec(header->mapToGlobal(pos));
-            if (chosen == nullptr || !chosen->data().isValid()) return;
+            if (chosen == nullptr) return;
+            if (chosen == toggleUdp) {
+                Configs::dataManager->settingsRepo->show_udp_column = toggleUdp->isChecked();
+                Configs::dataManager->settingsRepo->Save();
+                refreshUdpColumnVisibility();
+                return;
+            }
+            if (!chosen->data().isValid()) return;
 
             int trafficSortBy = chosen->data().toInt();
             group->traffic_sort_by = static_cast<Configs::trafficBy>(trafficSortBy);

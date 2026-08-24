@@ -140,7 +140,7 @@ public slots:
 
     void adjustPositions() {
         if (!m_filtersVisible || !address_filter || !name_filter || !type_filter
-            || !test_filter || count() < ProfilesTableModel::ColumnCount) {
+            || !test_filter || count() <= ProfilesTableModel::ColTestResult) {
 	        return;
 	    }
 

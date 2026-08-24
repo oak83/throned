@@ -450,6 +450,10 @@ It stays a preference, not a lock: if that profile stops working the selector st
         <translation>Всегда запускать Throne от имени обычного пользователя</translation>
     </message>
     <message>
+        <source>Do not attempt to start as Admin unless explicitly requested</source>
+        <translation>Не пытаться запускать приложение от имени администратора, если это явно не запрошено</translation>
+    </message>
+    <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Do not attempt to start as Admin unless explicitly requested&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Не пытаться запускать приложение от имени администратора, если явно не запрошено&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
@@ -1209,6 +1213,14 @@ This backup may have been created with a newer version of the application.</sour
         <translation>Секрет API</translation>
     </message>
     <message>
+        <source>Regenerate Secret</source>
+        <translation>Обновить секрет</translation>
+    </message>
+    <message>
+        <source>Loopback only. Leave the port empty to keep the web dashboard off.</source>
+        <translation>Только loopback. Оставьте порт пустым, чтобы веб-панель была отключена.</translation>
+    </message>
+    <message>
         <source>Xray core</source>
         <translation>Ядро Xray</translation>
     </message>
@@ -1267,6 +1279,10 @@ This backup may have been created with a newer version of the application.</sour
     <message>
         <source>Create backup</source>
         <translation>Создание резервной копии</translation>
+    </message>
+    <message>
+        <source>OTP profiles</source>
+        <translation>Профили OTP</translation>
     </message>
     <message>
         <source>Choose which local data to include.</source>

@@ -301,7 +301,7 @@ void MainWindow::refresh_proxy_list_column_size() {
         QScrollBar *vBar = ui->profilesTableView->verticalScrollBar();
         const bool vBarBlocked = vBar->blockSignals(true);
         hHeader->blockSignals(true);
-        constexpr int columnCount = ProfilesTableModel::ColumnCount;
+        const int columnCount = hHeader->count();
         // Widths saved before the column set last changed no longer line up with
         // the header, so fall back to auto-sizing instead of indexing past the end.
         if (!group->column_width.isEmpty() && group->column_width.size() != columnCount) {
