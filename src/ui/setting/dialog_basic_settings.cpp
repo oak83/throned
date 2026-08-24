@@ -70,6 +70,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     D_LOAD_BOOL(disable_tray)
     ui->reset_proxy_on_disable_sp->setChecked(Configs::dataManager->settingsRepo->reset_proxy_on_disable_sp);
     ui->url_timeout->setText(Int2String(Configs::dataManager->settingsRepo->url_test_timeout_ms));
+    ui->udp_test_target->setText(Configs::dataManager->settingsRepo->udp_test_target);
     ui->speedtest_mode->setCurrentIndex(Configs::dataManager->settingsRepo->speed_test_mode);
     ui->test_timeout->setText(Int2String(Configs::dataManager->settingsRepo->speed_test_timeout_ms));
     ui->simple_down_url->setText(Configs::dataManager->settingsRepo->simple_dl_url);
@@ -422,10 +423,13 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     inboundLayout->addWidget(customInboundRow);
     commonLayout->addWidget(inboundSection);
 
-    auto *testingSection = makeSection(tr("Testing"), tr("Defaults used by URL and speed tests."));
+    auto *testingSection = makeSection(tr("Testing"), tr("Defaults used by latency, UDP and speed tests."));
     auto *testingLayout = qobject_cast<QVBoxLayout *>(testingSection->layout());
     testingLayout->addWidget(makeFieldRow(tr("Latency test URL"), {}, ui->test_latency_url));
     testingLayout->addWidget(makeFieldRow(tr("URL test timeout"), tr("Milliseconds before a latency test fails"), ui->url_timeout));
+    testingLayout->addWidget(makeFieldRow(tr("UDP test target"),
+                                          tr("host:port the UDP test queries; it has to answer DNS over UDP"),
+                                          ui->udp_test_target));
     testingLayout->addWidget(makeFieldRow(tr("Concurrent tests"), {}, ui->test_concurrent));
     testingLayout->addWidget(makeFieldRow(tr("Speed test mode"), {}, ui->speedtest_mode));
     testingLayout->addWidget(makeFieldRow(tr("Speed test timeout"), {}, ui->test_timeout));
@@ -899,6 +903,8 @@ void DialogBasicSettings::accept() {
     Configs::dataManager->settingsRepo->speed_test_mode = ui->speedtest_mode->currentIndex();
     Configs::dataManager->settingsRepo->simple_dl_url = ui->simple_down_url->text();
     Configs::dataManager->settingsRepo->url_test_timeout_ms = ui->url_timeout->text().toInt();
+    if (const auto target = ui->udp_test_target->text().trimmed(); !target.isEmpty())
+        Configs::dataManager->settingsRepo->udp_test_target = target;
     Configs::dataManager->settingsRepo->speed_test_timeout_ms = ui->test_timeout->text().toInt();
     Configs::dataManager->settingsRepo->allow_beta_update = ui->allow_beta->isChecked();
     Configs::dataManager->settingsRepo->disable_mixed_inbound = ui->disable_mixed_inbound->isChecked();

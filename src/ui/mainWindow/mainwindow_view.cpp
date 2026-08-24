@@ -466,6 +466,7 @@ void MainWindow::pollPingMonitor() {
         req.test_current = true;
         req.probe_count = 3;
         req.test_timeout_ms = 2000;
+        req.target = Configs::dataManager->settingsRepo->udp_test_target.toStdString();
 
         bool rpcOK = false;
         const auto response = API::defaultClient->UDPTest(&rpcOK, req);

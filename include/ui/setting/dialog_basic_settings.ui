@@ -294,6 +294,27 @@ QTabBar::tab:hover:!selected {
            </layout>
           </item>
           <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_udp_target">
+            <item>
+             <widget class="QLabel" name="label_udp_target">
+              <property name="toolTip">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;host:port the UDP latency test queries. It has to answer DNS over UDP; if your exit cannot reach it the test reports no UDP even when the path is fine.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="text">
+               <string>UDP Test Target</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="udp_test_target">
+              <property name="placeholderText">
+               <string notr="true">1.1.1.1:53</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
            <layout class="QHBoxLayout" name="horizontalLayout_11">
             <item>
              <widget class="QLabel" name="label_14">

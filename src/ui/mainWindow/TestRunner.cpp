@@ -174,6 +174,7 @@ void TestRunner::runUdpProbe(const Target& target) {
     fillCommonTestReq(req, target);
     req.max_concurrency = Configs::dataManager->settingsRepo->test_concurrent;
     req.test_timeout_ms = Configs::dataManager->settingsRepo->url_test_timeout_ms;
+    req.target = Configs::dataManager->settingsRepo->udp_test_target.toStdString();
 
     bool rpcOK = false;
     QString coreError;

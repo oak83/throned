@@ -73,6 +73,8 @@ namespace Configs {
         QString log_level = "info";
         QString test_latency_url = "http://cp.cloudflare.com/";
         int url_test_timeout_ms = 3000;
+        // host:port the UDP probe sends its DNS queries to; must answer over UDP.
+        QString udp_test_target = "1.1.1.1:53";
         bool disable_tray = false;
         int test_concurrent = 10;
         bool disable_traffic_stats = false;

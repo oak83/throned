@@ -174,6 +174,7 @@ namespace Configs {
             {"inbound_user",               &inbound_user},
             {"inbound_pass",               &inbound_pass},
             {"url_scheme_mirror",          &url_scheme_mirror},
+            {"udp_test_target",            &udp_test_target},
             {"dpi_bypass_method",          &dpi_bypass_method},
             {"dpi_bypass_spoof_sni",       &dpi_bypass_spoof_sni},
             {"dpi_bypass_spoof_method",    &dpi_bypass_spoof_method},

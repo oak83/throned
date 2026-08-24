@@ -957,8 +957,16 @@ This backup may have been created with a newer version of the application.</sour
         <translation>Пользовательский inbound JSON</translation>
     </message>
     <message>
-        <source>Defaults used by URL and speed tests.</source>
-        <translation>Параметры URL-тестов и проверки скорости.</translation>
+        <source>Defaults used by latency, UDP and speed tests.</source>
+        <translation>Параметры тестов задержки, UDP и проверки скорости.</translation>
+    </message>
+    <message>
+        <source>UDP test target</source>
+        <translation>Цель UDP-теста</translation>
+    </message>
+    <message>
+        <source>host:port the UDP test queries; it has to answer DNS over UDP</source>
+        <translation>host:port, куда стучится UDP-тест; адрес должен отвечать на DNS по UDP</translation>
     </message>
     <message>
         <source>Latency test URL</source>
