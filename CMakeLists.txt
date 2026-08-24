@@ -493,6 +493,7 @@ set(PROJECT_SOURCES
         src/database/entities/Profile.cpp
         src/database/entities/Group.cpp
         src/database/entities/RouteProfile.cpp
+        src/database/entities/RuleLine.cpp
         src/database/entities/RouteRule.cpp
         src/database/entities/OtpProfile.cpp
 
@@ -662,4 +663,12 @@ if (Qt6Test_FOUND)
     set_target_properties(throned_route_tests PROPERTIES UNITY_BUILD OFF AUTOMOC ON)
     target_link_libraries(throned_route_tests PRIVATE Qt6::Test Qt6::Widgets Qt6::Network)
     add_test(NAME throned_route_tests COMMAND throned_route_tests)
+
+    qt_add_executable(throned_rule_line_tests
+            tests/test_rule_line.cpp
+            src/database/entities/RuleLine.cpp
+    )
+    set_target_properties(throned_rule_line_tests PROPERTIES UNITY_BUILD OFF AUTOMOC ON)
+    target_link_libraries(throned_rule_line_tests PRIVATE Qt6::Test Qt6::Widgets Qt6::Network)
+    add_test(NAME throned_rule_line_tests COMMAND throned_rule_line_tests)
 endif ()
