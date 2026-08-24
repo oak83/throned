@@ -553,6 +553,12 @@ QJsonObject Execute(const QJsonObject &request) {
         if (!actionFromName(request.value(QStringLiteral("action")).toString(), &action))
             return fail(QStringLiteral("\"action\" must be proxy, direct or block"));
 
+        // This replaces the list wholesale, so a missing or mistyped "lines" would
+        // silently erase every rule of this action. An explicitly empty array still
+        // means "clear it" -- only the absent and the malformed are refused.
+        if (const auto lines = request.value(QStringLiteral("lines")); !lines.isArray())
+            return fail(QStringLiteral("\"lines\" is required and must be an array of strings"));
+
         QStringList parsed;
         QStringList rejected;
         for (const QString &line : requestedStrings(request, QStringLiteral("lines"))) {
