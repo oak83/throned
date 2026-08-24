@@ -9,6 +9,9 @@
 #include <QTimer>
 #include <QToolButton>
 
+#include <future>
+#include <vector>
+
 #include "include/api/RPC.h"
 #include "include/database/GroupsRepo.h"
 #include "include/database/ProfilesRepo.h"
@@ -452,8 +455,10 @@ void MainWindow::url_test_current() {
 }
 
 namespace {
-    constexpr int kPingProbeCount = 3;
-    constexpr int kPingTimeoutMs = 3000;
+    // Multiple targets run concurrently; one probe per tick keeps the monitor
+    // cheap while the rolling graph supplies the longer-term signal.
+    constexpr int kPingProbeCount = 1;
+    constexpr int kPingTimeoutMs = 2000;
     constexpr int kPingHistoryCap = 300; // ten minutes at the two-second tick
     // A spike has to clear both bars: the multiplier alone fires constantly on a
     // fast link where 8 ms to 25 ms is noise, the flat margin alone never fires
@@ -468,30 +473,38 @@ namespace {
     }
 }
 
-void MainWindow::recordPingSample(const int proxyMs, const int directMs) {
-    pingHistory_.append({QDateTime::currentSecsSinceEpoch(), proxyMs, directMs});
+void MainWindow::recordPingSample(const QStringList &targets, const QList<int> &proxyMs, const int directMs) {
+    if (targets.isEmpty() || proxyMs.size() != targets.size()) return;
+    pingHistory_.append({QDateTime::currentSecsSinceEpoch(), targets, proxyMs, directMs});
     while (pingHistory_.size() > kPingHistoryCap) pingHistory_.removeFirst();
 
     if (pingChartWidget) {
         // A lost probe is the worst outcome, so it is drawn at the ceiling. Plotting
         // zero would plant it at the bottom of the chart, where it reads as perfect.
-        pingChartWidget->push(proxyMs < 0 ? kPingTimeoutMs : proxyMs,
-                              directMs < 0 ? kPingTimeoutMs : directMs);
+        QList<double> values;
+        for (const auto value : proxyMs) values << (value < 0 ? kPingTimeoutMs : value);
+        values << (directMs < 0 ? kPingTimeoutMs : directMs);
+        pingChartWidget->pushValues(values);
     }
+    updatePingLegend(targets, proxyMs, directMs);
+
+    const int primaryMs = proxyMs.first();
 
     // Baseline from the settled part of the window, so the spike itself does not
     // drag the very number it is being compared against.
     QList<int> baselineSamples;
     for (int i = qMax(0, pingHistory_.size() - 31); i < pingHistory_.size() - 1; ++i) {
-        if (pingHistory_[i].proxyMs >= 0) baselineSamples << pingHistory_[i].proxyMs;
+        const auto &sample = pingHistory_[i];
+        if (!sample.proxyMs.isEmpty() && sample.proxyMs.first() >= 0)
+            baselineSamples << sample.proxyMs.first();
     }
     const int baseline = medianOf(baselineSamples);
     if (baseline < 0 || baselineSamples.size() < 5) return;
 
-    const bool bad = proxyMs < 0 || proxyMs > qMax(baseline * kPingSpikeFactor, baseline + kPingSpikeMarginMs);
+    const bool bad = primaryMs < 0 || primaryMs > qMax(baseline * kPingSpikeFactor, baseline + kPingSpikeMarginMs);
     if (bad && !pingSpikeActive_) {
         pingSpikeActive_ = true;
-        const QString proxyText = proxyMs < 0 ? tr("no reply") : QString("%1 ms").arg(proxyMs);
+        const QString proxyText = primaryMs < 0 ? tr("no reply") : QString("%1 ms").arg(primaryMs);
         // The verdict matters more than the number: it is what saves the user from
         // guessing whether the client, the proxy or their own line is at fault.
         QString verdict;
@@ -500,34 +513,44 @@ void MainWindow::recordPingSample(const int proxyMs, const int directMs) {
         } else {
             verdict = tr("the direct path is fine (%1 ms), so this is the proxy or the route to it").arg(directMs);
         }
-        MW_show_log(tr("UDP latency spiked: %1 against a %2 ms baseline - %3").arg(proxyText).arg(baseline).arg(verdict));
+        MW_show_log(tr("UDP latency to %1 spiked: %2 against a %3 ms baseline - %4")
+                        .arg(targets.first(), proxyText).arg(baseline).arg(verdict));
     } else if (!bad && pingSpikeActive_) {
         pingSpikeActive_ = false;
-        MW_show_log(tr("UDP latency back to normal (%1 ms).").arg(proxyMs));
+        MW_show_log(tr("UDP latency to %1 back to normal (%2 ms).").arg(targets.first()).arg(primaryMs));
     }
 }
 
 QString MainWindow::pingHistoryReport() const {
     if (pingHistory_.isEmpty()) return {};
     QStringList out;
-    QList<int> proxySamples;
-    int lost = 0;
-    for (const auto &sample : pingHistory_) {
-        if (sample.proxyMs >= 0) proxySamples << sample.proxyMs; else ++lost;
+    const auto targets = pingHistory_.last().targets;
+    out << QString("UDP monitor: %1 ticks, targets: %2").arg(pingHistory_.size()).arg(targets.join(", "));
+    for (int targetIndex = 0; targetIndex < targets.size(); ++targetIndex) {
+        QList<int> samples;
+        int lost = 0;
+        for (const auto &sample : pingHistory_) {
+            const int value = sample.proxyMs.value(targetIndex, -1);
+            if (value >= 0) samples << value; else ++lost;
+        }
+        out << QString("  %1: %2 lost, median %3 ms")
+                   .arg(targets.at(targetIndex)).arg(lost).arg(medianOf(samples));
     }
-    out << QString("Ping monitor: %1 samples, %2 lost, median %3 ms")
-               .arg(pingHistory_.size()).arg(lost).arg(medianOf(proxySamples));
-    out << "  time                 proxy   direct";
+    out << QString("  direct baseline: %1").arg(targets.value(0));
     // Only the tail is worth pasting; the interesting part is always the recent past.
     for (int i = qMax(0, pingHistory_.size() - 40); i < pingHistory_.size(); ++i) {
         const auto &sample = pingHistory_[i];
         const auto render = [](const int value) {
             return value < 0 ? QStringLiteral("lost") : QString::number(value);
         };
-        out << QString("  %1  %2  %3")
+        QStringList values;
+        for (int targetIndex = 0; targetIndex < sample.targets.size(); ++targetIndex)
+            values << QStringLiteral("%1=%2").arg(sample.targets.at(targetIndex),
+                                                  render(sample.proxyMs.value(targetIndex, -1)));
+        values << QStringLiteral("direct=%1").arg(render(sample.directMs));
+        out << QString("  %1  %2")
                    .arg(QDateTime::fromSecsSinceEpoch(sample.at).toString("yyyy-MM-dd HH:mm:ss"),
-                        render(sample.proxyMs).rightJustified(6),
-                        render(sample.directMs).rightJustified(6));
+                        values.join(QStringLiteral("  ")));
     }
     return out.join('\n');
 }
@@ -540,17 +563,18 @@ void MainWindow::pollPingMonitor() {
     bool idle = false;
     if (!pingProbeInFlight_.compare_exchange_strong(idle, true)) return;
 
-    runOnNewThread([this] {
+    const auto targets = pingMonitorTargets();
+    runOnNewThread([this, targets] {
         // A throw here would otherwise leave the guard raised and stall the monitor for good.
         const auto release = qScopeGuard([this] { pingProbeInFlight_.store(false); });
 
-        const auto probe = [](const bool viaDirect) {
+        const auto probe = [](const QString &target, const bool viaDirect) {
             libcore::UDPTestRequest req;
             req.test_current = true;
             req.via_direct = viaDirect;
             req.probe_count = kPingProbeCount;
             req.test_timeout_ms = kPingTimeoutMs;
-            req.target = Configs::dataManager->settingsRepo->udp_test_target.toStdString();
+            req.target = target.toStdString();
 
             bool rpcOK = false;
             const auto response = API::defaultClient->UDPTest(&rpcOK, req);
@@ -560,9 +584,20 @@ void MainWindow::pollPingMonitor() {
             return static_cast<int>(result.avg_ms.value());
         };
 
-        const int proxyMs = probe(false);
-        const int directMs = probe(true);
+        std::vector<std::future<int>> proxyFutures;
+        proxyFutures.reserve(targets.size());
+        for (const auto &target : targets)
+            proxyFutures.emplace_back(std::async(std::launch::async, probe, target, false));
+        auto directFuture = std::async(std::launch::async, probe, targets.first(), true);
 
-        runOnUiThread([this, proxyMs, directMs] { recordPingSample(proxyMs, directMs); });
+        QList<int> proxyMs;
+        for (auto &future : proxyFutures) proxyMs << future.get();
+        const int directMs = directFuture.get();
+
+        runOnUiThread([this, targets, proxyMs, directMs] {
+            // A menu change clears and reconfigures the graph while probes are in
+            // flight. Do not mix the old series layout into the new selection.
+            if (targets == pingMonitorTargets()) recordPingSample(targets, proxyMs, directMs);
+        });
     });
 }

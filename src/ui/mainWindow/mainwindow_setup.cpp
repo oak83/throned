@@ -5,6 +5,11 @@
 #include "include/ui/mainWindow/TestRunner.h"
 
 #include <QMenu>
+#include <QAction>
+#include <QSignalBlocker>
+#include <QStyle>
+
+#include <algorithm>
 
 #include "include/configs/sub/GroupUpdater.hpp"
 #include "include/configs/sub/RouteUpdater.hpp"
@@ -85,6 +90,162 @@
 
 void UI_InitMainWindow() {
     mainwindow = new MainWindow;
+}
+
+namespace {
+    constexpr int kMaxPingTargets = 3;
+
+    const QList<QColor> &pingTargetColors() {
+        static const QList<QColor> colors{
+            QColor(QStringLiteral("#2F91FF")),
+            QColor(QStringLiteral("#FF9F43")),
+            QColor(QStringLiteral("#A66CFF")),
+        };
+        return colors;
+    }
+
+    QList<QPair<QString, QString>> pingTargetPresets() {
+        return {
+            {QObject::tr("Cloudflare"), QStringLiteral("1.1.1.1:53")},
+            {QObject::tr("Google"), QStringLiteral("8.8.8.8:53")},
+            {QObject::tr("Quad9"), QStringLiteral("9.9.9.9:53")},
+            {QObject::tr("AdGuard"), QStringLiteral("94.140.14.14:53")},
+        };
+    }
+
+    QIcon colorDotIcon(const QColor &color) {
+        QPixmap pixmap(12, 12);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(color);
+        painter.drawEllipse(QRectF(2, 2, 8, 8));
+        return QIcon(pixmap);
+    }
+}
+
+QStringList MainWindow::pingMonitorTargets() const {
+    QStringList targets;
+    const auto &settings = *Configs::dataManager->settingsRepo;
+    for (auto target : settings.udp_monitor_targets) {
+        target = target.trimmed();
+        if (!target.isEmpty() && !targets.contains(target)) targets << target;
+        if (targets.size() == kMaxPingTargets) break;
+    }
+    if (targets.isEmpty()) {
+        auto fallback = settings.udp_test_target.trimmed();
+        if (fallback.isEmpty()) fallback = QStringLiteral("1.1.1.1:53");
+        targets << fallback;
+    }
+    return targets;
+}
+
+void MainWindow::updatePingLegend(const QStringList &targets, const QList<int> &proxyMs, const int directMs) {
+    if (pingTargetsButton != nullptr) {
+        pingTargetsButton->setToolTip(tr("UDP targets (%1/%2):\n%3")
+                                          .arg(targets.size()).arg(kMaxPingTargets).arg(targets.join('\n')));
+        pingTargetsButton->setAccessibleName(tr("Choose UDP monitor targets"));
+    }
+    if (pingLegendLabel == nullptr) return;
+
+    QStringList items;
+    const auto &colors = pingTargetColors();
+    for (int i = 0; i < targets.size(); ++i) {
+        const auto latest = i < proxyMs.size()
+            ? (proxyMs.at(i) < 0 ? tr("lost") : QStringLiteral("%1 ms").arg(proxyMs.at(i)))
+            : QString{};
+        items << QStringLiteral("<span style='color:%1'>●</span> %2%3")
+                     .arg(colors.at(i).name(), targets.at(i).toHtmlEscaped(),
+                          latest.isEmpty() ? QString{} : QStringLiteral(" <b>%1</b>").arg(latest));
+    }
+    if (!targets.isEmpty()) {
+        const auto latest = directMs == -2 ? QString{}
+            : directMs < 0 ? tr("lost") : QStringLiteral("%1 ms").arg(directMs);
+        items << QStringLiteral("<span style='color:#8295A6'>┄</span> %1%2")
+                     .arg(tr("direct (%1)").arg(targets.first()).toHtmlEscaped(),
+                          latest.isEmpty() ? QString{} : QStringLiteral(" <b>%1</b>").arg(latest));
+    }
+    pingLegendLabel->setText(items.join(QStringLiteral(" &nbsp; ")));
+}
+
+void MainWindow::setPingMonitorTargets(const QStringList &requested, const bool save) {
+    QStringList targets;
+    for (auto target : requested) {
+        target = target.trimmed();
+        if (!target.isEmpty() && !targets.contains(target)) targets << target;
+        if (targets.size() == kMaxPingTargets) break;
+    }
+    if (targets.isEmpty()) targets << QStringLiteral("1.1.1.1:53");
+
+    auto &settings = *Configs::dataManager->settingsRepo;
+    settings.udp_monitor_targets = targets;
+    if (save) settings.Save();
+
+    pingHistory_.clear();
+    pingSpikeActive_ = false;
+    if (pingChartWidget != nullptr) {
+        QList<MiniChartSeriesStyle> styles;
+        const auto &colors = pingTargetColors();
+        for (int i = 0; i < targets.size(); ++i) styles << MiniChartSeriesStyle{colors.at(i), Qt::SolidLine, false};
+        styles << MiniChartSeriesStyle{QColor(QStringLiteral("#8295A6")), Qt::DashLine, false};
+        pingChartWidget->setSeriesStyles(styles);
+        pingChartWidget->setCaption(tr("UDP · loss = ceiling"));
+    }
+    updatePingLegend(targets);
+}
+
+void MainWindow::rebuildPingTargetsMenu() {
+    if (pingTargetsButton == nullptr || pingTargetsButton->menu() == nullptr) return;
+    auto *menu = pingTargetsButton->menu();
+    menu->clear();
+
+    const auto selected = pingMonitorTargets();
+    auto candidates = pingTargetPresets();
+    const auto addCustom = [&candidates](const QString &target) {
+        if (target.isEmpty()) return;
+        const auto exists = std::any_of(candidates.cbegin(), candidates.cend(),
+                                        [&target](const auto &item) { return item.second == target; });
+        if (!exists) candidates << qMakePair(QObject::tr("Custom"), target);
+    };
+    addCustom(Configs::dataManager->settingsRepo->udp_test_target.trimmed());
+    for (const auto &target : selected) addCustom(target);
+
+    for (const auto &[name, target] : candidates) {
+        auto *action = menu->addAction(QStringLiteral("%1 — %2").arg(name, target));
+        action->setCheckable(true);
+        action->setChecked(selected.contains(target));
+        const int selectedIndex = selected.indexOf(target);
+        action->setIcon(colorDotIcon(selectedIndex >= 0
+                                         ? pingTargetColors().at(selectedIndex)
+                                         : palette().color(QPalette::Mid)));
+        connect(action, &QAction::toggled, this, [this, action, target](const bool enabled) {
+            auto targets = pingMonitorTargets();
+            if (enabled) {
+                if (targets.contains(target)) return;
+                if (targets.size() >= kMaxPingTargets) {
+                    const QSignalBlocker blocker(action);
+                    action->setChecked(false);
+                    MessageBoxWarning(tr("UDP monitor"), tr("Choose at most three targets."));
+                    return;
+                }
+                targets << target;
+            } else {
+                if (targets.size() == 1) {
+                    const QSignalBlocker blocker(action);
+                    action->setChecked(true);
+                    MessageBoxWarning(tr("UDP monitor"), tr("Keep at least one target selected."));
+                    return;
+                }
+                targets.removeAll(target);
+            }
+            setPingMonitorTargets(targets, true);
+        });
+    }
+
+    menu->addSeparator();
+    auto *hint = menu->addAction(tr("Custom target is configured in Settings → Testing"));
+    hint->setEnabled(false);
 }
 
 // Caller must hold coreProcessMutex (reads core_process lock-free by design).
@@ -888,15 +1049,40 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     auto *pingColumnLayout = new QVBoxLayout(pingColumn);
     pingColumnLayout->setContentsMargins(8, 4, 2, 4);
     pingColumnLayout->setSpacing(6);
-    pingMonitorToggle = new QCheckBox(tr("Monitor ping"), pingColumn);
-    pingMonitorToggle->setToolTip(tr("Probes the running profile over UDP every few seconds. The line is the round trip, the second series its jitter."));
-    pingColumnLayout->addWidget(pingMonitorToggle);
+    auto *pingHeader = new QWidget(pingColumn);
+    auto *pingHeaderLayout = new QHBoxLayout(pingHeader);
+    pingHeaderLayout->setContentsMargins(0, 0, 0, 0);
+    pingHeaderLayout->setSpacing(6);
+    pingMonitorToggle = new QCheckBox(tr("Monitor UDP"), pingHeader);
+    pingMonitorToggle->setToolTip(tr("Continuously probes the selected DNS-over-UDP targets through the running profile."));
+    pingHeaderLayout->addWidget(pingMonitorToggle);
+    pingHeaderLayout->addStretch(1);
+    pingTargetsButton = new QToolButton(pingHeader);
+    pingTargetsButton->setObjectName(QStringLiteral("udpTargetsButton"));
+    pingTargetsButton->setAutoRaise(true);
+    pingTargetsButton->setIcon(style()->standardIcon(QStyle::SP_FileDialogListView));
+    pingTargetsButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    pingTargetsButton->setPopupMode(QToolButton::InstantPopup);
+    pingTargetsButton->setFixedSize(26, 24);
+    auto *pingTargetsMenu = new QMenu(pingTargetsButton);
+    pingTargetsButton->setMenu(pingTargetsMenu);
+    connect(pingTargetsMenu, &QMenu::aboutToShow, this, [this] { rebuildPingTargetsMenu(); });
+    pingHeaderLayout->addWidget(pingTargetsButton);
+    pingColumnLayout->addWidget(pingHeader);
+
+    pingLegendLabel = new QLabel(pingColumn);
+    pingLegendLabel->setTextFormat(Qt::RichText);
+    pingLegendLabel->setWordWrap(true);
+    pingLegendLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    pingLegendLabel->setStyleSheet(QStringLiteral("font-size: 10px;"));
+    pingColumnLayout->addWidget(pingLegendLabel);
     pingChartWidget = new MiniChartWidget(pingColumn);
     pingChartWidget->setCapacity(150);
-    pingChartWidget->setCaption(tr("proxy / direct"));
-    pingChartWidget->setColors(QColor(QStringLiteral("#2F91FF")), QColor(QStringLiteral("#8295A6")));
     pingChartWidget->setFormatter([](const double value) { return QString::number(qRound(value)) + " ms"; });
+    pingChartWidget->setToolTip(tr("Each coloured line is one selected UDP target through the proxy. "
+                                   "The dashed gray line is direct for the first target; lost probes touch the ceiling."));
     pingColumnLayout->addWidget(pingChartWidget, 1);
+    setPingMonitorTargets(pingMonitorTargets(), false);
 
     // The dump belongs where the problem is seen; the menu entry is for people who
     // already know it exists.
@@ -921,9 +1107,13 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         Configs::dataManager->settingsRepo->monitor_ping = enabled;
         if (enabled) {
             pingMonitorTimer->start();
+            pollPingMonitor();
         } else {
             pingMonitorTimer->stop();
             if (pingChartWidget) pingChartWidget->clear();
+            pingHistory_.clear();
+            pingSpikeActive_ = false;
+            updatePingLegend(pingMonitorTargets());
         }
     });
     pingMonitorToggle->setChecked(Configs::dataManager->settingsRepo->monitor_ping);

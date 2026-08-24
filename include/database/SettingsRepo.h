@@ -75,6 +75,9 @@ namespace Configs {
         int url_test_timeout_ms = 3000;
         // host:port the UDP probe sends its DNS queries to; must answer over UDP.
         QString udp_test_target = "1.1.1.1:53";
+        // Continuous monitor targets. Kept separate from the one-shot test target
+        // so comparing several resolvers does not change batch-test behaviour.
+        QStringList udp_monitor_targets = {"1.1.1.1:53"};
         bool disable_tray = false;
         int test_concurrent = 10;
         bool disable_traffic_stats = false;

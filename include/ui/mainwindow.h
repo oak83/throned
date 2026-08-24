@@ -31,6 +31,8 @@
 #include <QSet>
 #include <QHash>
 #include <QCheckBox>
+#include <QLabel>
+#include <QToolButton>
 #include <QSemaphore>
 #include <QMutex>
 #include <QThreadPool>
@@ -310,14 +312,17 @@ private:
     // and still have a UDP round trip that wanders, which is what breaks QUIC.
     MiniChartWidget *pingChartWidget = nullptr;
     QCheckBox *pingMonitorToggle = nullptr;
+    QToolButton *pingTargetsButton = nullptr;
+    QLabel *pingLegendLabel = nullptr;
     QTimer *pingMonitorTimer = nullptr;
     std::atomic<bool> pingProbeInFlight_{false};
 
     // One tick of the monitor. Both paths are measured because a number on its own
     // cannot say whether the proxy or the connection underneath it went bad.
     struct PingSample {
-        qint64 at = 0;    // epoch seconds
-        int proxyMs = -1; // -1 means nothing came back within the timeout
+        qint64 at = 0; // epoch seconds
+        QStringList targets;
+        QList<int> proxyMs; // -1 means nothing came back within the timeout
         int directMs = -1;
     };
     QList<PingSample> pingHistory_;
@@ -326,7 +331,15 @@ private:
 
     void pollPingMonitor();
 
-    void recordPingSample(int proxyMs, int directMs);
+    void recordPingSample(const QStringList &targets, const QList<int> &proxyMs, int directMs);
+
+    [[nodiscard]] QStringList pingMonitorTargets() const;
+
+    void setPingMonitorTargets(const QStringList &targets, bool save);
+
+    void rebuildPingTargetsMenu();
+
+    void updatePingLegend(const QStringList &targets, const QList<int> &proxyMs = {}, int directMs = -2);
 
     [[nodiscard]] QString pingHistoryReport() const;
     //

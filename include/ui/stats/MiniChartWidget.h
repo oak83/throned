@@ -2,9 +2,17 @@
 
 #include <QWidget>
 #include <QColor>
+#include <QList>
 
 #include <deque>
 #include <functional>
+#include <vector>
+
+struct MiniChartSeriesStyle {
+    QColor color;
+    Qt::PenStyle penStyle = Qt::SolidLine;
+    bool fill = false;
+};
 
 // A minimal self-painted sparkline for the runtime panel: up to two overlaid
 // series over a fixed-size rolling window, auto-scaled to a "nice" ceiling above
@@ -28,6 +36,9 @@ public:
     void setCapacity(int n);
     // Series colours; pass an invalid QColor to keep the palette-derived default.
     void setColors(const QColor& primary, const QColor& secondary);
+    // Replace the series layout. Used by monitors that compare more than two
+    // paths; changing it deliberately clears the old, incompatible history.
+    void setSeriesStyles(const QList<MiniChartSeriesStyle>& styles);
     // Fixed vertical max; <= 0 (default) auto-scales to a nice ceiling.
     void setMaxValue(double m);
     // Formats a raw value for the scale labels (default: plain number).
@@ -36,18 +47,21 @@ public:
     void setCaption(const QString& caption);
     // Append one sample per series and repaint.
     void push(double primary, double secondary);
+    void pushValues(const QList<double>& values);
     void clear();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
 
 private:
-    std::deque<double> a_;
-    std::deque<double> b_;
+    struct SeriesData {
+        std::deque<double> values;
+        MiniChartSeriesStyle style;
+    };
+
+    std::vector<SeriesData> series_;
     int cap_ = 60;
     double fixedMax_ = -1.0;
-    QColor primary_;
-    QColor secondary_;
     std::function<QString(double)> formatter_;
     QString caption_;
 };

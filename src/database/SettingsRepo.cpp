@@ -195,6 +195,7 @@ namespace Configs {
             {"dial_inet6_bind_history",  &dial_inet6_bind_address_history},
             {"warp_reserved", &warp_reserved},
             {"dpi_bypass_rule_sets",     &dpi_bypass_rule_sets},
+            {"udp_monitor_targets",      &udp_monitor_targets},
         };
     }
 
