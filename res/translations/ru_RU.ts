@@ -5184,6 +5184,22 @@ Please try again.</source>
         <translation>UDP-тест завершён!</translation>
     </message>
     <message>
+        <source>Copy Diagnostics</source>
+        <translation>Скопировать диагностику</translation>
+    </message>
+    <message>
+        <source>Diagnostics copied to the clipboard (%1 characters). Secrets and subscription links are masked.</source>
+        <translation>Диагностика скопирована в буфер обмена (%1 символов). Секреты и ссылки на подписки скрыты.</translation>
+    </message>
+    <message>
+        <source>Dashboard bootstrap resource is missing from the build; the dashboard page will not load.</source>
+        <translation>В сборке нет ресурса загрузчика дашборда — страница дашборда не откроется.</translation>
+    </message>
+    <message>
+        <source>Could not write the dashboard page to %1</source>
+        <translation>Не удалось записать страницу дашборда в %1</translation>
+    </message>
+    <message>
         <source>UDP Latency Test Selected</source>
         <translation>UDP-тест задержки выбранного профиля</translation>
     </message>
@@ -5644,6 +5660,26 @@ Deleted %5 Profiles:
     <message>
         <source>Default</source>
         <translation>По умолчанию</translation>
+    </message>
+    <message>
+        <source>Tun IPv4 range %1 has no usable peer address, so the tun DNS guard is off.</source>
+        <translation>У диапазона Tun IPv4 %1 нет пригодного адреса пира — защита DNS в туннеле отключена.</translation>
+    </message>
+    <message>
+        <source>Using the custom DNS object; the simple DNS settings above it are ignored.</source>
+        <translation>Используется пользовательский DNS-объект — простые настройки DNS выше игнорируются.</translation>
+    </message>
+    <message>
+        <source>Direct DNS is &quot;localhost&quot; while Tun is on: this often fails on Linux. Set Direct DNS to a real resolver (for example 8.8.8.8) in Routing Settings, or fill in Local override.</source>
+        <translation>Direct DNS равен &quot;localhost&quot; при включённом Tun — под Linux это часто не работает. Укажите в настройках маршрутизации реальный резолвер (например 8.8.8.8) или заполните «Назначить локал. DNS».</translation>
+    </message>
+    <message>
+        <source>Subscription named itself &quot;%1&quot;.</source>
+        <translation>Подписка сообщила своё имя: &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Subscription asks to be refreshed every %1 h; auto-update is configured globally.</source>
+        <translation>Подписка просит обновлять её раз в %1 ч; автообновление настраивается глобально.</translation>
     </message>
     <message>
         <source>No UDP</source>

@@ -118,6 +118,11 @@ public:
 
     void profile_start(int _id = -1);
 
+    // One paste with the state a support answer needs, secrets masked.
+    QString collectDiagnostics();
+
+    void copyDiagnostics();
+
     // Refresh the routing segment of the status bar from the active profile.
     void refreshRoutingStatus();
 

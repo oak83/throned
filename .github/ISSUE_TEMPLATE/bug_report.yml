@@ -1,6 +1,19 @@
 name: Bug report
 description: "Report Throne bug"
 body:
+  - type: markdown
+    attributes:
+      value: |
+        **Program → Copy Diagnostics** puts your version, mode, DNS settings and the tail of the
+        log into the clipboard in one go, with secrets and subscription links masked. Pasting that
+        below usually answers most of the questions on this form.
+  - type: textarea
+    attributes:
+      label: Diagnostics
+      description: Output of Program → Copy Diagnostics, if your build has it.
+      render: text
+    validations:
+      required: false
   - type: dropdown
     attributes:
       label: Operating system

@@ -401,6 +401,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     selectionLayout->addStretch(1);
     // A URL test rides on TCP, so it stays green on a path that drops UDP -- which
     // is exactly what breaks Hysteria/TUIC/WireGuard. This measures that path.
+    // Support lives or dies on being able to ask for one paste instead of a
+    // questionnaire, so this sits in the top-level menu rather than under Tools.
+    auto *diagnosticsAction = new QAction(tr("Copy Diagnostics"), this);
+    ui->menu_program->addAction(diagnosticsAction);
+    connect(diagnosticsAction, &QAction::triggered, this, [this] { copyDiagnostics(); });
+
     auto *udpTestAction = new QAction(tr("UDP Latency Test Selected"), this);
     ui->menu_server->insertAction(ui->actionUrl_Test_Selected, udpTestAction);
     connect(udpTestAction, &QAction::triggered, this, [=, this] {
