@@ -178,6 +178,11 @@ void loadTranslate(const QString& locale) {
     if (loadOK) {
         QCoreApplication::installTranslator(trans);
     }
+    // Qt ships its own catalogue for standard buttons; without it OK/Cancel/Close stay English.
+    const QString qtLang = locale == "zh_CN" ? locale : locale.section(QChar(0x5F), 0, 0);
+    if (trans_qt->load(":/translations/qtbase_" + qtLang + ".qm")) {
+        QCoreApplication::installTranslator(trans_qt);
+    }
 }
 
 namespace {

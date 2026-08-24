@@ -623,6 +623,9 @@ set(LUPDATE_OPTIONS
 qt_add_lupdate(Throned TS_FILES ${TS_FILES} OPTIONS ${LUPDATE_OPTIONS})
 qt_add_lrelease(Throned TS_FILES ${TS_FILES} QM_FILES_OUTPUT_VARIABLE QM_FILES)
 
+foreach (QT_QM qtbase_ru qtbase_zh_CN qtbase_fa)
+    configure_file(res/translations/${QT_QM}.qm ${CMAKE_BINARY_DIR}/${QT_QM}.qm COPYONLY)
+endforeach ()
 configure_file(res/translations/translations.qrc ${CMAKE_BINARY_DIR} COPYONLY)
 target_sources(Throned PRIVATE ${CMAKE_BINARY_DIR}/translations.qrc)
 
