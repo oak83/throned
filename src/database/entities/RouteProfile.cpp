@@ -1125,15 +1125,24 @@ QString NormalizeRuleLine(const QString &line) {
         const QString kind = ruleLineAliases().value(clean.left(separator).trimmed().toLower());
         const QString value = clean.mid(separator + 1).trimmed();
         if (!kind.isEmpty() && !value.isEmpty()) {
-            if (kind == QStringLiteral("suffix") && value.startsWith(QLatin1Char('.')))
-                return kind + QLatin1Char(':') + value.mid(1);
+            if (kind == QStringLiteral("suffix") && value.startsWith(QLatin1Char('.'))) {
+                const QString bare = value.mid(1);
+                // A bare "." would normalise to a matcher with nothing in it, leaving a
+                // rule that is all action and no condition -- a catch-all by accident.
+                if (bare.isEmpty()) return {};
+                return kind + QLatin1Char(':') + bare;
+            }
             return kind + QLatin1Char(':') + value;
         }
     }
 
     const QString guess = guessRuleKind(clean);
     if (guess.isEmpty()) return {};
-    if (guess == QStringLiteral("suffix")) return guess + QLatin1Char(':') + clean.mid(1);
+    if (guess == QStringLiteral("suffix")) {
+        const QString bare = clean.mid(1);
+        if (bare.isEmpty()) return {};
+        return guess + QLatin1Char(':') + bare;
+    }
     return guess + QLatin1Char(':') + clean;
 }
 } // namespace Configs
