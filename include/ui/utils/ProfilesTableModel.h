@@ -30,6 +30,9 @@ public:
         ColumnCount,
     };
 
+    // Off until a UDP test has actually produced something to show.
+    void setUdpColumnVisible(bool visible);
+
     // Filterable fields, held in memory so filtering never pages profiles in one
     // at a time through the LRU cache below.
     struct FilterKey {
@@ -81,5 +84,6 @@ private:
     int m_cacheSize = 100;
 
     mutable QHash<int, FilterKey> m_filterKeys;
+    bool m_udpColumnVisible = false;
     mutable bool m_filterIndexBuilt = false;
 };

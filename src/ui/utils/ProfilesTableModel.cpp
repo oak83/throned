@@ -19,7 +19,16 @@ int ProfilesTableModel::rowCount(const QModelIndex &parent) const {
 
 int ProfilesTableModel::columnCount(const QModelIndex &parent) const {
     if (parent.isValid()) return 0;
-    return ColumnCount;
+    // ColUDP is the last column, so leaving it out of the count removes it entirely
+    // rather than leaving an empty slot behind.
+    return m_udpColumnVisible ? ColumnCount : ColumnCount - 1;
+}
+
+void ProfilesTableModel::setUdpColumnVisible(bool visible) {
+    if (m_udpColumnVisible == visible) return;
+    beginResetModel();
+    m_udpColumnVisible = visible;
+    endResetModel();
 }
 
 Qt::ItemFlags ProfilesTableModel::flags(const QModelIndex &index) const {

@@ -606,8 +606,5 @@ void MainWindow::pollPingMonitor() {
 
 void MainWindow::refreshUdpColumnVisibility() {
     if (profilesTableModel == nullptr) return;
-    const bool hidden = !Configs::dataManager->settingsRepo->show_udp_column;
-    // setColumnHidden relays out the header, so only touch it on a real change.
-    if (ui->profilesTableView->isColumnHidden(ProfilesTableModel::ColUDP) == hidden) return;
-    ui->profilesTableView->setColumnHidden(ProfilesTableModel::ColUDP, hidden);
+    profilesTableModel->setUdpColumnVisible(Configs::dataManager->settingsRepo->show_udp_column);
 }
