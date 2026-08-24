@@ -4,6 +4,8 @@
 #include "include/global/Const.hpp"
 #include "include/database/entities/RouteProfile.h"
 #include "include/database/ProfilesRepo.h"
+#include "include/ui/setting/RouteProfileSimpleEditor.h"
+#include "include/ui/setting/ThemeManager.hpp"
 
 namespace {
     constexpr auto kRouteProfileName = "DPI Bypass";
@@ -17,6 +19,17 @@ namespace {
 
 DialogPresetSettings::DialogPresetSettings(QWidget *parent) : QDialog(parent), ui(new Ui::DialogPresetSettings) {
     ui->setupUi(this);
+
+    // Adopts the redesigned dialog styling, which is scoped to this object name.
+    setObjectName(QStringLiteral("routeProfileEditor"));
+    themeManager->RegisterStyle(this, RouteProfileSimpleEditor::dialogStyleSheet());
+    // Style hooks live on the object name; the ui-> pointers are unaffected.
+    ui->dpi_apply->setObjectName(QStringLiteral("routeSaveButton"));
+    ui->dpi_preset_ru->setObjectName(QStringLiteral("routeSecondaryButton"));
+    ui->dpi_preset_clear->setObjectName(QStringLiteral("routeSecondaryButton"));
+    ui->dpi_apply->setCursor(Qt::PointingHandCursor);
+    ui->dpi_preset_ru->setCursor(Qt::PointingHandCursor);
+    ui->dpi_preset_clear->setCursor(Qt::PointingHandCursor);
 
     ui->dpi_method->addItems({tr("Fake ClientHello (spoof)"), tr("TLS fragment"), tr("TLS record fragment")});
     ui->dpi_spoof_method->addItems(Configs::SingboxOptions::tlsSpoofMethods);
