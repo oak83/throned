@@ -649,4 +649,14 @@ if (Qt6Test_FOUND)
     set_target_properties(throned_tests PROPERTIES UNITY_BUILD OFF AUTOMOC ON)
     target_link_libraries(throned_tests PRIVATE Qt6::Test)
     add_test(NAME throned_tests COMMAND throned_tests)
+
+    # Rule serialisation needs the entity, which drags in Qt Widgets/Network headers,
+    # so it gets its own binary rather than widening the checker above.
+    qt_add_executable(throned_route_tests
+            tests/test_route_rule.cpp
+            src/database/entities/RouteRule.cpp
+    )
+    set_target_properties(throned_route_tests PROPERTIES UNITY_BUILD OFF AUTOMOC ON)
+    target_link_libraries(throned_route_tests PRIVATE Qt6::Test Qt6::Widgets Qt6::Network)
+    add_test(NAME throned_route_tests COMMAND throned_route_tests)
 endif ()
