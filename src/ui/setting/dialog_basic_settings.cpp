@@ -100,7 +100,6 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
 #ifndef Q_OS_WIN
     ui->proxy_scheme_l->hide();
     ui->proxy_scheme->hide();
-    ui->windows_no_admin->hide();
 #endif
 
     // Logging
@@ -304,16 +303,6 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
         ui->ntp_interval->setEnabled(state);
         ui->ntp_outbound->setEnabled(state);
     });
-
-    // Security
-
-    ui->utlsFingerprint->addItems(Configs::tlsFingerprints);
-    ui->disable_priv_req->setChecked(Configs::dataManager->settingsRepo->disable_privilege_req);
-    ui->windows_no_admin->setChecked(Configs::dataManager->settingsRepo->disable_run_admin);
-    ui->mozilla_cert->setChecked(Configs::dataManager->settingsRepo->use_mozilla_certs);
-
-    D_LOAD_BOOL(skip_cert)
-    ui->utlsFingerprint->setCurrentText(Configs::dataManager->settingsRepo->utlsFingerprint);
 
     // Build the production settings window from the same structure as
     // tools/ui-demo/SettingsPreview.  The original controls are reparented, so
@@ -712,18 +701,41 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
             pageLayout->addWidget(restore);
             break;
         }
-        case 7: { // Security
+        case 7: { // Security -- first page off the .ui; see SettingsBindings.
+            auto &settings = *Configs::dataManager->settingsRepo;
+
+            // Creates the control, binds it to its setting and puts it in the section.
+            // One call is the whole description of a preference.
+            const auto addToggle = [&](QVBoxLayout *section, const QString &text,
+                                       bool &target, const QString &tip = {}) {
+                auto *box = new QCheckBox(text, this);
+                if (!tip.isEmpty()) box->setToolTip(tip);
+                bindings_.bind(box, target);
+                addToggleRow(section, box->text(), box);
+                return box;
+            };
+
             auto *permissions = makeSection(tr("Permissions"), tr("Administrative privileges and startup behavior."));
             auto *layout = qobject_cast<QVBoxLayout *>(permissions->layout());
-            addToggleRow(layout, ui->disable_priv_req->text(), ui->disable_priv_req);
-            addToggleRow(layout, ui->windows_no_admin->text(), ui->windows_no_admin);
+            addToggle(layout, tr("Disable Privilege request"), settings.disable_privilege_req);
+            alwaysStandardUser_ = addToggle(layout, tr("Always Start as Standard User"), settings.disable_run_admin,
+                                            tr("Do not attempt to start as Admin unless explicitly requested"));
+#ifndef Q_OS_WIN
+            alwaysStandardUser_->parentWidget()->hide();
+#endif
             pageLayout->addWidget(permissions);
 
             auto *certificates = makeSection(tr("Certificates"), tr("Certificate stores and TLS validation defaults."));
             layout = qobject_cast<QVBoxLayout *>(certificates->layout());
-            addToggleRow(layout, ui->mozilla_cert->text(), ui->mozilla_cert);
-            addToggleRow(layout, ui->skip_cert->text(), ui->skip_cert);
-            addControlRow(layout, tr("uTLS fingerprint"), ui->utlsFingerprint);
+            addToggle(layout, tr("Use Mozilla Certificate Store"), settings.use_mozilla_certs);
+            addToggle(layout, tr("Skip TLS certificate authentication by default (allowInsecure)"), settings.skip_cert);
+
+            auto *fingerprint = new QComboBox(this);
+            fingerprint->setEditable(true);
+            fingerprint->addItems(Configs::tlsFingerprints);
+            bindings_.bind(fingerprint, settings.utlsFingerprint);
+            addControlRow(layout, tr("uTLS fingerprint"), fingerprint);
+
             pageLayout->addWidget(certificates);
             break;
         }
@@ -743,6 +755,10 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
         // invisible control instead of a use-after-free.
         if (index <= 7) retireLegacyPage(legacyPages[index]);
     }
+
+    // Bound controls only exist once their page has been built, so the values go in
+    // here rather than alongside the loads of the pages still coming from the .ui.
+    bindings_.load();
 
     auto *navGroup = new QButtonGroup(this);
     navGroup->setExclusive(true);
@@ -1038,12 +1054,12 @@ void DialogBasicSettings::accept() {
 
     // Security
 
-    D_SAVE_BOOL(skip_cert)
-    Configs::dataManager->settingsRepo->utlsFingerprint = ui->utlsFingerprint->currentText();
-    Configs::dataManager->settingsRepo->disable_privilege_req = ui->disable_priv_req->isChecked();
-    if (Configs::dataManager->settingsRepo->disable_run_admin != ui->windows_no_admin->isChecked()) CACHE.updateDisableAdmin = true;
-    Configs::dataManager->settingsRepo->disable_run_admin = ui->windows_no_admin->isChecked();
-    Configs::dataManager->settingsRepo->use_mozilla_certs = ui->mozilla_cert->isChecked();
+    // Has to be asked before the bindings overwrite the stored value.
+    if (alwaysStandardUser_ != nullptr
+        && Configs::dataManager->settingsRepo->disable_run_admin != alwaysStandardUser_->isChecked()) {
+        CACHE.updateDisableAdmin = true;
+    }
+    bindings_.save();
 
     QStringList changes;
     if (CACHE.needRestart) changes << MwArg::NeedRestart;

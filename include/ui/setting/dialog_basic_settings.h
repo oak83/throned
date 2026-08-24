@@ -3,6 +3,7 @@
 #include <QDialog>
 #include <QJsonObject>
 #include <QTimer>
+#include "include/ui/setting/SettingsBindings.h"
 #include "ui_dialog_basic_settings.h"
 
 namespace Ui {
@@ -22,6 +23,12 @@ public slots:
     void accept();
 
 private:
+    // Pages migrated off the .ui build their controls where they are used and bind
+    // each one to its setting, so nothing has to be moved between parents and nothing
+    // has to be remembered in accept(). Pages still on the .ui are unaffected.
+    SettingsBindings bindings_;
+    QCheckBox *alwaysStandardUser_ = nullptr;
+
     Ui::DialogBasicSettings *ui;
 
     void applyRegexHighlighting();
