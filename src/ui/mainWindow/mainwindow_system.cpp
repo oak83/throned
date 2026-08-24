@@ -2,6 +2,7 @@
 #include "NkrVersion.h"
 
 #include <QApplication>
+#include <QClipboard>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDirIterator>
@@ -18,6 +19,7 @@
 
 #include "3rdparty/qv2ray/v2/proxy/QvProxyConfigurator.hpp"
 #include "include/api/RPC.h"
+#include "include/database/RoutesRepo.h"
 #include "include/configs/generate.h"
 #include "include/global/Configs.hpp"
 #include "include/global/HTTPRequestHelper.hpp"

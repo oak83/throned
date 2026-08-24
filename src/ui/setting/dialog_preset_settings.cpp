@@ -4,6 +4,7 @@
 #include "include/global/Const.hpp"
 #include "include/database/entities/RouteProfile.h"
 #include "include/database/ProfilesRepo.h"
+#include "include/database/RoutesRepo.h"
 #include "include/ui/mainwindow_interface.h"
 #include "include/ui/setting/RouteProfileSimpleEditor.h"
 #include "include/ui/setting/ThemeManager.hpp"
