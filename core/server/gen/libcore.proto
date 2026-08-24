@@ -25,6 +25,9 @@ service LibcoreService {
   rpc QueryCountryTest(EmptyReq) returns(QueryCountryTestResponse);
   rpc IPTest(IPTestRequest) returns (IPTestResp);
   rpc QueryIPTest(EmptyReq) returns (QueryIPTestResponse);
+
+  rpc UDPTest(UDPTestRequest) returns (UDPTestResp);
+  rpc QueryUDPTest(EmptyReq) returns (QueryUDPTestResponse);
   //
   rpc GenWgKeyPair(EmptyReq) returns (GenWgKeyPairResponse);
 
@@ -311,6 +314,40 @@ message IPTestResp {
 
 message QueryIPTestResponse {
   repeated IPTestRes results = 1;
+}
+
+// A UDP round trip through each outbound. Latency alone is measured by the URL
+// test; this exists because carriers throttle UDP independently of TCP.
+message UDPTestRes {
+  optional string outbound_tag = 1 [default = ""];
+  optional int32 sent = 2 [default = 0];
+  optional int32 received = 3 [default = 0];
+  optional int32 min_ms = 4 [default = 0];
+  optional int32 avg_ms = 5 [default = 0];
+  optional int32 jitter_ms = 6 [default = 0];
+  optional string error = 7 [default = ""];
+}
+
+message UDPTestRequest {
+  optional string config = 1 [default = ""];
+  repeated string outbound_tags = 2;
+  optional bool use_default_outbound = 3 [default = false];
+  optional int32 max_concurrency = 4 [default = 0];
+  optional int32 test_timeout_ms = 5 [default = 0];
+  optional bool need_xray = 6 [default = false];
+  optional string xray_config = 7 [default = ""];
+  // See TestReq.xray_full_configs.
+  repeated string xray_full_configs = 8;
+  optional string target = 9 [default = ""];
+  optional int32 probe_count = 10 [default = 0];
+}
+
+message UDPTestResp {
+  repeated UDPTestRes results = 1;
+}
+
+message QueryUDPTestResponse {
+  repeated UDPTestRes results = 1;
 }
 
 message GenWgKeyPairResponse {

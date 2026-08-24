@@ -420,6 +420,36 @@ namespace API {
         }
     }
 
+    libcore::UDPTestResp Client::UDPTest(bool *rpcOK, const libcore::UDPTestRequest &request, QString *coreError) {
+        libcore::UDPTestResp reply;
+        std::vector<uint8_t> resp;
+        auto status = channel->Call("UDPTest", spb::pb::serialize<std::string>(request), resp);
+
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
+            *rpcOK = true;
+            return reply;
+        } else {
+            if (coreError && !resp.empty())
+                *coreError = QString::fromUtf8(reinterpret_cast<const char *>(resp.data()), static_cast<int>(resp.size()));
+            NOT_OK
+            return {};
+        }
+    }
+
+    libcore::QueryUDPTestResponse Client::QueryUDPTest(bool *rpcOK) {
+        libcore::EmptyReq request;
+        libcore::QueryUDPTestResponse reply;
+        std::vector<uint8_t> resp;
+        auto status = channel->Call("QueryUDPTest", spb::pb::serialize<std::string>(request), resp);
+
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
+            *rpcOK = true;
+            return reply;
+        }
+        NOT_OK
+        return {};
+    }
+
     libcore::QueryIPTestResponse Client::QueryIPTest(bool *rpcOK) {
         libcore::EmptyReq request;
         libcore::QueryIPTestResponse reply;

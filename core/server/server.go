@@ -695,6 +695,50 @@ func (s *server) QueryIPTest(ctx context.Context, in *gen.EmptyReq) (out *gen.Qu
 	return
 }
 
+func (s *server) UDPTest(ctx context.Context, in *gen.UDPTestRequest) (*gen.UDPTestResp, error) {
+	env, err := prepareTestEnv(false, in.GetNeedXray(), in.GetXrayConfig(),
+		in.XrayFullConfigs, in.GetConfig(), in.OutboundTags, in.GetUseDefaultOutbound())
+	if err != nil {
+		return nil, err
+	}
+	defer env.close()
+
+	timeout := time.Duration(in.GetTestTimeoutMs()) * time.Millisecond
+	results := test_utils.BatchUDPTest(test_utils.TestContext(), env.box, env.tags,
+		in.GetTarget(), int(in.GetProbeCount()), int(in.GetMaxConcurrency()), timeout)
+
+	res := make([]*gen.UDPTestRes, 0, len(results))
+	for _, data := range results {
+		res = append(res, udpResultToProto(data))
+	}
+	return &gen.UDPTestResp{Results: res}, nil
+}
+
+func (s *server) QueryUDPTest(ctx context.Context, in *gen.EmptyReq) (out *gen.QueryUDPTestResponse, _ error) {
+	out = &gen.QueryUDPTestResponse{}
+	for _, r := range test_utils.UDPReporter.Results() {
+		out.Results = append(out.Results, udpResultToProto(r))
+	}
+	return
+}
+
+func udpResultToProto(r *test_utils.UDPTestResult) *gen.UDPTestRes {
+	errStr := ""
+	if r.Error != nil {
+		errStr = r.Error.Error()
+	}
+	ms := func(d time.Duration) int32 { return int32(d.Milliseconds()) }
+	return &gen.UDPTestRes{
+		OutboundTag: To(r.Tag),
+		Sent:        To(int32(r.Sent)),
+		Received:    To(int32(r.Received)),
+		MinMs:       To(ms(r.Min)),
+		AvgMs:       To(ms(r.Avg)),
+		JitterMs:    To(ms(r.Jitter)),
+		Error:       To(errStr),
+	}
+}
+
 func (s *server) QueryStats(ctx context.Context, in *gen.EmptyReq) (out *gen.QueryStatsResp, err error) {
 	out = &gen.QueryStatsResp{}
 	out.Ups = make(map[string]int64)
