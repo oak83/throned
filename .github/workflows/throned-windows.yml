@@ -140,6 +140,10 @@ jobs:
       LAUNCHER_ARGS: -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
     steps:
       - uses: actions/checkout@v7.0.1
+      # Cheap and compiler-independent, so it runs before anything is built.
+      - name: Lint Qt idioms
+        shell: bash
+        run: ./script/lint_qt_idioms.sh
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
