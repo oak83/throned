@@ -13,6 +13,7 @@
 #include <QDialogButtonBox>
 #include <QLabel>
 #include <QMessageBox>
+#include <QRegularExpression>
 #include <QScreen>
 #include <QTextBrowser>
 #include <QVBoxLayout>
@@ -673,6 +674,15 @@ namespace {
             if (secret.size() < 6) continue;
             text.replace(secret, QStringLiteral("[redacted]"));
         }
+        // Share links carry the credentials themselves, and the log holds them verbatim:
+        // scanning a QR writes the whole link out. Matching by scheme catches every
+        // profile format at once. Plain http(s) is deliberately left alone -- rule-set
+        // and update URLs are worth reading, and subscription links with tokens are
+        // already covered by the literal pass above.
+        static const QRegularExpression shareLink(
+            QStringLiteral(R"(\b(?:vless|vmess|trojan|ss|ssr|hysteria2?|hy2|tuic|anytls|socks5?|wireguard|wg|snell|mieru|juicity|naive|shadowtls|ssh|throne)://\S+)"),
+            QRegularExpression::CaseInsensitiveOption);
+        text.replace(shareLink, QStringLiteral("[link redacted]"));
         return text;
     }
 
