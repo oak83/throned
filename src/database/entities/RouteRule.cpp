@@ -65,6 +65,11 @@ namespace Configs {
         no_drop = other.no_drop;
         override_address = other.override_address;
         override_port = other.override_port;
+        tls_fragment = other.tls_fragment;
+        tls_fragment_fallback_delay = other.tls_fragment_fallback_delay;
+        tls_record_fragment = other.tls_record_fragment;
+        tls_spoof = other.tls_spoof;
+        tls_spoof_method = other.tls_spoof_method;
         sniffers << other.sniffers;
         sniffOverrideDest = other.sniffOverrideDest;
         strategy = other.strategy;
@@ -136,6 +141,20 @@ namespace Configs {
         {
             if (!override_address.isEmpty()) obj["override_address"] = override_address;
             if (override_port.toInt() > 0) obj["override_port"] = override_port.toInt();
+
+            if (action == "route-options")
+            {
+                // Both fragment modes at once is a hard core error, so one wins rather than shipping a config that cannot load.
+                if (tls_fragment) obj["tls_fragment"] = true;
+                else if (tls_record_fragment) obj["tls_record_fragment"] = true;
+                if (tls_fragment && !tls_fragment_fallback_delay.trimmed().isEmpty())
+                    obj["tls_fragment_fallback_delay"] = tls_fragment_fallback_delay.trimmed();
+                if (!tls_spoof.trimmed().isEmpty())
+                {
+                    obj["tls_spoof"] = tls_spoof.trimmed();
+                    if (!tls_spoof_method.isEmpty()) obj["tls_spoof_method"] = tls_spoof_method;
+                }
+            }
 
             if (action == "route" || action == "bypass")
             {
@@ -211,6 +230,8 @@ namespace Configs {
                 if (attr == QStringLiteral("invert")) return !rule.invert;
                 if (attr == QStringLiteral("no_drop")) return !rule.no_drop;
                 if (attr == QStringLiteral("override_destination")) return !rule.sniffOverrideDest;
+                if (attr == QStringLiteral("tls_fragment")) return !rule.tls_fragment;
+                if (attr == QStringLiteral("tls_record_fragment")) return !rule.tls_record_fragment;
                 return true;
             case select:
                 if (attr == QStringLiteral("outbound")) return rule.outboundID == directID;
@@ -256,6 +277,11 @@ namespace Configs {
         else if (attr == QStringLiteral("no_drop")) no_drop = false;
         else if (attr == QStringLiteral("override_address")) override_address.clear();
         else if (attr == QStringLiteral("override_port")) override_port.clear();
+        else if (attr == QStringLiteral("tls_fragment")) tls_fragment = false;
+        else if (attr == QStringLiteral("tls_fragment_fallback_delay")) tls_fragment_fallback_delay.clear();
+        else if (attr == QStringLiteral("tls_record_fragment")) tls_record_fragment = false;
+        else if (attr == QStringLiteral("tls_spoof")) tls_spoof.clear();
+        else if (attr == QStringLiteral("tls_spoof_method")) tls_spoof_method.clear();
         else if (attr == QStringLiteral("override_destination")) sniffOverrideDest = false;
         else if (attr == QStringLiteral("strategy")) strategy.clear();
     }
@@ -298,6 +324,11 @@ namespace Configs {
             "outbound",
             "override_address",
             "override_port",
+            "tls_fragment",
+            "tls_fragment_fallback_delay",
+            "tls_record_fragment",
+            "tls_spoof",
+            "tls_spoof_method",
             "method",
             "no_drop",
             "override_destination",
@@ -312,6 +343,8 @@ namespace Configs {
             fieldName == "source_ip_is_private" ||
             fieldName == "ip_is_private" ||
             fieldName == "no_drop" ||
+            fieldName == "tls_fragment" ||
+            fieldName == "tls_record_fragment" ||
             fieldName == "override_destination") return trufalse;
 
         if (fieldName == "ip_version" ||
@@ -320,6 +353,7 @@ namespace Configs {
             fieldName == "action" ||
             fieldName == "method" ||
             fieldName == "strategy" ||
+            fieldName == "tls_spoof_method" ||
             fieldName == "outbound") return select;
 
         return text;
@@ -355,6 +389,12 @@ namespace Configs {
             resp.prepend("");
             return resp;
         }
+        if (fieldName == "tls_spoof_method")
+        {
+            auto resp = SingboxOptions::tlsSpoofMethods;
+            resp.prepend("");
+            return resp;
+        }
         return {};
     }
 
@@ -387,6 +427,18 @@ namespace Configs {
         if (fieldName == "override_port")
         {
             return {override_port};
+        }
+        if (fieldName == "tls_spoof")
+        {
+            return {tls_spoof};
+        }
+        if (fieldName == "tls_spoof_method")
+        {
+            return {tls_spoof_method};
+        }
+        if (fieldName == "tls_fragment_fallback_delay")
+        {
+            return {tls_fragment_fallback_delay};
         }
         if (fieldName == "outbound")
         {
@@ -429,6 +481,14 @@ namespace Configs {
         if (fieldName == "override_destination")
         {
             return sniffOverrideDest? "true":"false";
+        }
+        if (fieldName == "tls_fragment")
+        {
+            return tls_fragment? "true":"false";
+        }
+        if (fieldName == "tls_record_fragment")
+        {
+            return tls_record_fragment? "true":"false";
         }
         return nullptr;
     }
@@ -532,6 +592,26 @@ namespace Configs {
         if (fieldName == "override_port")
         {
             override_port = value[0];
+        }
+        if (fieldName == "tls_fragment")
+        {
+            tls_fragment = value[0]=="true";
+        }
+        if (fieldName == "tls_fragment_fallback_delay")
+        {
+            tls_fragment_fallback_delay = value[0];
+        }
+        if (fieldName == "tls_record_fragment")
+        {
+            tls_record_fragment = value[0]=="true";
+        }
+        if (fieldName == "tls_spoof")
+        {
+            tls_spoof = value[0];
+        }
+        if (fieldName == "tls_spoof_method")
+        {
+            tls_spoof_method = value[0];
         }
         if (fieldName == "override_destination")
         {

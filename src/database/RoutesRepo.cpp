@@ -90,6 +90,11 @@ namespace Configs {
                 strategy TEXT,
                 wifi_ssid_json TEXT,
                 wifi_bssid_json TEXT,
+                tls_fragment INTEGER NOT NULL DEFAULT 0,
+                tls_fragment_fallback_delay TEXT,
+                tls_record_fragment INTEGER NOT NULL DEFAULT 0,
+                tls_spoof TEXT,
+                tls_spoof_method TEXT,
                 PRIMARY KEY (route_profile_id, rule_order),
                 FOREIGN KEY(route_profile_id) REFERENCES route_profiles(id) ON DELETE CASCADE
             )
@@ -98,6 +103,16 @@ namespace Configs {
             db.exec("ALTER TABLE route_rules ADD COLUMN wifi_ssid_json TEXT");
         if (!routeRulesColumnExists("wifi_bssid_json"))
             db.exec("ALTER TABLE route_rules ADD COLUMN wifi_bssid_json TEXT");
+        if (!routeRulesColumnExists("tls_fragment"))
+            db.exec("ALTER TABLE route_rules ADD COLUMN tls_fragment INTEGER NOT NULL DEFAULT 0");
+        if (!routeRulesColumnExists("tls_fragment_fallback_delay"))
+            db.exec("ALTER TABLE route_rules ADD COLUMN tls_fragment_fallback_delay TEXT");
+        if (!routeRulesColumnExists("tls_record_fragment"))
+            db.exec("ALTER TABLE route_rules ADD COLUMN tls_record_fragment INTEGER NOT NULL DEFAULT 0");
+        if (!routeRulesColumnExists("tls_spoof"))
+            db.exec("ALTER TABLE route_rules ADD COLUMN tls_spoof TEXT");
+        if (!routeRulesColumnExists("tls_spoof_method"))
+            db.exec("ALTER TABLE route_rules ADD COLUMN tls_spoof_method TEXT");
     }
 
     bool RoutesRepo::routeRulesColumnExists(const char* columnName) const {
@@ -196,6 +211,11 @@ namespace Configs {
         rule->sniffers = QJsonArray2QListString(json["sniffers"].toArray());
         rule->sniffOverrideDest = json["sniffOverrideDest"].toBool();
         rule->strategy = json["strategy"].toString();
+        rule->tls_fragment = json["tls_fragment"].toBool();
+        rule->tls_fragment_fallback_delay = json["tls_fragment_fallback_delay"].toString();
+        rule->tls_record_fragment = json["tls_record_fragment"].toBool();
+        rule->tls_spoof = json["tls_spoof"].toString();
+        rule->tls_spoof_method = json["tls_spoof_method"].toString();
         
         return rule;
     }
@@ -359,8 +379,9 @@ namespace Configs {
                  process_name_json, process_path_json, process_path_regex_json, rule_set_json,
                  invert, outbound_id, action, reject_method, no_drop,
                  override_address, override_port, sniffers_json, sniff_override_dest, strategy,
-                 wifi_ssid_json, wifi_bssid_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 wifi_ssid_json, wifi_bssid_json,
+                 tls_fragment, tls_fragment_fallback_delay, tls_record_fragment, tls_spoof, tls_spoof_method)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             )",
                 id,
                 ruleOrder++,
@@ -397,7 +418,12 @@ namespace Configs {
                 rule->sniffOverrideDest ? 1 : 0,
                 rule->strategy.toStdString(),
                 wifiSsidJson.toStdString(),
-                wifiBssidJson.toStdString()
+                wifiBssidJson.toStdString(),
+                rule->tls_fragment ? 1 : 0,
+                rule->tls_fragment_fallback_delay.toStdString(),
+                rule->tls_record_fragment ? 1 : 0,
+                rule->tls_spoof.toStdString(),
+                rule->tls_spoof_method.toStdString()
             );
         }
     }
@@ -443,6 +469,11 @@ namespace Configs {
         ruleJson["strategy"] = QString::fromStdString(stmt.getColumn(baseCol + 31).getText());
         ruleJson["wifi_ssid"] = parseJsonArray(stmt.getColumn(baseCol + 32).getText());
         ruleJson["wifi_bssid"] = parseJsonArray(stmt.getColumn(baseCol + 33).getText());
+        ruleJson["tls_fragment"] = stmt.getColumn(baseCol + 34).getInt() != 0;
+        ruleJson["tls_fragment_fallback_delay"] = QString::fromStdString(stmt.getColumn(baseCol + 35).getText());
+        ruleJson["tls_record_fragment"] = stmt.getColumn(baseCol + 36).getInt() != 0;
+        ruleJson["tls_spoof"] = QString::fromStdString(stmt.getColumn(baseCol + 37).getText());
+        ruleJson["tls_spoof_method"] = QString::fromStdString(stmt.getColumn(baseCol + 38).getText());
         return ruleJson;
     }
 
@@ -480,7 +511,8 @@ namespace Configs {
             "process_name_json, process_path_json, process_path_regex_json, rule_set_json, "
             "invert, outbound_id, action, reject_method, no_drop, "
             "override_address, override_port, sniffers_json, sniff_override_dest, strategy, "
-            "wifi_ssid_json, wifi_bssid_json "
+            "wifi_ssid_json, wifi_bssid_json, "
+            "tls_fragment, tls_fragment_fallback_delay, tls_record_fragment, tls_spoof, tls_spoof_method "
             "FROM route_rules WHERE route_profile_id IN (" + idList.toStdString() + ") ORDER BY route_profile_id, rule_order";
         auto rulesQuery = db.query(sql);
         if (!rulesQuery) return;
@@ -513,7 +545,8 @@ namespace Configs {
                    process_name_json, process_path_json, process_path_regex_json, rule_set_json,
                    invert, outbound_id, action, reject_method, no_drop,
                    override_address, override_port, sniffers_json, sniff_override_dest, strategy,
-                   wifi_ssid_json, wifi_bssid_json
+                   wifi_ssid_json, wifi_bssid_json,
+                   tls_fragment, tls_fragment_fallback_delay, tls_record_fragment, tls_spoof, tls_spoof_method
             FROM route_rules WHERE route_profile_id = ? ORDER BY rule_order
         )", id);
         if (rulesQuery) {

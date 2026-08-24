@@ -148,6 +148,12 @@ namespace Configs {
         // route options
         QString override_address;
         QString override_port;
+        // tls_fragment and tls_record_fragment are mutually exclusive; the core rejects both at once.
+        bool tls_fragment = false;
+        QString tls_fragment_fallback_delay;
+        bool tls_record_fragment = false;
+        QString tls_spoof;
+        QString tls_spoof_method;
         // TODO maybe add some of dial fields?
 
         // sniff options

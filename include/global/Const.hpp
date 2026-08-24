@@ -21,6 +21,7 @@ namespace Configs {
         inline QStringList SniffProtocols = {"http", "tls", "quic", "stun", "dns", "bittorrent", "dtls", "ssh", "rdp"};
         inline QStringList ActionTypes = {"route", "reject", "hijack-dns", "route-options", "sniff", "resolve"};
         inline QStringList rejectMethods = {"default", "drop", "reply"};
+        inline QStringList tlsSpoofMethods = {"wrong-sequence", "wrong-checksum", "wrong-ack", "wrong-md5", "wrong-timestamp"};
     }
 
     namespace CoreType {
