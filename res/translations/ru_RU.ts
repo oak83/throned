@@ -5176,12 +5176,16 @@ Please try again.</source>
         <translation>UDP-тест завершён!</translation>
     </message>
     <message>
-        <source>UDP test Selected</source>
-        <translation>UDP-тест выбранных</translation>
+        <source>UDP Latency Test Selected</source>
+        <translation>UDP-тест задержки выбранного профиля</translation>
     </message>
     <message>
-        <source>UDP test</source>
-        <translation>UDP-тест</translation>
+        <source>TCP latency</source>
+        <translation>Задержка TCP</translation>
+    </message>
+    <message>
+        <source>UDP latency</source>
+        <translation>Задержка UDP</translation>
     </message>
     <message>
         <source>[%1] UDP test error: %2</source>

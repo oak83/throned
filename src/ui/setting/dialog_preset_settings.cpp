@@ -4,6 +4,7 @@
 #include "include/global/Const.hpp"
 #include "include/database/entities/RouteProfile.h"
 #include "include/database/ProfilesRepo.h"
+#include "include/ui/mainwindow_interface.h"
 #include "include/ui/setting/RouteProfileSimpleEditor.h"
 #include "include/ui/setting/ThemeManager.hpp"
 #include "include/ui/widget/ThronedTitleBar.h"
@@ -196,6 +197,12 @@ void DialogPresetSettings::applyDpiPreset() {
     }
 
     Configs::dataManager->settingsRepo->Save();
+    // Picking the profile is not enough: the status bar still names the old one and
+    // a running core keeps the old routes until it is rebuilt.
+    if (auto *mainWindow = GetMainWindow()) {
+        mainWindow->refreshRoutingStatus();
+        if (settings->started_id >= 0) mainWindow->profile_start(settings->started_id);
+    }
     ui->dpi_status->setText(
         (isNew ? tr("Created routing profile \"%1\" and selected it.") : tr("Updated routing profile \"%1\" and selected it."))
         .arg(kRouteProfileName) + extra + " " + tr("Turn on Tun Mode, then start a direct profile."));

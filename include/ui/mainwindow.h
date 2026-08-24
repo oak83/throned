@@ -117,6 +117,9 @@ public:
 
     void profile_start(int _id = -1);
 
+    // Refresh the routing segment of the status bar from the active profile.
+    void refreshRoutingStatus();
+
     void profile_stop(bool crash = false, bool block = false, bool manual = false);
 
     int get_profile_to_start();
@@ -243,8 +246,6 @@ private:
     void openTraySelector(bool routing);
     QPointer<RoutingQuickMenu> routingQuickMenu;
     void openRoutingQuickMenu(const QPoint &globalPos);
-    // Refresh the routing segment of the status bar from the active profile.
-    void refreshRoutingStatus();
     QLabel *statusConnectionCaption = nullptr;
     QLabel *statusDirectSpeed = nullptr;
     QList<QPointer<QLabel>> statusElidedLabels;
