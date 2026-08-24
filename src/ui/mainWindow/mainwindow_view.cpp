@@ -347,6 +347,8 @@ void MainWindow::refresh_proxy_list_column_size() {
 }
 
 void MainWindow::refresh_proxy_list(const QList<int>& ids, bool mayNeedReset, RefreshAnchor anchor) {
+    // A finished UDP test flips the setting; this is where the column catches up.
+    refreshUdpColumnVisibility();
     if (!Configs::dataManager->settingsRepo->refreshing_group) saveProfileFocusState();
     refresh_proxy_list_impl(ids, mayNeedReset);
     if (mayNeedReset) restoreProfileFocusState(anchor);
@@ -600,4 +602,12 @@ void MainWindow::pollPingMonitor() {
             if (targets == pingMonitorTargets()) recordPingSample(targets, proxyMs, directMs);
         });
     });
+}
+
+void MainWindow::refreshUdpColumnVisibility() {
+    if (profilesTableModel == nullptr) return;
+    const bool hidden = !Configs::dataManager->settingsRepo->show_udp_column;
+    // setColumnHidden relays out the header, so only touch it on a real change.
+    if (ui->profilesTableView->isColumnHidden(ProfilesTableModel::ColUDP) == hidden) return;
+    ui->profilesTableView->setColumnHidden(ProfilesTableModel::ColUDP, hidden);
 }

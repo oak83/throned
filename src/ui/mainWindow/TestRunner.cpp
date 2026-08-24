@@ -147,6 +147,9 @@ void TestRunner::applyIpResult(const std::shared_ptr<Configs::Profile>& ent, con
 }
 
 void TestRunner::applyUdpResult(const std::shared_ptr<Configs::Profile>& ent, const libcore::UDPTestRes& res) {
+    // A failed probe is a result too: whoever ran the test wants to see the column
+    // either way, so it is revealed here rather than only on success.
+    Configs::dataManager->settingsRepo->show_udp_column = true;
     const auto error = QString::fromStdString(res.error.value());
     const int sent = res.sent.value();
     const int received = res.received.value();

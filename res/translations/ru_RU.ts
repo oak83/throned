@@ -5200,6 +5200,10 @@ Please try again.</source>
         <translation>Тесты</translation>
     </message>
     <message>
+        <source>Show UDP column</source>
+        <translation>Показывать колонку UDP</translation>
+    </message>
+    <message>
         <source>Copy Diagnostics</source>
         <translation>Скопировать диагностику</translation>
     </message>

@@ -1206,6 +1206,18 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         int columnIndex = header->logicalIndexAt(pos);
         auto group = Configs::dataManager->groupsRepo->CurrentGroup();
         if (group == nullptr) return;
+        if (columnIndex == ProfilesTableModel::ColUDP
+            || columnIndex == ProfilesTableModel::ColTraffic) {
+            QMenu menu(this);
+            auto* toggle = menu.addAction(tr("Show UDP column"));
+            toggle->setCheckable(true);
+            toggle->setChecked(Configs::dataManager->settingsRepo->show_udp_column);
+            if (menu.exec(header->mapToGlobal(pos)) != toggle) return;
+            Configs::dataManager->settingsRepo->show_udp_column = toggle->isChecked();
+            Configs::dataManager->settingsRepo->Save();
+            refreshUdpColumnVisibility();
+            return;
+        }
         if (columnIndex == ProfilesTableModel::ColType) {
             if (!Configs::dataManager->settingsRepo->show_config_security) return;
             QMenu menu(this);
@@ -1369,6 +1381,8 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
             return;
         }
     });
+    ui->profilesTableView->horizontalHeader()->setStretchLastSection(true);
+    refreshUdpColumnVisibility();
     ui->profilesTableView->verticalHeader()->setStretchLastSection(false);
     ui->profilesTableView->verticalHeader()->setDefaultSectionSize(34);
     ui->profilesTableView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);

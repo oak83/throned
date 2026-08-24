@@ -128,6 +128,9 @@ public:
     // Refresh the routing segment of the status bar from the active profile.
     void refreshRoutingStatus();
 
+    // The UDP column stays out of the way until the group has something to put in it.
+    void refreshUdpColumnVisibility();
+
     void profile_stop(bool crash = false, bool block = false, bool manual = false);
 
     int get_profile_to_start();
