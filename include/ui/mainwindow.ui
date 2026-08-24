@@ -791,10 +791,24 @@ QTabBar::tab:selected {
      <addaction name="menu_copy_links_nkr"/>
      <addaction name="actionCopy_Test_Result"/>
     </widget>
-    <addaction name="menu_add_from_input"/>
-    <addaction name="menu_add_from_clipboard"/>
-    <addaction name="actionAdd_profile_from_File"/>
-    <addaction name="menu_scan_qr"/>
+    <widget class="QMenu" name="menu_add_item">
+     <property name="title">
+      <string>Add</string>
+     </property>
+     <addaction name="menu_add_from_input"/>
+     <addaction name="menu_add_from_clipboard"/>
+     <addaction name="actionAdd_profile_from_File"/>
+     <addaction name="menu_scan_qr"/>
+    </widget>
+    <widget class="QMenu" name="menu_test_item">
+     <property name="title">
+      <string>Test</string>
+     </property>
+     <addaction name="actionUrl_Test_Selected"/>
+     <addaction name="actionSpeedtest_Selected"/>
+     <addaction name="actionClear_Test_Result"/>
+    </widget>
+    <addaction name="menu_add_item"/>
     <addaction name="separator"/>
     <addaction name="menu_start"/>
     <addaction name="menu_stop"/>
@@ -804,11 +818,10 @@ QTabBar::tab:selected {
     <addaction name="menu_select_all"/>
     <addaction name="menu_clone"/>
     <addaction name="separator"/>
-    <addaction name="actionUrl_Test_Selected"/>
-    <addaction name="actionSpeedtest_Selected"/>
+    <addaction name="menu_test_item"/>
+    <addaction name="separator"/>
     <addaction name="actionResolve_Selected_Out_IP"/>
     <addaction name="menu_resolve_selected"/>
-    <addaction name="actionClear_Test_Result"/>
     <addaction name="menu_reset_traffic"/>
    </widget>
    <widget class="QMenu" name="menuHidden_menu">

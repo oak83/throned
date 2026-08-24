@@ -5184,6 +5184,14 @@ Please try again.</source>
         <translation>UDP-тест завершён!</translation>
     </message>
     <message>
+        <source>Add</source>
+        <translation>Добавить</translation>
+    </message>
+    <message>
+        <source>Test</source>
+        <translation>Тесты</translation>
+    </message>
+    <message>
         <source>Copy Diagnostics</source>
         <translation>Скопировать диагностику</translation>
     </message>

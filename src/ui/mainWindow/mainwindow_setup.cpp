@@ -404,11 +404,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // Support lives or dies on being able to ask for one paste instead of a
     // questionnaire, so this sits in the top-level menu rather than under Tools.
     auto *diagnosticsAction = new QAction(tr("Copy Diagnostics"), this);
-    ui->menu_program->addAction(diagnosticsAction);
+    ui->menu_program->insertAction(ui->menu_exit, diagnosticsAction);
     connect(diagnosticsAction, &QAction::triggered, this, [this] { copyDiagnostics(); });
 
     auto *udpTestAction = new QAction(tr("UDP Latency Test Selected"), this);
-    ui->menu_server->insertAction(ui->actionUrl_Test_Selected, udpTestAction);
+    ui->menu_test_item->insertAction(ui->actionSpeedtest_Selected, udpTestAction);
     connect(udpTestAction, &QAction::triggered, this, [=, this] {
         testRunner->runUdpTests(get_now_selected_list());
     });
@@ -1319,19 +1319,13 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     else ui->system_dns->hide();
 
     connect(ui->menu_server, &QMenu::aboutToShow, this, [=,this](){
-        if (auto selected = get_now_selected_list(); selected.empty())
-        {
-            ui->actionSpeedtest_Selected->setEnabled(false);
-            ui->actionUrl_Test_Selected->setEnabled(false);
-            ui->menu_resolve_selected->setEnabled(false);
-            ui->actionResolve_Selected_Out_IP->setEnabled(false);
-        } else
-        {
-            ui->actionSpeedtest_Selected->setEnabled(true);
-            ui->actionUrl_Test_Selected->setEnabled(true);
-            ui->menu_resolve_selected->setEnabled(true);
-            ui->actionResolve_Selected_Out_IP->setEnabled(true);
-        }
+        // Everything in the Test submenu acts on the selection, so it follows it as a
+        // whole -- entries added later do not have to be remembered here.
+        const bool hasSelection = !get_now_selected_list().empty();
+        for (auto *action : ui->menu_test_item->actions()) action->setEnabled(hasSelection);
+        ui->menu_test_item->setEnabled(hasSelection);
+        ui->menu_resolve_selected->setEnabled(hasSelection);
+        ui->actionResolve_Selected_Out_IP->setEnabled(hasSelection);
         if (testRunner->isRunning()) {
             ui->menu_server->addAction(ui->menu_stop_testing);
         } else {
@@ -1491,7 +1485,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     // A url test only reports that something timed out. This walks the same path
     // stage by stage, so the one that broke names itself.
     auto *diagnoseAction = new QAction(tr("Diagnose Selected"), this);
-    ui->menu_server->insertAction(ui->actionUrl_Test_Selected, diagnoseAction);
+    ui->menu_test_item->insertAction(ui->actionClear_Test_Result, diagnoseAction);
     connect(diagnoseAction, &QAction::triggered, this, [=,this]() {
         const auto selected = get_now_selected_list();
         if (selected.isEmpty()) return;
