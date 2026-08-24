@@ -582,6 +582,14 @@ It stays a preference, not a lock: if that profile stops working the selector st
         <translation>Авто-обновление профилей маршрутизации</translation>
     </message>
     <message>
+        <source>sing-box API</source>
+        <translation>API sing-box</translation>
+    </message>
+    <message>
+        <source>Local controller endpoint used by the built-in dashboard.</source>
+        <translation>Локальная точка управления, которую использует встроенный дашборд.</translation>
+    </message>
+    <message>
         <source>Clash API</source>
         <translation>Clash API</translation>
     </message>

@@ -622,6 +622,15 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
             addToggleRow(layout, ui->tls_tricks_default_on->text(), ui->tls_tricks_default_on);
             pageLayout->addWidget(fragment);
 
+            // These two were loaded and saved but never re-hosted into the redesigned
+            // page, so they died with the legacy one and accept() then read a destroyed
+            // QLineEdit. That also left the dashboard\x27s endpoint with nowhere to set it.
+            auto *singboxApi = makeSection(tr("sing-box API"), tr("Local controller endpoint used by the built-in dashboard."));
+            layout = qobject_cast<QVBoxLayout *>(singboxApi->layout());
+            addControlRow(layout, tr("API port"), ui->core_box_api_port);
+            addControlRow(layout, tr("API secret"), ui->core_box_api_secret);
+            pageLayout->addWidget(singboxApi);
+
             auto *clash = makeSection(tr("Clash API"), tr("Local controller endpoint exposed by the core."));
             layout = qobject_cast<QVBoxLayout *>(clash->layout());
             addControlRow(layout, tr("Listen address"), ui->core_box_clash_listen_addr);
@@ -674,6 +683,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
             addToggleRow(layout, ui->backup_inc_profiles->text(), ui->backup_inc_profiles);
             addToggleRow(layout, ui->backup_inc_routes->text(), ui->backup_inc_routes);
             addToggleRow(layout, ui->backup_inc_settings->text(), ui->backup_inc_settings);
+            addToggleRow(layout, ui->backup_inc_otp->text(), ui->backup_inc_otp);
             addToggleRow(layout, ui->backup_inc_icons->text(), ui->backup_inc_icons);
             ui->backup_create->setObjectName(QStringLiteral("settingsSecondaryButton"));
             addControlRow(layout, tr("Backup file"), ui->backup_create);
