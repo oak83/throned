@@ -451,9 +451,90 @@ void MainWindow::url_test_current() {
     });
 }
 
-// One UDP round trip through the running core, plotted beside the speed chart.
-// Skipped while nothing runs, and never overlapped: a slow probe must not queue
-// more of itself behind the timer.
+namespace {
+    constexpr int kPingProbeCount = 3;
+    constexpr int kPingTimeoutMs = 3000;
+    constexpr int kPingHistoryCap = 300; // ten minutes at the two-second tick
+    // A spike has to clear both bars: the multiplier alone fires constantly on a
+    // fast link where 8 ms to 25 ms is noise, the flat margin alone never fires
+    // on a slow one.
+    constexpr int kPingSpikeFactor = 3;
+    constexpr int kPingSpikeMarginMs = 150;
+
+    int medianOf(QList<int> values) {
+        if (values.isEmpty()) return -1;
+        std::sort(values.begin(), values.end());
+        return values.at(values.size() / 2);
+    }
+}
+
+void MainWindow::recordPingSample(const int proxyMs, const int directMs) {
+    pingHistory_.append({QDateTime::currentSecsSinceEpoch(), proxyMs, directMs});
+    while (pingHistory_.size() > kPingHistoryCap) pingHistory_.removeFirst();
+
+    if (pingChartWidget) {
+        // A lost probe is the worst outcome, so it is drawn at the ceiling. Plotting
+        // zero would plant it at the bottom of the chart, where it reads as perfect.
+        pingChartWidget->push(proxyMs < 0 ? kPingTimeoutMs : proxyMs,
+                              directMs < 0 ? kPingTimeoutMs : directMs);
+    }
+
+    // Baseline from the settled part of the window, so the spike itself does not
+    // drag the very number it is being compared against.
+    QList<int> baselineSamples;
+    for (int i = qMax(0, pingHistory_.size() - 31); i < pingHistory_.size() - 1; ++i) {
+        if (pingHistory_[i].proxyMs >= 0) baselineSamples << pingHistory_[i].proxyMs;
+    }
+    const int baseline = medianOf(baselineSamples);
+    if (baseline < 0 || baselineSamples.size() < 5) return;
+
+    const bool bad = proxyMs < 0 || proxyMs > qMax(baseline * kPingSpikeFactor, baseline + kPingSpikeMarginMs);
+    if (bad && !pingSpikeActive_) {
+        pingSpikeActive_ = true;
+        const QString proxyText = proxyMs < 0 ? tr("no reply") : QString("%1 ms").arg(proxyMs);
+        // The verdict matters more than the number: it is what saves the user from
+        // guessing whether the client, the proxy or their own line is at fault.
+        QString verdict;
+        if (directMs < 0 || directMs > baseline * kPingSpikeFactor) {
+            verdict = tr("the direct path is just as bad, so this is your connection rather than the proxy");
+        } else {
+            verdict = tr("the direct path is fine (%1 ms), so this is the proxy or the route to it").arg(directMs);
+        }
+        MW_show_log(tr("UDP latency spiked: %1 against a %2 ms baseline - %3").arg(proxyText).arg(baseline).arg(verdict));
+    } else if (!bad && pingSpikeActive_) {
+        pingSpikeActive_ = false;
+        MW_show_log(tr("UDP latency back to normal (%1 ms).").arg(proxyMs));
+    }
+}
+
+QString MainWindow::pingHistoryReport() const {
+    if (pingHistory_.isEmpty()) return {};
+    QStringList out;
+    QList<int> proxySamples;
+    int lost = 0;
+    for (const auto &sample : pingHistory_) {
+        if (sample.proxyMs >= 0) proxySamples << sample.proxyMs; else ++lost;
+    }
+    out << QString("Ping monitor: %1 samples, %2 lost, median %3 ms")
+               .arg(pingHistory_.size()).arg(lost).arg(medianOf(proxySamples));
+    out << "  time                 proxy   direct";
+    // Only the tail is worth pasting; the interesting part is always the recent past.
+    for (int i = qMax(0, pingHistory_.size() - 40); i < pingHistory_.size(); ++i) {
+        const auto &sample = pingHistory_[i];
+        const auto render = [](const int value) {
+            return value < 0 ? QStringLiteral("lost") : QString::number(value);
+        };
+        out << QString("  %1  %2  %3")
+                   .arg(QDateTime::fromSecsSinceEpoch(sample.at).toString("yyyy-MM-dd HH:mm:ss"),
+                        render(sample.proxyMs).rightJustified(6),
+                        render(sample.directMs).rightJustified(6));
+    }
+    return out.join('\n');
+}
+
+// Measures the proxy path and the direct path on the same tick, so a spike can be
+// attributed instead of merely observed. Skipped while nothing runs, and never
+// overlapped: a slow probe must not queue more of itself behind the timer.
 void MainWindow::pollPingMonitor() {
     if (running == nullptr || pingChartWidget == nullptr) return;
     bool idle = false;
@@ -462,26 +543,26 @@ void MainWindow::pollPingMonitor() {
     runOnNewThread([this] {
         // A throw here would otherwise leave the guard raised and stall the monitor for good.
         const auto release = qScopeGuard([this] { pingProbeInFlight_.store(false); });
-        libcore::UDPTestRequest req;
-        req.test_current = true;
-        req.probe_count = 3;
-        req.test_timeout_ms = 2000;
-        req.target = Configs::dataManager->settingsRepo->udp_test_target.toStdString();
 
-        bool rpcOK = false;
-        const auto response = API::defaultClient->UDPTest(&rpcOK, req);
+        const auto probe = [](const bool viaDirect) {
+            libcore::UDPTestRequest req;
+            req.test_current = true;
+            req.via_direct = viaDirect;
+            req.probe_count = kPingProbeCount;
+            req.test_timeout_ms = kPingTimeoutMs;
+            req.target = Configs::dataManager->settingsRepo->udp_test_target.toStdString();
 
-        int average = -1;
-        int jitter = 0;
-        if (rpcOK && !response.results.empty()) {
+            bool rpcOK = false;
+            const auto response = API::defaultClient->UDPTest(&rpcOK, req);
+            if (!rpcOK || response.results.empty()) return -1;
             const auto &result = response.results.front();
-            if (result.error.value().empty() && result.received.value() > 0) {
-                average = result.avg_ms.value();
-                jitter = result.jitter_ms.value();
-            }
-        }
-        runOnUiThread([this, average, jitter] {
-            if (pingChartWidget) pingChartWidget->push(average < 0 ? 0 : average, jitter);
-        });
+            if (!result.error.value().empty() || result.received.value() == 0) return -1;
+            return static_cast<int>(result.avg_ms.value());
+        };
+
+        const int proxyMs = probe(false);
+        const int directMs = probe(true);
+
+        runOnUiThread([this, proxyMs, directMs] { recordPingSample(proxyMs, directMs); });
     });
 }

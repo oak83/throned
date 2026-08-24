@@ -343,6 +343,9 @@ message UDPTestRequest {
   // Probe through the running instance instead of building a throwaway box, so a
   // periodic monitor costs one dial rather than a whole core start.
   optional bool test_current = 11 [default = false];
+  // Measure the direct outbound instead of the proxy one. Pairing the two
+  // answers "is the proxy at fault or the connection", which neither alone can.
+  optional bool via_direct = 12 [default = false];
 }
 
 message UDPTestResp {

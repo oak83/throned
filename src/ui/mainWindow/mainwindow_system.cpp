@@ -723,6 +723,11 @@ QString MainWindow::collectDiagnostics() {
         }
     }
 
+    if (const auto pings = pingHistoryReport(); !pings.isEmpty()) {
+        out << pings;
+        out << "";
+    }
+
     out << "Last log lines:";
     const auto logText = ui->masterLogBrowser->toPlainText();
     const auto lines = logText.split('\n');

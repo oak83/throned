@@ -892,10 +892,20 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     pingMonitorToggle->setToolTip(tr("Probes the running profile over UDP every few seconds. The line is the round trip, the second series its jitter."));
     pingColumnLayout->addWidget(pingMonitorToggle);
     pingChartWidget = new MiniChartWidget(pingColumn);
-    pingChartWidget->setCapacity(120);
-    pingChartWidget->setCaption(tr("UDP"));
+    pingChartWidget->setCapacity(150);
+    pingChartWidget->setCaption(tr("proxy / direct"));
+    pingChartWidget->setColors(QColor(QStringLiteral("#2F91FF")), QColor(QStringLiteral("#8295A6")));
     pingChartWidget->setFormatter([](const double value) { return QString::number(qRound(value)) + " ms"; });
     pingColumnLayout->addWidget(pingChartWidget, 1);
+
+    // The dump belongs where the problem is seen; the menu entry is for people who
+    // already know it exists.
+    auto *pingCopyButton = new QPushButton(tr("Copy Diagnostics"), pingColumn);
+    pingCopyButton->setObjectName(QStringLiteral("routeSecondaryButton"));
+    pingCopyButton->setCursor(Qt::PointingHandCursor);
+    pingCopyButton->setToolTip(tr("Copies the ping history and the rest of the diagnostics, with secrets masked."));
+    connect(pingCopyButton, &QPushButton::clicked, this, [this] { copyDiagnostics(); });
+    pingColumnLayout->addWidget(pingCopyButton);
     if (auto *graphLayout = qobject_cast<QHBoxLayout *>(ui->graph_tab->layout())) {
         graphLayout->addWidget(pingColumn);
         graphLayout->setStretch(0, 3);
@@ -905,7 +915,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     }
 
     pingMonitorTimer = new QTimer(this);
-    pingMonitorTimer->setInterval(5000);
+    pingMonitorTimer->setInterval(2000);
     connect(pingMonitorTimer, &QTimer::timeout, this, [this] { pollPingMonitor(); });
     connect(pingMonitorToggle, &QCheckBox::toggled, this, [this](const bool enabled) {
         Configs::dataManager->settingsRepo->monitor_ping = enabled;

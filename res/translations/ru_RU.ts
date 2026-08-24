@@ -5196,6 +5196,34 @@ Please try again.</source>
         <translation>Скопировать диагностику</translation>
     </message>
     <message>
+        <source>Copies the ping history and the rest of the diagnostics, with secrets masked.</source>
+        <translation>Копирует историю пинга и остальную диагностику; секреты скрыты.</translation>
+    </message>
+    <message>
+        <source>proxy / direct</source>
+        <translation>прокси / напрямую</translation>
+    </message>
+    <message>
+        <source>no reply</source>
+        <translation>нет ответа</translation>
+    </message>
+    <message>
+        <source>UDP latency spiked: %1 against a %2 ms baseline - %3</source>
+        <translation>Скачок задержки UDP: %1 против базовых %2 мс — %3</translation>
+    </message>
+    <message>
+        <source>UDP latency back to normal (%1 ms).</source>
+        <translation>Задержка UDP вернулась к норме (%1 мс).</translation>
+    </message>
+    <message>
+        <source>the direct path is just as bad, so this is your connection rather than the proxy</source>
+        <translation>прямой путь не лучше, значит дело в вашем соединении, а не в прокси</translation>
+    </message>
+    <message>
+        <source>the direct path is fine (%1 ms), so this is the proxy or the route to it</source>
+        <translation>прямой путь в порядке (%1 мс), значит дело в прокси или маршруте до него</translation>
+    </message>
+    <message>
         <source>Diagnostics copied to the clipboard (%1 characters). Secrets and subscription links are masked.</source>
         <translation>Диагностика скопирована в буфер обмена (%1 символов). Секреты и ссылки на подписки скрыты.</translation>
     </message>

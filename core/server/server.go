@@ -703,8 +703,16 @@ func (s *server) UDPTest(ctx context.Context, in *gen.UDPTestRequest) (*gen.UDPT
 	}
 	defer env.close()
 
+	tags := env.tags
+	if in.GetViaDirect() {
+		if _, exists := env.box.Outbound().Outbound("direct"); !exists {
+			return nil, E.New("this profile has no direct outbound to measure")
+		}
+		tags = []string{"direct"}
+	}
+
 	timeout := time.Duration(in.GetTestTimeoutMs()) * time.Millisecond
-	results := test_utils.BatchUDPTest(test_utils.TestContext(), env.box, env.tags,
+	results := test_utils.BatchUDPTest(test_utils.TestContext(), env.box, tags,
 		in.GetTarget(), int(in.GetProbeCount()), int(in.GetMaxConcurrency()), timeout)
 
 	res := make([]*gen.UDPTestRes, 0, len(results))

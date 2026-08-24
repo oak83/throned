@@ -312,7 +312,23 @@ private:
     QCheckBox *pingMonitorToggle = nullptr;
     QTimer *pingMonitorTimer = nullptr;
     std::atomic<bool> pingProbeInFlight_{false};
+
+    // One tick of the monitor. Both paths are measured because a number on its own
+    // cannot say whether the proxy or the connection underneath it went bad.
+    struct PingSample {
+        qint64 at = 0;    // epoch seconds
+        int proxyMs = -1; // -1 means nothing came back within the timeout
+        int directMs = -1;
+    };
+    QList<PingSample> pingHistory_;
+    // Edge-triggered so one bad stretch produces one log line, not fifty.
+    bool pingSpikeActive_ = false;
+
     void pollPingMonitor();
+
+    void recordPingSample(int proxyMs, int directMs);
+
+    [[nodiscard]] QString pingHistoryReport() const;
     //
     // for data view
     // Repaint throttle, in ms since epoch. Atomic: worker threads drive it too.
