@@ -822,6 +822,19 @@ QDialog#basicSettingsDialog QLabel#settingsHero { color: #F1F3F5; font-size: 18p
 QDialog#basicSettingsDialog QLabel#settingsMuted { color: #AEB7C2; }
 QDialog#basicSettingsDialog QFrame#settingsHeading { border: none; border-bottom: 1px solid #2F3136; }
 QDialog#basicSettingsDialog QFrame#settingsField { border: none; border-top: 1px solid #25292F; }
+/* An editable combo box draws through an inner line edit rather than painting itself,
+   so the rules written for the plain ones never reach it and it comes out as a bare
+   arrow on the dialog background. Scoped to :editable so the plain ones are untouched. */
+QDialog#basicSettingsDialog QComboBox:editable {
+    color: #F1F3F5; background: #171B21; border: 1px solid #2F3136;
+    border-radius: 6px; padding: 4px 8px;
+}
+QDialog#basicSettingsDialog QComboBox:editable:focus { border-color: #237AE9; }
+QDialog#basicSettingsDialog QComboBox:editable QLineEdit {
+    background: transparent; border: none; padding: 0; color: #F1F3F5;
+    selection-background-color: #237AE9;
+}
+QDialog#basicSettingsDialog QComboBox:editable::drop-down { border: none; width: 22px; }
 QDialog#basicSettingsDialog QPushButton#settingsNav {
     color: #DDE2E7; background: transparent; border: 1px solid transparent;
     border-radius: 6px; padding: 9px 11px; text-align: left;

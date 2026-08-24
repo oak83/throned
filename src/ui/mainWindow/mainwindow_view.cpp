@@ -341,6 +341,11 @@ void MainWindow::refresh_proxy_list_column_size() {
         }
         hHeader->adjustPositions();
         hHeader->blockSignals(false);
+        // The view learns about section widths through sectionResized, which was just
+        // blocked to keep this routine from re-entering itself. Without a nudge the
+        // header ends up at the new width while the rows are still painted at the old
+        // one, which is what a window resize used to leave behind.
+        ui->profilesTableView->viewport()->update();
         vBar->blockSignals(vBarBlocked);
         m_adjustingColumns = false;
     });
