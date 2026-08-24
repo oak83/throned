@@ -387,6 +387,12 @@ namespace Configs {
 
     BuildResult openconnect::Build()
     {
+        OtpCodeSession otpCodes;
+        return Build(otpCodes);
+    }
+
+    BuildResult openconnect::Build(OtpCodeSession &otpCodes)
+    {
         QJsonObject object;
         object["type"] = "openconnect";
         if (!name.isEmpty()) object["tag"] = name;
@@ -394,7 +400,7 @@ namespace Configs {
         if (auto url = ComposeServer(); !url.isEmpty()) object["server"] = url;
 
         const auto creds = ResolveVpnCredentials(profile_id, username, password);
-        auto otpCode = ResolveOtpCode(otp_profile_id);
+        const auto otpCode = otpCodes.Resolve(otp_profile_id);
         if (auto user = SubstituteOtp(creds.username, otpCode); !user.isEmpty()) object["username"] = user;
         if (auto pass = SubstituteOtp(creds.password, otpCode); !pass.isEmpty()) object["password"] = pass;
 

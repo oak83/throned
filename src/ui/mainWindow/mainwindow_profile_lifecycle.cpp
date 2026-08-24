@@ -22,6 +22,7 @@
 #include "include/database/GroupsRepo.h"
 #include "include/database/ProfilesRepo.h"
 #include "include/global/VpnCredentialOverride.hpp"
+#include "include/global/OtpPlaceholder.hpp"
 #include "include/ui/profile/dialog_vpn_auth.h"
 
 #include "include/sys/Process.hpp"
@@ -230,7 +231,7 @@ void MainWindow::profile_start(int _id) {
     }
     auto_selector_ranked = false;
 
-    const auto result = Configs::BuildSingBoxConfig(ent);
+    const auto result = Configs::BuildSingBoxConfig(ent, Configs::ConfigBuildPurpose::Connect);
     if (!result->error.isEmpty()) {
         MessageBoxWarning(tr("BuildConfig return error"), result->error);
         return;
@@ -334,6 +335,17 @@ void MainWindow::profile_start(int _id) {
             }
             runOnUiThread([=, this] { MessageBoxWarning("LoadConfig return error", error); });
             return false;
+        }
+        // Building and validating a config must not consume an HOTP code. Advance
+        // only once the core accepted the real start request; otherwise a failed
+        // launch would desynchronise the client from the VPN server.
+        if (result->otpCodes != nullptr) {
+            if (const auto otpError = result->otpCodes->Commit(); !otpError.isEmpty()) {
+                bool stopOK = false;
+                defaultClient->Stop(&stopOK);
+                runOnUiThread([=, this] { MessageBoxWarning(tr("Could not advance HOTP"), otpError); });
+                return false;
+            }
         }
         Stats::trafficLooper->SetChainGroups(result->chainGroups);
         Stats::trafficLooper->loop_enabled = true;

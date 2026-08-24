@@ -3,6 +3,7 @@
 #include "include/configs/validate.h"
 #include "include/configs/AutoSelectorPlan.h"
 #include "include/global/Configs.hpp"
+#include "include/global/OtpPlaceholder.hpp"
 
 #include <QApplication>
 #include <QFileInfo>
@@ -196,6 +197,7 @@ namespace Configs {
             bool singToXrayTransitioned = false;
             bool xrayToSingTransitioned = false;
             bool proxyUsesXray = false;
+            std::shared_ptr<OtpCodeSession> otpCodes = std::make_shared<OtpCodeSession>();
             std::shared_ptr<Profile> ent = std::make_shared<Profile>(nullptr, nullptr);
             BuildPrerequisites prerequisites;
             osType os = getOS();
@@ -950,7 +952,7 @@ namespace Configs {
             return res;
         }
 
-        QString upgradeUdpDnsToDoH(const QString &server) {
+        QString upgradeUdpDnsToDoH(const QString &server, const bool usePublicFallback = true) {
             static const QMap<QString, QString> known = {
                 // Google
                 {"8.8.8.8", "https://8.8.8.8/dns-query"},
@@ -969,7 +971,7 @@ namespace Configs {
                 {"94.140.14.14", "https://94.140.14.14/dns-query"},
                 {"94.140.15.15", "https://94.140.15.15/dns-query"},
             };
-            return known.value(server, "https://8.8.8.8/dns-query");
+            return known.value(server, usePublicFallback ? QStringLiteral("https://8.8.8.8/dns-query") : QString{});
         }
 
         QString chainDnsTag(const QString &outboundTag) {
@@ -1078,12 +1080,11 @@ namespace Configs {
             if (ctx.forTest && settings.spmode_vpn) {
                 const auto directDnsType = directDnsObj.value("type").toString();
                 if (directDnsType == "udp" && directDnsObj.value("server_port").toInt(53) == 53) {
-                    // DoT keeps the configured resolver, it only changes the port -- but only
-                    // if the plain-DNS port is dropped first. Carrying an explicit :53 over
-                    // asks for DoT where nothing serves it, and the test times out for a
-                    // reason that has nothing to do with the profile.
-                    directDnsObj["type"] = "tls";
-                    directDnsObj.remove("server_port");
+                    // Only upgrade addresses with a known equivalent. Silently replacing a
+                    // private or regional resolver with Google breaks split DNS and can make
+                    // a perfectly valid profile look dead in censored networks.
+                    const auto doh = upgradeUdpDnsToDoH(directDnsObj.value("server").toString(), false);
+                    if (!doh.isEmpty()) directDnsObj = buildDnsObj(ctx, doh);
                 } else if (directDnsType == "local" || directDnsType == "dhcp") {
                     // The system resolver is the unreachable one, so it cannot be kept.
                     directDnsObj = buildDnsObj(ctx, upgradeUdpDnsToDoH(directDnsObj.value("server").toString()));
@@ -1604,7 +1605,15 @@ namespace Configs {
                                                  (ocon != nullptr && ocon->block_outside_dns);
                     if (gated) ctx.vpnGateTags << tag;
                 }
-                auto [object, error] = ent->outbound->Build();
+                BuildResult built;
+                if (const auto openvpn = ent->OpenVPN(); openvpn != nullptr) {
+                    built = openvpn->Build(*ctx.otpCodes);
+                } else if (const auto openconnect = ent->OpenConnect(); openconnect != nullptr) {
+                    built = openconnect->Build(*ctx.otpCodes);
+                } else {
+                    built = ent->outbound->Build();
+                }
+                auto &[object, error] = built;
                 if (!error.isEmpty())
                 {
                     ctx.error += error;
@@ -2620,6 +2629,11 @@ namespace Configs {
     }
 
     std::shared_ptr<BuildConfigResult> BuildSingBoxConfig(const std::shared_ptr<Profile>& ent) {
+        return BuildSingBoxConfig(ent, ConfigBuildPurpose::Preview);
+    }
+
+    std::shared_ptr<BuildConfigResult> BuildSingBoxConfig(const std::shared_ptr<Profile>& ent,
+                                                          ConfigBuildPurpose purpose) {
         if (ent->type == "custom")
         {
             auto res = std::make_shared<BuildConfigResult>();
@@ -2700,6 +2714,8 @@ namespace Configs {
 
         for (const auto &problem : FindDanglingReferences(ctx.result->coreConfig))
             MW_show_log("Generated config: " + problem);
+
+        if (purpose == ConfigBuildPurpose::Connect) ctx.result->otpCodes = ctx.otpCodes;
 
         return ctx.result;
     }

@@ -556,8 +556,13 @@ QJsonObject Execute(const QJsonObject &request) {
         // This replaces the list wholesale, so a missing or mistyped "lines" would
         // silently erase every rule of this action. An explicitly empty array still
         // means "clear it" -- only the absent and the malformed are refused.
-        if (const auto lines = request.value(QStringLiteral("lines")); !lines.isArray())
+        const auto linesValue = request.value(QStringLiteral("lines"));
+        if (!linesValue.isArray())
             return fail(QStringLiteral("\"lines\" is required and must be an array of strings"));
+        for (const auto &line : linesValue.toArray()) {
+            if (!line.isString())
+                return fail(QStringLiteral("\"lines\" is required and must be an array of strings"));
+        }
 
         QStringList parsed;
         QStringList rejected;

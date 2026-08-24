@@ -318,6 +318,12 @@ namespace Configs {
 
     BuildResult openvpn::Build()
     {
+        OtpCodeSession otpCodes;
+        return Build(otpCodes);
+    }
+
+    BuildResult openvpn::Build(OtpCodeSession &otpCodes)
+    {
         QJsonObject object;
         object["type"] = "openvpn-client";
         if (!name.isEmpty()) object["tag"] = name;
@@ -337,7 +343,7 @@ namespace Configs {
         }
 
         const auto creds = ResolveVpnCredentials(profile_id, username, password);
-        auto otpCode = ResolveOtpCode(otp_profile_id);
+        const auto otpCode = otpCodes.Resolve(otp_profile_id);
         auto user = SubstituteOtp(creds.username, otpCode);
         auto pass = SubstituteOtp(creds.password, otpCode);
         // Upstream packs a static-challenge answer as SCRV1:<b64 password>:<b64 answer>.

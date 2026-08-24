@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QList>
+#include <QHash>
 #include <QMutex>
 #include <map>
 #include <memory>
@@ -9,6 +10,8 @@
 #include "include/database/entities/OtpProfile.h"
 
 namespace Configs {
+    enum class HotpAdvanceResult { Ok, Changed, StorageError };
+
     class OtpProfilesRepo {
     private:
         Database &db;
@@ -45,6 +48,10 @@ namespace Configs {
         [[nodiscard]] QList<int> GetAllOtpProfileIds() const;
 
         bool Save(const std::shared_ptr<OtpProfile> &profile);
+
+        // Compares the complete code-producing state and advances every counter
+        // in one transaction. Either all supplied HOTP rows move, or none do.
+        HotpAdvanceResult AdvanceHotpCounters(const QHash<int, OTP::Entry> &expected);
 
         void UpdateOtpProfilesOrder(const QList<int> &idsInOrder);
     };

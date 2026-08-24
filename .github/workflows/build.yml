@@ -213,7 +213,8 @@ jobs:
         uses: actions/checkout@v4.3.1
         with:
           repository: SagerNet/sing-box-dashboard
-          ref: gh-pages
+          # Reviewed dashboard snapshot; release builds must not follow a moving branch.
+          ref: a9d068d22a6cff77dbb2f803e7469209f2e76af4
           path: dashboard-src
       - name: Bundling the web dashboard
         shell: bash

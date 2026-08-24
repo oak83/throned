@@ -6,6 +6,8 @@
 
 namespace Configs
 {
+    class OtpCodeSession;
+
     // Not "dashboard": that one is the Clash external_ui dir, holding a different UI.
     inline constexpr auto apiDashboardDir = "sb-dashboard";
 
@@ -46,6 +48,9 @@ namespace Configs
         QList<AutoSelectorBuildInfo> autoSelectors;
         // Endpoint hop tag -> profile id, so a live status can be named after its profile.
         QMap<QString, int> vpnEndpointProfiles;
+        // Present only for an actual connection build. The caller commits it
+        // after the core accepts the finished config.
+        std::shared_ptr<OtpCodeSession> otpCodes;
     };
 
     class BuildTestConfigResult {
@@ -107,7 +112,11 @@ namespace Configs
     // sing-box duration grammar: one or more "<number><unit>" with unit ns/us/ms/s/m/h/d.
     bool IsValidDuration(const QString &text);
 
+    enum class ConfigBuildPurpose { Preview, Connect };
+
     std::shared_ptr<BuildConfigResult> BuildSingBoxConfig(const std::shared_ptr<Profile> &ent);
+    std::shared_ptr<BuildConfigResult> BuildSingBoxConfig(const std::shared_ptr<Profile> &ent,
+                                                          ConfigBuildPurpose purpose);
 
     // Tun plus a reject and nothing else. Keeping this running in place of a
     // stopped profile is what makes the kill switch a kill switch: sing-tun's

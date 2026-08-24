@@ -15,7 +15,10 @@
 #include <QMessageBox>
 #include <QRegularExpression>
 #include <QScreen>
+#include <QSet>
 #include <QTextBrowser>
+#include <QUrl>
+#include <QUrlQuery>
 #include <QVBoxLayout>
 
 #include "3rdparty/qv2ray/v2/proxy/QvProxyConfigurator.hpp"
@@ -407,7 +410,7 @@ bool isNewer(QString assetName) {
     return false;
 }
 
-constexpr auto dashboardDownloadURL = "https://github.com/SagerNet/sing-box-dashboard/archive/refs/heads/gh-pages.zip";
+constexpr auto dashboardDownloadURL = "https://github.com/SagerNet/sing-box-dashboard/archive/a9d068d22a6cff77dbb2f803e7469209f2e76af4.zip";
 
 bool copyOut(const QString &from, const QString &to) {
     QFile::remove(to);
@@ -424,7 +427,7 @@ bool unpackBundledDashboard(const QDir &dest) {
     while (it.hasNext()) {
         const auto source = it.next();
         const auto target = dest.filePath(bundle.relativeFilePath(source));
-        if (!dest.mkpath(QFileInfo(target).path()) || !copyOut(source, target)) return false;
+        if (!QDir().mkpath(QFileInfo(target).absolutePath()) || !copyOut(source, target)) return false;
     }
     return true;
 }
@@ -644,6 +647,37 @@ void MainWindow::CheckUpdate(bool silent) {
 }
 
 namespace {
+    bool isSensitiveQueryKey(const QString &key) {
+        static const QSet<QString> keys{
+            QStringLiteral("access_token"), QStringLiteral("api-key"), QStringLiteral("api_key"),
+            QStringLiteral("apikey"), QStringLiteral("auth"), QStringLiteral("authorization"),
+            QStringLiteral("key"), QStringLiteral("password"), QStringLiteral("secret"),
+            QStringLiteral("token"),
+        };
+        return keys.contains(key.toLower());
+    }
+
+    void appendUrlSecrets(const QString &text, QStringList &secrets) {
+        const auto url = QUrl::fromUserInput(text);
+        if (!url.isValid() || url.scheme().isEmpty() || url.host().isEmpty()) return;
+        if (!url.userInfo().isEmpty()) secrets << url.userInfo();
+        if (!url.password().isEmpty()) secrets << url.password();
+        const QUrlQuery query(url);
+        for (const auto &[key, value] : query.queryItems(QUrl::FullyDecoded)) {
+            if (isSensitiveQueryKey(key) && !value.isEmpty()) secrets << value;
+        }
+
+        // Personal DNS products commonly put the account id in the path instead
+        // of a query. Keep the provider visible while hiding that final segment.
+        const auto host = url.host().toLower();
+        const auto parts = url.path().split('/', Qt::SkipEmptyParts);
+        if (!parts.isEmpty() &&
+            (host == QStringLiteral("dns.nextdns.io") || host == QStringLiteral("d.adguard-dns.com") ||
+             (parts.size() > 1 && parts.at(parts.size() - 2) == QStringLiteral("dns-query")))) {
+            secrets << parts.last();
+        }
+    }
+
     // Values that must never leave the machine in a paste. Redaction is by literal
     // match rather than pattern: a token only has to be recognised once, here.
     QStringList collectSecrets() {
@@ -660,6 +694,13 @@ namespace {
             const auto group = Configs::dataManager->groupsRepo->GetGroup(groupID);
             if (group != nullptr && !group->url.isEmpty()) secrets << group->url;
         }
+        appendUrlSecrets(settings.remote_dns, secrets);
+        appendUrlSecrets(settings.direct_dns, secrets);
+        appendUrlSecrets(settings.core_box_underlying_dns, secrets);
+        static const QRegularExpression urlInJson(QStringLiteral(R"((?:https?|h3)://[^\s\"']+)"),
+                                                   QRegularExpression::CaseInsensitiveOption);
+        auto urls = urlInJson.globalMatch(settings.dns_object);
+        while (urls.hasNext()) appendUrlSecrets(urls.next().captured(), secrets);
         secrets.removeAll("");
         // Longest first, so a token that contains another is masked whole.
         std::sort(secrets.begin(), secrets.end(),
@@ -683,7 +724,50 @@ namespace {
             QStringLiteral(R"(\b(?:vless|vmess|trojan|ss|ssr|hysteria2?|hy2|tuic|anytls|socks5?|wireguard|wg|snell|mieru|juicity|naive|shadowtls|ssh|throne)://\S+)"),
             QRegularExpression::CaseInsensitiveOption);
         text.replace(shareLink, QStringLiteral("[link redacted]"));
+
+        // Preserve the resolver host for support while masking credentials and
+        // common token-bearing query fields even when they only appear in a
+        // generated DNS object rather than in the settings verbatim.
+        static const QRegularExpression urlUserInfo(
+            QStringLiteral(R"((\b[a-z][a-z0-9+.-]*://)[^/\s@\"']+@)"),
+            QRegularExpression::CaseInsensitiveOption);
+        text.replace(urlUserInfo, QStringLiteral("\\1[credentials redacted]@"));
+        static const QRegularExpression sensitiveQuery(
+            QStringLiteral(R"(([?&](?:access_token|api[-_]?key|apikey|auth|authorization|key|password|secret|token)=)[^&#\s\"']+)"),
+            QRegularExpression::CaseInsensitiveOption);
+        text.replace(sensitiveQuery, QStringLiteral("\\1[redacted]"));
         return text;
+    }
+
+    bool isSensitiveJsonKey(const QString &key) {
+        static const QSet<QString> keys{
+            QStringLiteral("access_token"), QStringLiteral("api-key"), QStringLiteral("api_key"),
+            QStringLiteral("apikey"), QStringLiteral("auth"), QStringLiteral("authorization"),
+            QStringLiteral("client_key"), QStringLiteral("cookie"), QStringLiteral("key"),
+            QStringLiteral("password"), QStringLiteral("private_key"), QStringLiteral("proxy-authorization"),
+            QStringLiteral("secret"), QStringLiteral("set-cookie"), QStringLiteral("token"),
+        };
+        return keys.contains(key.toLower());
+    }
+
+    QJsonValue redactJsonForDiagnostics(const QJsonValue &value, const bool redactValues = false) {
+        if (redactValues && !value.isArray() && !value.isObject()) return QStringLiteral("[redacted]");
+        if (value.isArray()) {
+            QJsonArray result;
+            for (const auto &item : value.toArray()) result.append(redactJsonForDiagnostics(item, redactValues));
+            return result;
+        }
+        if (value.isObject()) {
+            QJsonObject result;
+            const auto object = value.toObject();
+            for (auto it = object.constBegin(); it != object.constEnd(); ++it) {
+                const auto key = it.key().toLower();
+                const bool hideValue = redactValues || key == QStringLiteral("headers") || isSensitiveJsonKey(key);
+                result.insert(it.key(), redactJsonForDiagnostics(it.value(), hideValue));
+            }
+            return result;
+        }
+        return value;
     }
 
     QString onOff(const bool value) { return value ? QStringLiteral("on") : QStringLiteral("off"); }
@@ -728,7 +812,8 @@ QString MainWindow::collectDiagnostics() {
     if (running != nullptr) {
         if (const auto built = Configs::BuildSingBoxConfig(running); built != nullptr && built->error.isEmpty()) {
             out << "Generated dns section:";
-            out << QJsonObject2QString(built->coreConfig.value("dns").toObject(), true);
+            const auto dns = redactJsonForDiagnostics(built->coreConfig.value("dns")).toObject();
+            out << QJsonObject2QString(dns, true);
             out << "";
         }
     }

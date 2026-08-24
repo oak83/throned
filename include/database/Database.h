@@ -234,6 +234,12 @@ namespace Configs {
             }
         }
 
+        // Throwing counterpart used by atomic read/modify/write transactions.
+        template<typename... Args>
+        std::unique_ptr<SQLite::Statement> queryThrow(const std::string& sql, Args&&... args) {
+            return query0(sql, std::forward<Args>(args)...);
+        }
+
         void execDeleteByIdIn(const std::string& table, const std::string& idColumn, const std::vector<int>& ids) {
             try {
                 execDeleteByIdIn0(table, idColumn, ids);

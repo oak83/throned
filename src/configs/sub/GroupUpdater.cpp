@@ -1031,12 +1031,16 @@ namespace Subscription {
 
         // 网络请求
         if (asURL) {
-            auto groupName = group == nullptr ? content : group->name;
+            // A manually entered subscription URL may contain credentials in its
+            // path or query. Logs only need to identify the kind of request.
+            auto groupName = group == nullptr ? QObject::tr("manual URL") : group->name;
             MW_show_log(">>>>>>>> " + QObject::tr("Requesting subscription: %1").arg(groupName));
 
             auto resp = NetworkRequestHelper::HttpGet(content, Configs::dataManager->settingsRepo->sub_send_hwid);
             if (!resp.error.isEmpty()) {
-                MW_show_log("<<<<<<<< " + QObject::tr("Requesting subscription %1 error: %2").arg(groupName, resp.error + "\n" + resp.data));
+                // Error bodies commonly contain the complete subscription payload (plain
+                // or base64). It adds no actionable context and must not enter support logs.
+                MW_show_log("<<<<<<<< " + QObject::tr("Requesting subscription %1 error: %2").arg(groupName, resp.error));
                 return;
             }
 

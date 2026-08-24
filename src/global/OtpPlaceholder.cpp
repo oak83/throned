@@ -9,16 +9,39 @@ namespace Configs {
         if (otpProfileId < 0 || dataManager == nullptr || dataManager->otpProfilesRepo == nullptr) return {};
         auto profile = dataManager->otpProfilesRepo->GetOtpProfile(otpProfileId);
         if (profile == nullptr || !profile->Validate().isEmpty()) return {};
-        // RFC 4226: the code is the one for the counter as it stands, and only then
-        // does the counter move on. Incrementing first shifted every code by one step,
-        // so an imported counter=0 already answered with HOTP(K,1).
+        return profile->CurrentCode();
+    }
+
+    QString OtpCodeSession::Resolve(int otpProfileId)
+    {
+        if (codes.contains(otpProfileId)) return codes.value(otpProfileId);
+        if (otpProfileId < 0 || dataManager == nullptr || dataManager->otpProfilesRepo == nullptr) return {};
+
+        const auto profile = dataManager->otpProfilesRepo->GetOtpProfile(otpProfileId);
+        if (profile == nullptr || !profile->Validate().isEmpty()) return {};
         const auto code = profile->CurrentCode();
-        // HOTP has no time window, so every config build still consumes one step.
-        if (profile->type == OTP::Type::HOTP) {
-            profile->counter++;
-            dataManager->otpProfilesRepo->Save(profile);
-        }
+        codes.insert(otpProfileId, code);
+        if (profile->type == OTP::Type::HOTP)
+            hotpProfiles.insert(otpProfileId, static_cast<const OTP::Entry &>(*profile));
         return code;
+    }
+
+    QString OtpCodeSession::Commit()
+    {
+        if (hotpProfiles.isEmpty()) return {};
+        if (dataManager == nullptr || dataManager->otpProfilesRepo == nullptr)
+            return QObject::tr("OTP storage is not available");
+
+        switch (dataManager->otpProfilesRepo->AdvanceHotpCounters(hotpProfiles)) {
+        case HotpAdvanceResult::Changed:
+            return QObject::tr("HOTP profile changed while the config was being built");
+        case HotpAdvanceResult::StorageError:
+            return QObject::tr("Could not save the HOTP counter");
+        case HotpAdvanceResult::Ok:
+            break;
+        }
+        hotpProfiles.clear();
+        return {};
     }
 
     QString SubstituteOtp(const QString &text, const QString &code)

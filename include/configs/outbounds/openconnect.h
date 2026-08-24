@@ -3,6 +3,8 @@
 
 namespace Configs
 {
+    class OtpCodeSession;
+
     class OpenConnectToken : public baseConfig
     {
         public:
@@ -180,6 +182,7 @@ namespace Configs
         bool ParseFromJson(const QJsonObject& object) override;
         QJsonObject ExportToJson() override;
         BuildResult Build() override;
+        BuildResult Build(OtpCodeSession &otpCodes);
 
         QString DisplayAddress() override;
         QString DisplayType() override;

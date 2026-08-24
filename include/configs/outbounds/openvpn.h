@@ -3,6 +3,8 @@
 
 namespace Configs
 {
+    class OtpCodeSession;
+
     class OpenVPNRemote : public baseConfig
     {
         public:
@@ -148,6 +150,7 @@ namespace Configs
         bool ParseFromJson(const QJsonObject& object) override;
         QJsonObject ExportToJson() override;
         BuildResult Build() override;
+        BuildResult Build(OtpCodeSession &otpCodes);
 
         QString DisplayType() override;
         SecurityInfo GetSecurity() override;

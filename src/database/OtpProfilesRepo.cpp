@@ -172,6 +172,57 @@ namespace Configs {
         return true;
     }
 
+    HotpAdvanceResult OtpProfilesRepo::AdvanceHotpCounters(const QHash<int, OTP::Entry> &expected) {
+        if (expected.isEmpty()) return HotpAdvanceResult::Ok;
+        QMutexLocker locker(&mutex);
+
+        const auto matches = [](const OtpProfile &profile, const OTP::Entry &snapshot) {
+            return profile.type == OTP::Type::HOTP && profile.type == snapshot.type &&
+                   profile.secret == snapshot.secret && profile.algorithm == snapshot.algorithm &&
+                   profile.digits == snapshot.digits && profile.counter == snapshot.counter;
+        };
+
+        // Catch an unsaved edit held by the identity map as well as changes that
+        // have already reached SQLite.
+        for (auto it = expected.constBegin(); it != expected.constEnd(); ++it) {
+            if (const auto found = identityMap.find(it.key()); found != identityMap.end()) {
+                if (const auto profile = found->second.lock(); profile && !matches(*profile, it.value()))
+                    return HotpAdvanceResult::Changed;
+            }
+        }
+
+        try {
+            db.execThrow("BEGIN IMMEDIATE");
+            for (auto it = expected.constBegin(); it != expected.constEnd(); ++it) {
+                const auto &snapshot = it.value();
+                auto updated = db.queryThrow(
+                    "UPDATE otp_profiles SET counter = counter + 1, updated_at = strftime('%s', 'now') "
+                    "WHERE id = ? AND type = ? AND secret = ? AND algorithm = ? AND digits = ? AND counter = ? "
+                    "RETURNING counter",
+                    it.key(), static_cast<int>(OTP::Type::HOTP), snapshot.secret.toStdString(),
+                    static_cast<int>(snapshot.algorithm), snapshot.digits, snapshot.counter);
+                if (!updated->executeStep()) {
+                    updated.reset();
+                    db.execThrow("ROLLBACK");
+                    return HotpAdvanceResult::Changed;
+                }
+            }
+            db.execThrow("COMMIT");
+        } catch (std::exception &error) {
+            try { db.execThrow("ROLLBACK"); } catch (...) {}
+            NotifyError("advance HOTP counters", error);
+            return HotpAdvanceResult::StorageError;
+        }
+
+        for (auto it = expected.constBegin(); it != expected.constEnd(); ++it) {
+            if (const auto found = identityMap.find(it.key()); found != identityMap.end()) {
+                if (const auto profile = found->second.lock(); profile && matches(*profile, it.value()))
+                    profile->counter = it.value().counter + 1;
+            }
+        }
+        return HotpAdvanceResult::Ok;
+    }
+
     void OtpProfilesRepo::UpdateOtpProfilesOrder(const QList<int> &idsInOrder) {
         for (int i = 0; i < idsInOrder.size(); ++i) {
             db.exec("UPDATE otp_profiles SET sort_order = ? WHERE id = ?", i + 1, idsInOrder[i]);
