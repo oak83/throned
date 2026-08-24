@@ -816,7 +816,7 @@
                 </widget>
                </item>
                <item>
-                <widget class="QLineEdit" name="tls_spoof">
+                <widget class="MyLineEdit" name="tls_spoof">
                  <property name="placeholderText">
                   <string notr="true">api-maps.yandex.ru</string>
                  </property>
