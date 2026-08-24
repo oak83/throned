@@ -399,8 +399,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     selectionText->setObjectName(QStringLiteral("selectionText"));
     selectionLayout->addWidget(selectionText);
     selectionLayout->addStretch(1);
+    // A URL test rides on TCP, so it stays green on a path that drops UDP -- which
+    // is exactly what breaks Hysteria/TUIC/WireGuard. This measures that path.
+    auto *udpTestAction = new QAction(tr("UDP test Selected"), this);
+    ui->menu_server->insertAction(ui->actionUrl_Test_Selected, udpTestAction);
+    connect(udpTestAction, &QAction::triggered, this, [=, this] {
+        testRunner->runUdpTests(get_now_selected_list());
+    });
+
     const QList<QPair<QString, QAction *>> selectionActions{
         {tr("URL test"), ui->actionUrl_Test_Selected},
+        {tr("UDP test"), udpTestAction},
         {tr("Speed test"), ui->actionSpeedtest_Selected},
         {tr("Resolve IP"), ui->actionResolve_Selected_Out_IP},
     };

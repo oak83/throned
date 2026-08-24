@@ -139,7 +139,9 @@ QString DataViewHtmlGenerator::speedtestSectionHtml() {
 QString DataViewHtmlGenerator::latencyTestSectionHtml() {
     QString res;
     auto content =
-        latencyTest_.kind == LatencyTestPanelState::Kind::Url ? QString("Running URL test") : QString("Running IP test");
+        latencyTest_.kind == LatencyTestPanelState::Kind::Url   ? QString("Running URL test")
+        : latencyTest_.kind == LatencyTestPanelState::Kind::Udp ? QString("Running UDP test")
+                                                                : QString("Running IP test");
     if (latencyTest_.totalProfiles > 1) {
         auto progress = getProgressBar(testProgress.load(), latencyTest_.totalProfiles);
         progress += QString(" ") + Int2String(100 * testProgress.load() / latencyTest_.totalProfiles) + "%";

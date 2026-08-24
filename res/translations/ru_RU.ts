@@ -5172,6 +5172,22 @@ Please try again.</source>
         <translation>Тест задержки завершён!</translation>
     </message>
     <message>
+        <source>UDP test finished!</source>
+        <translation>UDP-тест завершён!</translation>
+    </message>
+    <message>
+        <source>UDP test Selected</source>
+        <translation>UDP-тест выбранных</translation>
+    </message>
+    <message>
+        <source>UDP test</source>
+        <translation>UDP-тест</translation>
+    </message>
+    <message>
+        <source>[%1] UDP test error: %2</source>
+        <translation>[%1] Ошибка UDP-теста: %2</translation>
+    </message>
+    <message>
         <source>Profile speed test aborted</source>
         <translation>Тест скорости профиля был отменён</translation>
     </message>
@@ -5371,6 +5387,10 @@ Name: %1</source>
 </context>
 <context>
     <name>ProfilesTableModel</name>
+    <message>
+        <source>UDP</source>
+        <translation>UDP</translation>
+    </message>
     <message>
         <source>This config&apos;s traffic is not properly protected.</source>
         <translation>Трафик этой конфигурации не защищен должным образом.</translation>
@@ -5604,6 +5624,10 @@ Deleted %5 Profiles:
     <message>
         <source>Default</source>
         <translation>По умолчанию</translation>
+    </message>
+    <message>
+        <source>No UDP</source>
+        <translation>Нет UDP</translation>
     </message>
     <message>
         <source>[%1] Full config profile: DNS, routing and inbound settings from Preferences are not applied; the profile supplies its own.</source>

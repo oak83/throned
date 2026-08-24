@@ -69,6 +69,13 @@ namespace Configs {
 
         [[nodiscard]] QString DisplayTestResult() const;
 
+        // UDP round trip through this outbound. Kept in memory only: nothing
+        // depends on it across restarts the way the auto-selector needs latency.
+        int udp_avg = 0;    // ms; 0 = never measured, -1 = nothing came back
+        int udp_jitter = 0; // ms
+        int udp_loss = 0;   // percent
+        [[nodiscard]] QString DisplayUDPResult() const;
+
         [[nodiscard]] QColor DisplayLatencyColor() const;
 
         [[nodiscard]] QString DisplayTraffic() const;

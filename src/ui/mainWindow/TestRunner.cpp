@@ -146,6 +146,78 @@ void TestRunner::applyIpResult(const std::shared_ptr<Configs::Profile>& ent, con
     Configs::dataManager->profilesRepo->Save(ent);
 }
 
+void TestRunner::applyUdpResult(const std::shared_ptr<Configs::Profile>& ent, const libcore::UDPTestRes& res) {
+    const auto error = QString::fromStdString(res.error.value());
+    const int sent = res.sent.value();
+    const int received = res.received.value();
+    if (!error.isEmpty() || received == 0) {
+        if (!error.isEmpty() && !isTestAborted(error)) {
+            MW_show_log(MainWindow::tr("[%1] UDP test error: %2").arg(ent->outbound->DisplayTypeAndName(), error));
+        }
+        ent->udp_avg = -1;
+        ent->udp_jitter = 0;
+        ent->udp_loss = 100;
+        return;
+    }
+    ent->udp_avg = res.avg_ms.value();
+    ent->udp_jitter = res.jitter_ms.value();
+    ent->udp_loss = sent > 0 ? (sent - received) * 100 / sent : 0;
+}
+
+void TestRunner::runUdpProbe(const Target& target) {
+    if (stopRequested_.load()) {
+        MW_show_log(MainWindow::tr("Profile test aborted"));
+        return;
+    }
+
+    libcore::UDPTestRequest req;
+    fillCommonTestReq(req, target);
+    req.max_concurrency = Configs::dataManager->settingsRepo->test_concurrent;
+    req.test_timeout_ms = Configs::dataManager->settingsRepo->url_test_timeout_ms;
+
+    bool rpcOK = false;
+    QString coreError;
+    libcore::UDPTestResp result;
+    {
+        ResultPoller poller([this, gen = sessionGen_.load(), tag2entID = target.tag2entID] {
+            if (sessionGen_.load() != gen) return;
+            bool ok = false;
+            const auto resp = defaultClient->QueryUDPTest(&ok);
+            if (!ok || resp.results.empty()) return;
+
+            QList<int> updated;
+            for (const auto& res : resp.results) {
+                mw_->dataViewHtmlGenerator_.addTestProgress();
+                mw_->UpdateDataView();
+                const int entid = resolveEntID(tag2entID, res.outbound_tag.value(), -1);
+                if (entid == -1) continue;
+                auto ent = Configs::dataManager->profilesRepo->GetProfile(entid);
+                if (ent == nullptr) continue;
+                applyUdpResult(ent, res);
+                updated << entid;
+            }
+            if (updated.isEmpty()) return;
+            mw_->UpdateDataView(true);
+            runOnUiThread([=, this] { mw_->refresh_proxy_list(updated); });
+        }, kLatencyPollIntervalMs);
+
+        result = defaultClient->UDPTest(&rpcOK, req, &coreError);
+    }
+
+    if (!rpcOK || result.results.empty()) {
+        if (!rpcOK) mw_->handleXrayGeoAssetError(coreError, contextName(target.entID));
+        return;
+    }
+
+    for (const auto& res : result.results) {
+        const int entid = resolveEntID(target.tag2entID, res.outbound_tag.value(), target.entID);
+        if (entid == -1) continue;
+        auto ent = Configs::dataManager->profilesRepo->GetProfile(entid);
+        if (ent == nullptr) continue;
+        applyUdpResult(ent, res);
+    }
+}
+
 void TestRunner::runUrlProbe(const Target& target) {
     if (stopRequested_.load()) {
         MW_show_log(MainWindow::tr("Profile test aborted"));
@@ -292,11 +364,17 @@ void TestRunner::runIpTests(const QList<int>& profileIDs) {
     runLatencyGroup(LatencyKind::Ip, profileIDs, {});
 }
 
+void TestRunner::runUdpTests(const QList<int>& profileIDs) {
+    runLatencyGroup(LatencyKind::Udp, profileIDs, {});
+}
+
 void TestRunner::runLatencyGroup(LatencyKind kind, const QList<int>& requestedIDs,
                                  const std::function<void()>& onFinished) {
     const bool isUrl = kind == LatencyKind::Url;
-    const auto panelKind = isUrl ? DataViewHtmlGenerator::LatencyTestPanelState::Kind::Url
-                                 : DataViewHtmlGenerator::LatencyTestPanelState::Kind::Ip;
+    const bool isUdp = kind == LatencyKind::Udp;
+    const auto panelKind = isUrl   ? DataViewHtmlGenerator::LatencyTestPanelState::Kind::Url
+                           : isUdp ? DataViewHtmlGenerator::LatencyTestPanelState::Kind::Udp
+                                   : DataViewHtmlGenerator::LatencyTestPanelState::Kind::Ip;
     // Must fire on every exit path — a caller may be blocked on it.
     const auto finish = [onFinished] { if (onFinished) onFinished(); };
 
@@ -314,12 +392,12 @@ void TestRunner::runLatencyGroup(LatencyKind kind, const QList<int>& requestedID
     }
     sessionGen_.fetch_add(1);
 
-    runOnNewThread([this, profileIDs, panelKind, isUrl, finish]() {
+    runOnNewThread([this, profileIDs, panelKind, isUrl, isUdp, finish]() {
         stopRequested_.store(false);
         mw_->dataViewHtmlGenerator_.seedLatencyTest(panelKind, profileIDs.size());
         mw_->UpdateDataView(true);
 
-        auto runBatch = [this, isUrl](const QList<std::shared_ptr<Configs::Profile>>& profileSlice, const QList<int>& ids) {
+        auto runBatch = [this, isUrl, isUdp](const QList<std::shared_ptr<Configs::Profile>>& profileSlice, const QList<int>& ids) {
             auto buildObject = Configs::BuildTestConfig(profileSlice);
             if (!buildObject->error.isEmpty()) {
                 MW_show_log(MainWindow::tr("Failed to build test config for batch: ") + buildObject->error);
@@ -333,10 +411,11 @@ void TestRunner::runLatencyGroup(LatencyKind kind, const QList<int>& requestedID
 
             // Its own latch: reusing the session mutex left it unheld between batches.
             QSemaphore batchDone;
-            const auto probe = [this, isUrl, &batchDone](const Target& target) {
-                mw_->parallelCoreCallPool->start([this, isUrl, target, &batchDone] {
+            const auto probe = [this, isUrl, isUdp, &batchDone](const Target& target) {
+                mw_->parallelCoreCallPool->start([this, isUrl, isUdp, target, &batchDone] {
                     const QSemaphoreReleaser releaser(batchDone);
                     if (isUrl) runUrlProbe(target);
+                    else if (isUdp) runUdpProbe(target);
                     else runIpProbe(target);
                 });
             };
@@ -359,7 +438,7 @@ void TestRunner::runLatencyGroup(LatencyKind kind, const QList<int>& requestedID
             }
             batchDone.acquire(testCount);
 
-            MW_show_log(isUrl ? "URL test for batch done." : "IP test for batch done.");
+            MW_show_log(isUrl ? "URL test for batch done." : isUdp ? "UDP test for batch done." : "IP test for batch done.");
             runOnUiThread([=, this] {
                 mw_->refresh_proxy_list(ids);
             });
@@ -389,7 +468,9 @@ void TestRunner::runLatencyGroup(LatencyKind kind, const QList<int>& requestedID
                mw_->clearUnavailableProfiles(false, profileIDs);
             });
         }
-        MW_show_log(isUrl ? MainWindow::tr("URL test finished!") : MainWindow::tr("IP test finished!"));
+        MW_show_log(isUrl   ? MainWindow::tr("URL test finished!")
+                    : isUdp ? MainWindow::tr("UDP test finished!")
+                            : MainWindow::tr("IP test finished!"));
     });
 }
 

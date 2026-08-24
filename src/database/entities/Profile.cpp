@@ -34,6 +34,15 @@ namespace Configs
         latency_at = ms == 0 ? 0 : QDateTime::currentSecsSinceEpoch();
     }
 
+    QString Profile::DisplayUDPResult() const {
+        if (udp_avg == 0) return {};
+        if (udp_avg < 0) return QObject::tr("No UDP");
+        QString result = QString("%1 ms").arg(udp_avg);
+        if (udp_jitter > 0) result += QString(" ±%1").arg(udp_jitter);
+        if (udp_loss > 0) result += QString(" / %1%").arg(udp_loss);
+        return result;
+    }
+
     QString Profile::DisplayTestResult() const {
         auto group = dataManager->groupsRepo->GetGroup(gid);
         if (group == nullptr) return "";

@@ -35,6 +35,10 @@ public:
 
     void runIpTests(const QList<int>& profileIDs);
 
+    // TCP latency says nothing about UDP: carriers throttle it separately, which
+    // is what kills QUIC-based protocols while every URL test still reports green.
+    void runUdpTests(const QList<int>& profileIDs);
+
     void runSpeedTests(const QList<int>& profileIDs, bool testCurrent = false);
 
     // Walks one profile's path hop by hop and hands back a line per hop, so a
@@ -49,7 +53,7 @@ public:
     bool isTestingCurrent() const { return testingCurrent_.load(); }
 
 private:
-    enum class LatencyKind { Url, Ip };
+    enum class LatencyKind { Url, Ip, Udp };
 
     struct Target {
         QString coreConfig;
@@ -71,6 +75,8 @@ private:
 
     void runIpProbe(const Target& target);
 
+    void runUdpProbe(const Target& target);
+
     void runSpeedProbe(const Target& target);
 
     // Shared by the live progress poll and the final pass, which must not drift.
@@ -79,6 +85,8 @@ private:
                         const QHash<QString, bool>* vpnConnected = nullptr);
 
     void applyIpResult(const std::shared_ptr<Configs::Profile>& ent, const libcore::IPTestRes& res);
+
+    void applyUdpResult(const std::shared_ptr<Configs::Profile>& ent, const libcore::UDPTestRes& res);
 
     QString contextName(int entID) const;
 
