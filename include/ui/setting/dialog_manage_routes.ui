@@ -600,6 +600,16 @@ For more information, see the document &quot;Configuration/DNS&quot;.</string>
            </widget>
           </item>
           <item>
+           <widget class="QCheckBox" name="apply_dns_to_full_config">
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Profiles that carry a whole sing-box config normally use the DNS servers written into that config, ignoring everything above. Turn this on to use these settings instead. If the profile\x27s own rules reference its DNS servers the swap is skipped and reported in the log.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="text">
+             <string>Apply these DNS settings to full-config profiles</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <layout class="QHBoxLayout" name="horizontalLayout_4">
             <item>
              <widget class="QCheckBox" name="use_dns_object">

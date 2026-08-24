@@ -2126,6 +2126,14 @@ This backup may have been created with a newer version of the application.</sour
 <context>
     <name>DialogManageRoutes</name>
     <message>
+        <source>Apply these DNS settings to full-config profiles</source>
+        <translation>Применять эти настройки DNS к профилям с полным конфигом</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Profiles that carry a whole sing-box config normally use the DNS servers written into that config, ignoring everything above. Turn this on to use these settings instead. If the profile&apos;s own rules reference its DNS servers the swap is skipped and reported in the log.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Профили, несущие целый конфиг sing-box, обычно используют DNS-серверы из этого конфига и игнорируют всё, что выше. Включите, чтобы вместо этого применялись здешние настройки. Если правила профиля ссылаются на его DNS-серверы, подмена отменяется и об этом сообщается в лог.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
         <source>Routing settings</source>
         <translation>Настройки маршрутизации</translation>
     </message>
@@ -5596,6 +5604,18 @@ Deleted %5 Profiles:
     <message>
         <source>Default</source>
         <translation>По умолчанию</translation>
+    </message>
+    <message>
+        <source>[%1] Full config profile: DNS, routing and inbound settings from Preferences are not applied; the profile supplies its own.</source>
+        <translation>[%1] Профиль с полным конфигом: настройки DNS, маршрутизации и входящих из «Настроек» не применяются — профиль задаёт свои.</translation>
+    </message>
+    <message>
+        <source>[%1] Applied your DNS settings over the profile&apos;s own.</source>
+        <translation>[%1] Ваши настройки DNS применены поверх собственных настроек профиля.</translation>
+    </message>
+    <message>
+        <source>[%1] Kept the profile&apos;s own DNS: your settings would break it (%2).</source>
+        <translation>[%1] Оставлен собственный DNS профиля: ваши настройки его сломали бы (%2).</translation>
     </message>
     <message>
         <source>Local DNS and Tun mode do not work together, please set an IP to be used as the Local DNS server in the Routing Settings -&gt; Local override</source>

@@ -240,6 +240,8 @@ namespace Configs {
         bool disable_private_range_bypass = false;
 
         // DPI bypass preset. The mechanism is region-agnostic; only the lists below are not.
+        // Full configs normally supply their own dns section; this lets the app one win instead.
+        bool apply_dns_to_full_config = false;
         bool dpi_bypass_block_quic = true;
         QString dpi_bypass_method = "spoof";
         QString dpi_bypass_spoof_sni = "api-maps.yandex.ru";

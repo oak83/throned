@@ -567,6 +567,7 @@ QDialog#routeProfileEditor QCheckBox { color: #DDE2E7; spacing: 8px; }
     ui->default_domain_strategy->setCurrentText(Configs::dataManager->settingsRepo->default_domain_strategy);
     ui->domainStrategyCombo->setCurrentText(Configs::dataManager->settingsRepo->resolve_domain_strategy);
     ui->use_dns_object->setChecked(Configs::dataManager->settingsRepo->use_dns_object);
+    ui->apply_dns_to_full_config->setChecked(Configs::dataManager->settingsRepo->apply_dns_to_full_config);
     ui->remote_dns->setCurrentText(Configs::dataManager->settingsRepo->remote_dns);
     ui->remote_dns_strategy->setCurrentText(Configs::dataManager->settingsRepo->remote_dns_strategy);
     ui->direct_dns->setCurrentText(Configs::dataManager->settingsRepo->direct_dns);
@@ -708,6 +709,7 @@ void DialogManageRoutes::accept() {
     Configs::dataManager->settingsRepo->resolve_domain_strategy = ui->domainStrategyCombo->currentText();
     Configs::dataManager->settingsRepo->default_domain_strategy = ui->default_domain_strategy->currentText();
     Configs::dataManager->settingsRepo->use_dns_object = ui->use_dns_object->isChecked();
+    Configs::dataManager->settingsRepo->apply_dns_to_full_config = ui->apply_dns_to_full_config->isChecked();
     Configs::dataManager->settingsRepo->dns_object = dns_object_text;
     Configs::dataManager->settingsRepo->remote_dns = ui->remote_dns->currentText();
     Configs::dataManager->settingsRepo->remote_dns_strategy = ui->remote_dns_strategy->currentText();

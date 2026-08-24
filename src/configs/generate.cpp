@@ -2610,9 +2610,30 @@ namespace Configs {
             if (custom->type == Custom::CustomFullConfig)
             {
                 // The profile carries the whole core config, so nothing below this point runs.
-                MW_show_log(QObject::tr("[%1] Full config profile: DNS, routing and inbound settings from Preferences are not applied; the profile supplies its own.")
-                                .arg(ent->outbound->DisplayName()));
-                res->coreConfig = custom->Build().object;
+                auto obj = custom->Build().object;
+                const auto name = ent->outbound->DisplayName();
+                if (dataManager->settingsRepo->apply_dns_to_full_config) {
+                    BuildContext dnsCtx;
+                    dnsCtx.ent = ent;
+                    buildDNSSection(dnsCtx);
+                    if (dnsCtx.error.isEmpty() && dnsCtx.result->coreConfig.contains("dns")) {
+                        const auto original = obj.value("dns");
+                        obj["dns"] = dnsCtx.result->coreConfig["dns"];
+                        // The profile\x27s own rules may name its dns servers; swapping the section
+                        // would leave those dangling, so the swap only stands if it still validates.
+                        if (const auto problems = FindDanglingReferences(obj); !problems.isEmpty()) {
+                            if (original.isUndefined()) obj.remove("dns"); else obj["dns"] = original;
+                            MW_show_log(QObject::tr("[%1] Kept the profile\x27s own DNS: your settings would break it (%2).")
+                                            .arg(name, problems.join(", ")));
+                        } else {
+                            MW_show_log(QObject::tr("[%1] Applied your DNS settings over the profile\x27s own.").arg(name));
+                        }
+                    }
+                } else {
+                    MW_show_log(QObject::tr("[%1] Full config profile: DNS, routing and inbound settings from Preferences are not applied; the profile supplies its own.")
+                                    .arg(name));
+                }
+                res->coreConfig = obj;
                 return res;
             }
         }
