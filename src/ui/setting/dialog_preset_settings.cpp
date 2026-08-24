@@ -14,7 +14,7 @@ namespace {
     const QStringList kMethodKeys = {"spoof", "fragment", "record_fragment"};
 
     constexpr auto kRussiaRuleSet = "geosite-ru-blocked";
-    constexpr auto kRussiaSpoofSNI = "api-maps.yandex.ru";
+    constexpr auto kRussiaSpoofSNI = "max.ru";
 }
 
 DialogPresetSettings::DialogPresetSettings(QWidget *parent) : QDialog(parent), ui(new Ui::DialogPresetSettings) {
