@@ -1,9 +1,156 @@
 #include "include/ui/setting/dialog_preset_settings.h"
 
+#include "include/global/Configs.hpp"
+#include "include/global/Const.hpp"
+#include "include/database/entities/RouteProfile.h"
+#include "include/database/ProfilesRepo.h"
+
+namespace {
+    constexpr auto kRouteProfileName = "DPI Bypass";
+
+    // Combo position -> stored key. Order matches the items added below.
+    const QStringList kMethodKeys = {"spoof", "fragment", "record_fragment"};
+
+    constexpr auto kRussiaRuleSet = "geosite-ru-blocked";
+    constexpr auto kRussiaSpoofSNI = "api-maps.yandex.ru";
+}
+
 DialogPresetSettings::DialogPresetSettings(QWidget *parent) : QDialog(parent), ui(new Ui::DialogPresetSettings) {
     ui->setupUi(this);
+
+    ui->dpi_method->addItems({tr("Fake ClientHello (spoof)"), tr("TLS fragment"), tr("TLS record fragment")});
+    ui->dpi_spoof_method->addItems(Configs::SingboxOptions::tlsSpoofMethods);
+
+    loadDpiSettings();
+    refreshDpiEnabledState();
+
+    connect(ui->dpi_method, &QComboBox::currentIndexChanged, this, [this] { refreshDpiEnabledState(); });
+    connect(ui->dpi_preset_ru, &QPushButton::clicked, this, [this] {
+        ui->dpi_rule_sets->setPlainText(kRussiaRuleSet);
+        ui->dpi_spoof_sni->setText(kRussiaSpoofSNI);
+    });
+    connect(ui->dpi_preset_clear, &QPushButton::clicked, this, [this] { ui->dpi_rule_sets->clear(); });
+    connect(ui->dpi_apply, &QPushButton::clicked, this, [this] { applyDpiPreset(); });
 }
 
 DialogPresetSettings::~DialogPresetSettings() {
     delete ui;
+}
+
+void DialogPresetSettings::loadDpiSettings() const {
+    const auto &settings = Configs::dataManager->settingsRepo;
+    const int index = kMethodKeys.indexOf(settings->dpi_bypass_method);
+    ui->dpi_method->setCurrentIndex(index < 0 ? 0 : index);
+    ui->dpi_spoof_sni->setText(settings->dpi_bypass_spoof_sni);
+    ui->dpi_spoof_method->setCurrentText(settings->dpi_bypass_spoof_method);
+    ui->dpi_block_quic->setChecked(settings->dpi_bypass_block_quic);
+    ui->dpi_rule_sets->setPlainText(settings->dpi_bypass_rule_sets.join("\n"));
+}
+
+void DialogPresetSettings::saveDpiSettings() const {
+    const auto &settings = Configs::dataManager->settingsRepo;
+    settings->dpi_bypass_method = kMethodKeys.value(ui->dpi_method->currentIndex(), kMethodKeys.first());
+    settings->dpi_bypass_spoof_sni = ui->dpi_spoof_sni->text().trimmed();
+    settings->dpi_bypass_spoof_method = ui->dpi_spoof_method->currentText();
+    settings->dpi_bypass_block_quic = ui->dpi_block_quic->isChecked();
+
+    QStringList sets;
+    for (const auto &line: ui->dpi_rule_sets->toPlainText().split('\n')) {
+        if (const auto trimmed = line.trimmed(); !trimmed.isEmpty()) sets << trimmed;
+    }
+    settings->dpi_bypass_rule_sets = sets;
+}
+
+void DialogPresetSettings::refreshDpiEnabledState() const {
+    const bool spoofing = ui->dpi_method->currentIndex() == kMethodKeys.indexOf("spoof");
+    ui->dpi_spoof_sni->setEnabled(spoofing);
+    ui->dpi_spoof_sni_l->setEnabled(spoofing);
+    ui->dpi_spoof_method->setEnabled(spoofing);
+    ui->dpi_spoof_method_l->setEnabled(spoofing);
+}
+
+void DialogPresetSettings::applyDpiPreset() {
+    saveDpiSettings();
+    const auto &settings = Configs::dataManager->settingsRepo;
+
+    if (settings->dpi_bypass_rule_sets.isEmpty()) {
+        ui->dpi_status->setText(tr("Add at least one domain list first."));
+        return;
+    }
+    if (settings->dpi_bypass_method == "spoof" && settings->dpi_bypass_spoof_sni.isEmpty()) {
+        ui->dpi_status->setText(tr("Spoofing needs a decoy SNI."));
+        return;
+    }
+
+    std::shared_ptr<Configs::RouteProfile> target;
+    for (const auto &profile: Configs::dataManager->routesRepo->GetAllRouteProfiles()) {
+        if (profile->name == kRouteProfileName) {
+            target = profile;
+            break;
+        }
+    }
+    const bool isNew = target == nullptr;
+    if (isNew) {
+        target = std::make_shared<Configs::RouteProfile>();
+        target->name = kRouteProfileName;
+    }
+
+    target->defaultOutboundID = Configs::directID;
+    target->Rules.clear();
+
+    auto dnsRule = std::make_shared<Configs::RouteRule>();
+    dnsRule->name = "Route DNS";
+    dnsRule->action = "hijack-dns";
+    dnsRule->protocol = "dns";
+    target->Rules << dnsRule;
+
+    if (settings->dpi_bypass_block_quic) {
+        auto quicRule = std::make_shared<Configs::RouteRule>();
+        quicRule->name = "Block QUIC";
+        quicRule->action = "reject";
+        quicRule->network = "udp";
+        quicRule->port << "443";
+        target->Rules << quicRule;
+    }
+
+    // route-options only tags the connection and keeps matching, so the listed
+    // domains still fall through to the profile's direct default.
+    auto bypassRule = std::make_shared<Configs::RouteRule>();
+    bypassRule->name = "DPI bypass";
+    bypassRule->action = "route-options";
+    bypassRule->rule_set = settings->dpi_bypass_rule_sets;
+    if (settings->dpi_bypass_method == "spoof") {
+        bypassRule->tls_spoof = settings->dpi_bypass_spoof_sni;
+        bypassRule->tls_spoof_method = settings->dpi_bypass_spoof_method;
+    } else if (settings->dpi_bypass_method == "fragment") {
+        bypassRule->tls_fragment = true;
+    } else {
+        bypassRule->tls_record_fragment = true;
+    }
+    target->Rules << bypassRule;
+
+    if (isNew) {
+        if (!Configs::dataManager->routesRepo->AddRouteProfile(target)) {
+            ui->dpi_status->setText(tr("Could not save the routing profile."));
+            return;
+        }
+    } else {
+        Configs::dataManager->routesRepo->UpdateRouteProfiles({target});
+    }
+    settings->current_route_id = target->id;
+
+    // Without a direct profile there is nothing to start, so the bypass would have no carrier.
+    QString extra;
+    if (Configs::dataManager->profilesRepo->GetProfileIdsByType("direct").isEmpty()) {
+        auto directProfile = Configs::ProfilesRepo::NewProfile("direct");
+        directProfile->outbound->name = tr("Direct (no proxy)");
+        if (Configs::dataManager->profilesRepo->AddProfile(directProfile)) {
+            extra = " " + tr("Added a \"%1\" profile to the current group.").arg(directProfile->outbound->name);
+        }
+    }
+
+    Configs::dataManager->settingsRepo->Save();
+    ui->dpi_status->setText(
+        (isNew ? tr("Created routing profile \"%1\" and selected it.") : tr("Updated routing profile \"%1\" and selected it."))
+        .arg(kRouteProfileName) + extra + " " + tr("Turn on Tun Mode, then start a direct profile."));
 }

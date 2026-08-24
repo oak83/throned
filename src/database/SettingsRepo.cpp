@@ -56,6 +56,7 @@ namespace Configs {
             {"allow_beta_update",             &allow_beta_update},
             {"adblock_enable",                &adblock_enable},
             {"show_system_dns",               &show_system_dns},
+            {"dpi_bypass_block_quic",         &dpi_bypass_block_quic},
             {"use_custom_icons",              &use_custom_icons},
             {"xray_mux_default_on",           &xray_mux_default_on},
             {"use_dns_object",                &use_dns_object},
@@ -171,6 +172,9 @@ namespace Configs {
             {"inbound_user",               &inbound_user},
             {"inbound_pass",               &inbound_pass},
             {"url_scheme_mirror",          &url_scheme_mirror},
+            {"dpi_bypass_method",          &dpi_bypass_method},
+            {"dpi_bypass_spoof_sni",       &dpi_bypass_spoof_sni},
+            {"dpi_bypass_spoof_method",    &dpi_bypass_spoof_method},
         };
 
         stringListMap = {
@@ -187,6 +191,7 @@ namespace Configs {
             {"dial_inet4_bind_history",  &dial_inet4_bind_address_history},
             {"dial_inet6_bind_history",  &dial_inet6_bind_address_history},
             {"warp_reserved", &warp_reserved},
+            {"dpi_bypass_rule_sets",     &dpi_bypass_rule_sets},
         };
     }
 

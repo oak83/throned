@@ -238,6 +238,13 @@ namespace Configs {
         bool vpn_l3_bridge = false;
         int vpn_mtu = 1500;
         bool disable_private_range_bypass = false;
+
+        // DPI bypass preset. The mechanism is region-agnostic; only the lists below are not.
+        bool dpi_bypass_block_quic = true;
+        QString dpi_bypass_method = "spoof";
+        QString dpi_bypass_spoof_sni = "api-maps.yandex.ru";
+        QString dpi_bypass_spoof_method = "wrong-sequence";
+        QStringList dpi_bypass_rule_sets = {"geosite-ru-blocked"};
         QStringList vpn_private_ranges = defaultTunPrivateRanges();
         bool vpn_ipv6 = false;
         QString vpn_tun_ipv4_cidr = "172.19.0.1/24";

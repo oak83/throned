@@ -19,5 +19,13 @@ public:
     ~DialogPresetSettings() override;
 
 private:
+    void loadDpiSettings() const;
+
+    void saveDpiSettings() const;
+
+    void refreshDpiEnabledState() const;
+
+    void applyDpiPreset();
+
     Ui::DialogPresetSettings *ui;
 };
