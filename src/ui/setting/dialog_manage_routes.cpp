@@ -33,7 +33,7 @@
 #include "include/ui/widget/FlowLayout.h"
 #include "include/ui/widget/MaterialIcon.h"
 #include "include/ui/widget/ThronedTitleBar.h"
-#include "include/ui/widget/ThronedWindowResizer.h"
+#include "include/ui/widget/ThronedWindowChrome.h"
 
 #include <QButtonGroup>
 #include <QFrame>
@@ -263,8 +263,6 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
     ui->setupUi(this);
     setObjectName(QStringLiteral("routeProfileEditor"));
     setWindowTitle(tr("Routing settings"));
-    setWindowFlag(Qt::FramelessWindowHint, true);
-    new ThronedWindowResizer(this);
     setMinimumSize(900, 620);
     FitWindowToScreen(this, QSize(1000, 700));
     ui->tabWidget->setStyleSheet({});
@@ -287,7 +285,7 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
     while (QLayoutItem *item = root->takeAt(0)) delete item;
     root->setContentsMargins(1, 1, 1, 1);
     root->setSpacing(0);
-    root->addWidget(new ThronedTitleBar(tr("Routing settings"), this));
+    root->addWidget(ThronedChrome::install(this, tr("Routing settings")));
 
     auto *body = new QWidget(this);
     body->setObjectName(QStringLiteral("routeSettingsBody"));

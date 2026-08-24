@@ -10,7 +10,7 @@
 #include "include/ui/widget/FlowLayout.h"
 #include "include/ui/widget/MaterialIcon.h"
 #include "include/ui/widget/ThronedTitleBar.h"
-#include "include/ui/widget/ThronedWindowResizer.h"
+#include "include/ui/widget/ThronedWindowChrome.h"
 #include "include/ui/widget/ThronedToggle.h"
 
 #include <srslist.h>
@@ -491,7 +491,7 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     while (QLayoutItem *item = dialogLayout->takeAt(0)) delete item;
     dialogLayout->setContentsMargins(1, 1, 1, 1);
     dialogLayout->setSpacing(0);
-    dialogLayout->addWidget(new ThronedTitleBar(tr("Route profile"), this));
+    dialogLayout->addWidget(ThronedChrome::install(this, tr("Route profile")));
 
     auto *body = new QWidget(this);
     body->setObjectName(QStringLiteral("routeBody"));
@@ -570,8 +570,6 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
     dialogLayout->addWidget(body, 1);
 
     themeManager->RegisterStyle(this, RouteProfileSimpleEditor::dialogStyleSheet());
-    setWindowFlag(Qt::FramelessWindowHint, true);
-    new ThronedWindowResizer(this);
     setMinimumSize(960, 680);
     FitWindowToScreen(this, QSize(1085, 761));
 

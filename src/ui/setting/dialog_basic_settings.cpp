@@ -6,7 +6,7 @@
 #include "include/ui/setting/RouteProfileSimpleEditor.h"
 #include "include/ui/widget/MaterialIcon.h"
 #include "include/ui/widget/ThronedTitleBar.h"
-#include "include/ui/widget/ThronedWindowResizer.h"
+#include "include/ui/widget/ThronedWindowChrome.h"
 #include "include/ui/widget/ThronedToggle.h"
 #include "include/global/GuiUtils.hpp"
 #include "include/global/Configs.hpp"
@@ -320,8 +320,6 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     // loading, validation and saving continue to use the existing code paths.
     setObjectName(QStringLiteral("basicSettingsDialog"));
     setWindowTitle(tr("Settings"));
-    setWindowFlag(Qt::FramelessWindowHint, true);
-    new ThronedWindowResizer(this);
 
     const auto retireLegacyPage = [this](QWidget *page) {
         if (page == nullptr) return;
@@ -462,7 +460,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     oldRoot->setContentsMargins(1, 1, 1, 1);
     oldRoot->setHorizontalSpacing(0);
     oldRoot->setVerticalSpacing(0);
-    oldRoot->addWidget(new ThronedTitleBar(tr("Settings"), this), 0, 0);
+    oldRoot->addWidget(ThronedChrome::install(this, tr("Settings")), 0, 0);
 
     auto *body = new QWidget(this);
     body->setObjectName(QStringLiteral("settingsBody"));

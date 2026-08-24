@@ -39,11 +39,19 @@ class ThronedTitleBar final : public QFrame {
 public:
     explicit ThronedTitleBar(const QString &context = {}, QWidget *parent = nullptr);
 
+    [[nodiscard]] ThronedCaptionButton *minimizeButton() const { return minimize_; }
+
+    [[nodiscard]] ThronedCaptionButton *maximizeButton() const { return maximize_; }
+
+    [[nodiscard]] ThronedCaptionButton *closeButton() const { return close_; }
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
 
 private:
+    ThronedCaptionButton *minimize_ = nullptr;
     ThronedCaptionButton *maximize_ = nullptr;
+    ThronedCaptionButton *close_ = nullptr;
 };

@@ -30,7 +30,7 @@
 #include "include/ui/widget/ThronedTitleBar.h"
 #include <QPainter>
 #include "include/ui/widget/ThronedToggle.h"
-#include "include/ui/widget/ThronedWindowResizer.h"
+#include "include/ui/widget/ThronedWindowChrome.h"
 #include "include/control/ThronedControl.h"
 
 #include "include/configs/generate.h"
@@ -345,7 +345,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     auto *rootLayout = new QVBoxLayout(redesignedCentral);
     rootLayout->setContentsMargins(1, 1, 1, 1);
     rootLayout->setSpacing(0);
-    rootLayout->addWidget(new ThronedTitleBar({}, redesignedCentral));
+    rootLayout->addWidget(ThronedChrome::install(this));
 
     auto *body = new QWidget(redesignedCentral);
     body->setObjectName(QStringLiteral("body"));
@@ -613,8 +613,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(themeManager, &ThemeManager::themeChanged, this, retintIcons);
     refreshRoutingStatus();
 
-    setWindowFlag(Qt::FramelessWindowHint, true);
-    new ThronedWindowResizer(this);
     setMinimumSize(960, 680);
     FitWindowToScreen(this);
     ui->centralwidget = redesignedCentral;

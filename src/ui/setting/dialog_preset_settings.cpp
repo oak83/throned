@@ -9,7 +9,7 @@
 #include "include/ui/setting/RouteProfileSimpleEditor.h"
 #include "include/ui/setting/ThemeManager.hpp"
 #include "include/ui/widget/ThronedTitleBar.h"
-#include "include/ui/widget/ThronedWindowResizer.h"
+#include "include/ui/widget/ThronedWindowChrome.h"
 #include "include/global/GuiUtils.hpp"
 
 #include <QTabBar>
@@ -31,8 +31,6 @@ DialogPresetSettings::DialogPresetSettings(QWidget *parent) : QDialog(parent), u
     setObjectName(QStringLiteral("routeProfileEditor"));
     themeManager->RegisterStyle(this, RouteProfileSimpleEditor::dialogStyleSheet());
 
-    setWindowFlag(Qt::FramelessWindowHint, true);
-    new ThronedWindowResizer(this);
     setMinimumSize(680, 560);
     FitWindowToScreen(this, QSize(760, 620));
 
@@ -44,7 +42,7 @@ DialogPresetSettings::DialogPresetSettings(QWidget *parent) : QDialog(parent), u
     auto *root = ui->verticalLayout;
     root->setContentsMargins(1, 1, 1, 1);
     root->setSpacing(0);
-    root->insertWidget(0, new ThronedTitleBar(tr("DPI Bypass"), this));
+    root->insertWidget(0, ThronedChrome::install(this, tr("DPI Bypass")));
 
     ui->tabWidget->setObjectName(QStringLiteral("routeBody"));
     ui->dpi_layout->setContentsMargins(16, 14, 16, 14);

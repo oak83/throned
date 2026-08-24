@@ -35,9 +35,42 @@ if (UNIX AND NOT APPLE)
 endif ()
 
 option(THRONED_UNITY_BUILD "Compile the app as unity batches" ON)
+# Qt headers are the bulk of every translation unit and are re-parsed by each one.
+# Precompiling them is the cheapest large win, but it force-includes them everywhere,
+# so like the unity build it hides a missing #include -- turn both off for the build
+# that has to be honest about that.
+option(THRONED_PRECOMPILE_HEADERS "Precompile the common Qt headers" ON)
+
+# Uses whichever compiler cache is installed; absent, the build simply runs as before.
+if (NOT CMAKE_CXX_COMPILER_LAUNCHER)
+    find_program(THRONED_COMPILER_CACHE NAMES sccache ccache)
+    if (THRONED_COMPILER_CACHE)
+        set(CMAKE_C_COMPILER_LAUNCHER "${THRONED_COMPILER_CACHE}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${THRONED_COMPILER_CACHE}")
+        message(STATUS "Using compiler cache: ${THRONED_COMPILER_CACHE}")
+    endif ()
+endif ()
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Network Svg LinguistTools ${QT_DBUS_COMPONENT})
 find_package(Qt6 QUIET COMPONENTS Test)
+
+# Window chrome. Qt::FramelessWindowHint drops the whole native frame, and with it the
+# open/close animations, Aero Snap, Snap Layout and the resize borders -- which is why
+# the hand-rolled resizer never felt right. QWindowKit keeps the frame and replaces only
+# what the caption draws, the way Chrome and VS Code do it. Pinned to a commit so a
+# release never depends on whatever the branch looked like that day.
+include(FetchContent)
+set(QWINDOWKIT_BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(QWINDOWKIT_BUILD_WIDGETS ON CACHE BOOL "" FORCE)
+set(QWINDOWKIT_BUILD_QUICK OFF CACHE BOOL "" FORCE)
+set(QWINDOWKIT_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(QWINDOWKIT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(QWINDOWKIT_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(qwindowkit
+        GIT_REPOSITORY https://github.com/stdware/qwindowkit.git
+        GIT_TAG 4f683f2e0e4f3a7d6061d0224de9ed30e7c17e0f
+        GIT_SUBMODULES_RECURSE ON)
+FetchContent_MakeAvailable(qwindowkit)
 
 include("cmake/nkr.cmake")
 
@@ -162,10 +195,9 @@ set(PROJECT_SOURCES
         src/ui/widget/MaterialIcon.cpp
         include/ui/widget/ThronedTitleBar.h
         src/ui/widget/ThronedTitleBar.cpp
+        src/ui/widget/ThronedWindowChrome.cpp
         include/ui/widget/ThronedToggle.h
         src/ui/widget/ThronedToggle.cpp
-        include/ui/widget/ThronedWindowResizer.h
-        src/ui/widget/ThronedWindowResizer.cpp
 
         src/ui/mainWindow/mainwindow_setup.cpp
         src/ui/mainWindow/mainwindow_events.cpp
@@ -634,10 +666,18 @@ target_sources(Throned PRIVATE ${CMAKE_BINARY_DIR}/translations.qrc)
 
 target_link_libraries(Throned PRIVATE
         Qt6::Widgets Qt6::Network Qt6::Svg ${QT_DBUS_LIBRARY}
+        QWindowKit::Widgets
         Threads::Threads
         ${NKR_EXTERNAL_TARGETS}
         ${PLATFORM_LIBRARIES}
 )
+
+if (THRONED_PRECOMPILE_HEADERS)
+    # Restricted to C++: the target also carries C sources, and CMake would otherwise
+    # try to precompile these as C and fail on the first Qt header.
+    target_precompile_headers(Throned PRIVATE
+            "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/include/global/PrecompiledHeaders.hpp>")
+endif ()
 
 qt_finalize_executable(Throned)
 

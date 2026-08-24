@@ -133,17 +133,17 @@ ThronedTitleBar::ThronedTitleBar(const QString &context, QWidget *parent) : QFra
         button->setObjectName(name);
         return button;
     };
-    auto *minimize = makeButton(ThronedCaptionButton::Glyph::Minimize, QStringLiteral("titleMinimize"));
+    minimize_ = makeButton(ThronedCaptionButton::Glyph::Minimize, QStringLiteral("titleMinimize"));
     maximize_ = makeButton(ThronedCaptionButton::Glyph::Maximize, QStringLiteral("titleMaximize"));
-    auto *close = makeButton(ThronedCaptionButton::Glyph::Close, QStringLiteral("titleClose"));
-    layout->addWidget(minimize);
+    close_ = makeButton(ThronedCaptionButton::Glyph::Close, QStringLiteral("titleClose"));
+    layout->addWidget(minimize_);
     layout->addWidget(maximize_);
-    layout->addWidget(close);
-    connect(minimize, &QToolButton::clicked, this, [this] { window()->showMinimized(); });
+    layout->addWidget(close_);
+    connect(minimize_, &QToolButton::clicked, this, [this] { window()->showMinimized(); });
     connect(maximize_, &QToolButton::clicked, this, [this] {
         window()->isMaximized() ? window()->showNormal() : window()->showMaximized();
     });
-    connect(close, &QToolButton::clicked, this, [this] { window()->close(); });
+    connect(close_, &QToolButton::clicked, this, [this] { window()->close(); });
     window()->installEventFilter(this);
 }
 
