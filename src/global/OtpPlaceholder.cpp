@@ -9,12 +9,16 @@ namespace Configs {
         if (otpProfileId < 0 || dataManager == nullptr || dataManager->otpProfilesRepo == nullptr) return {};
         auto profile = dataManager->otpProfilesRepo->GetOtpProfile(otpProfileId);
         if (profile == nullptr || !profile->Validate().isEmpty()) return {};
-        // HOTP has no time window, so every config build consumes one counter step.
+        // RFC 4226: the code is the one for the counter as it stands, and only then
+        // does the counter move on. Incrementing first shifted every code by one step,
+        // so an imported counter=0 already answered with HOTP(K,1).
+        const auto code = profile->CurrentCode();
+        // HOTP has no time window, so every config build still consumes one step.
         if (profile->type == OTP::Type::HOTP) {
             profile->counter++;
             dataManager->otpProfilesRepo->Save(profile);
         }
-        return profile->CurrentCode();
+        return code;
     }
 
     QString SubstituteOtp(const QString &text, const QString &code)
