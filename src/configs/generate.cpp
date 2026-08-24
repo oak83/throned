@@ -2609,6 +2609,9 @@ namespace Configs {
             }
             if (custom->type == Custom::CustomFullConfig)
             {
+                // The profile carries the whole core config, so nothing below this point runs.
+                MW_show_log(QObject::tr("[%1] Full config profile: DNS, routing and inbound settings from Preferences are not applied; the profile supplies its own.")
+                                .arg(ent->outbound->DisplayName()));
                 res->coreConfig = custom->Build().object;
                 return res;
             }
