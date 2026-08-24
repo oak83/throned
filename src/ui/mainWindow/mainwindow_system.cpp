@@ -434,12 +434,17 @@ void MainWindow::SeedDashboard() {
     if (!QFile::exists(dashDir.filePath("index.html"))) unpackBundledDashboard(dashDir);
     // Reinstalling replaces the whole directory, so this cannot be a one-time copy.
     auto src = QFile(":/Throned/dashboard-bootstrap.html");
-    if (!src.open(QIODevice::ReadOnly)) return;
+    if (!src.open(QIODevice::ReadOnly)) {
+        MW_show_log(tr("Dashboard bootstrap resource is missing from the build; the dashboard page will not load."));
+        return;
+    }
     const auto data = src.readAll();
     src.close();
     if (auto dest = QFile(dashDir.filePath("throne.html")); dest.open(QIODevice::Truncate | QIODevice::WriteOnly)) {
         dest.write(data);
         dest.close();
+    } else {
+        MW_show_log(tr("Could not write the dashboard page to %1").arg(dashDir.filePath("throne.html")));
     }
 }
 
@@ -633,4 +638,100 @@ void MainWindow::CheckUpdate(bool silent) {
                           QObject::tr("%1 is ready to download. Click to see the release notes.").arg(assets_name),
                           QSystemTrayIcon::Information, 10000);
     });
+}
+
+namespace {
+    // Values that must never leave the machine in a paste. Redaction is by literal
+    // match rather than pattern: a token only has to be recognised once, here.
+    QStringList collectSecrets() {
+        const auto &settings = *Configs::dataManager->settingsRepo;
+        QStringList secrets{
+            settings.core_box_api_secret,
+            settings.core_box_clash_api_secret,
+            settings.inbound_user,
+            settings.inbound_pass,
+            settings.internal_proxy_auth,
+            settings.warp_private_key,
+        };
+        for (const int groupID : Configs::dataManager->groupsRepo->GetAllGroupIds()) {
+            const auto group = Configs::dataManager->groupsRepo->GetGroup(groupID);
+            if (group != nullptr && !group->url.isEmpty()) secrets << group->url;
+        }
+        secrets.removeAll("");
+        // Longest first, so a token that contains another is masked whole.
+        std::sort(secrets.begin(), secrets.end(),
+                  [](const QString &a, const QString &b) { return a.size() > b.size(); });
+        return secrets;
+    }
+
+    QString redact(QString text, const QStringList &secrets) {
+        for (const auto &secret : secrets) {
+            // A short value is more likely an ordinary word than a token, and blanket
+            // replacing one would shred the log it is supposed to make readable.
+            if (secret.size() < 6) continue;
+            text.replace(secret, QStringLiteral("[redacted]"));
+        }
+        return text;
+    }
+
+    QString onOff(const bool value) { return value ? QStringLiteral("on") : QStringLiteral("off"); }
+}
+
+// Everything a support answer needs, in one paste. Built here rather than asked
+// for question by question, because a user who can describe their DNS setup
+// accurately is not the user who needs help.
+QString MainWindow::collectDiagnostics() {
+    const auto &settings = *Configs::dataManager->settingsRepo;
+    const auto secrets = collectSecrets();
+    QStringList out;
+
+    out << QString("Throned %1").arg(NKR_VERSION);
+    out << QString("OS: %1 (%2)").arg(QSysInfo::prettyProductName(), QSysInfo::currentCpuArchitecture());
+    out << QString("Qt: %1").arg(qVersion());
+    out << "";
+
+    out << QString("Tun: %1 | System proxy: %2 | System DNS: %3")
+               .arg(onOff(settings.spmode_vpn), onOff(settings.spmode_system_proxy), onOff(settings.system_dns_set));
+    if (const auto route = Configs::dataManager->routesRepo->GetRouteProfile(settings.current_route_id)) {
+        out << QString("Route profile: %1").arg(route->name);
+    }
+    if (running != nullptr && running->outbound != nullptr) {
+        out << QString("Running profile type: %1").arg(running->outbound->DisplayType());
+    } else {
+        out << "Running profile: none";
+    }
+    out << "";
+
+    out << "DNS settings:";
+    out << QString("  remote: %1 (%2)").arg(settings.remote_dns, settings.remote_dns_strategy);
+    out << QString("  direct: %1 (%2)").arg(settings.direct_dns, settings.direct_dns_strategy);
+    out << QString("  final out: %1 | fake ip: %2 | dns routing: %3")
+               .arg(settings.dns_final_out, onOff(settings.fake_dns), onOff(settings.enable_dns_routing));
+    out << QString("  local override: %1").arg(settings.core_box_underlying_dns.isEmpty() ? "(empty)" : settings.core_box_underlying_dns);
+    out << QString("  custom dns object: %1 | apply to full configs: %2")
+               .arg(onOff(settings.use_dns_object), onOff(settings.apply_dns_to_full_config));
+    out << QString("  hijack dns server: %1").arg(onOff(settings.enable_dns_server));
+    out << "";
+
+    if (running != nullptr) {
+        if (const auto built = Configs::BuildSingBoxConfig(running); built != nullptr && built->error.isEmpty()) {
+            out << "Generated dns section:";
+            out << QJsonObject2QString(built->coreConfig.value("dns").toObject(), true);
+            out << "";
+        }
+    }
+
+    out << "Last log lines:";
+    const auto logText = ui->masterLogBrowser->toPlainText();
+    const auto lines = logText.split('\n');
+    out << lines.mid(qMax(0, lines.size() - 80)).join('\n');
+
+    return redact(out.join('\n'), secrets);
+}
+
+void MainWindow::copyDiagnostics() {
+    const auto report = collectDiagnostics();
+    QApplication::clipboard()->setText(report);
+    MW_show_log(tr("Diagnostics copied to the clipboard (%1 characters). Secrets and subscription links are masked.")
+                    .arg(report.size()));
 }

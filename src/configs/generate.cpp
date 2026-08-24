@@ -985,8 +985,21 @@ namespace Configs {
             }
 
             if (settings.use_dns_object && useDnsObj) {
+                // The simple DNS box is only greyed out in the dialog, which is easy to
+                // forget once it is closed.
+                MW_show_log(QObject::tr("Using the custom DNS object; the simple DNS settings above it are ignored."));
                 ctx.result->coreConfig["dns"] = QString2QJsonObject(settings.dns_object);
                 return;
+            }
+
+            // Upstream #1247: on Linux a local resolver plus tun leaves sing-box with
+            // "no default interface" and no working DNS at all. It is not fatal
+            // everywhere, so this warns with the fix rather than refusing to build.
+            if (getOS() == Linux && settings.spmode_vpn && settings.core_box_underlying_dns.isEmpty()
+                && settings.direct_dns.startsWith("localhost", Qt::CaseInsensitive)) {
+                MW_show_log(QObject::tr("Direct DNS is \"localhost\" while Tun is on: this often fails on Linux. "
+                                        "Set Direct DNS to a real resolver (for example 8.8.8.8) in Routing Settings, "
+                                        "or fill in Local override."));
             }
 
             const auto &dns = ctx.prerequisites.dns;
@@ -2258,6 +2271,11 @@ namespace Configs {
                         {"action", "reject"},
                         {"method", "drop"},
                     };
+                } else {
+                    // Losing this guard is invisible at runtime: DNS simply stops being
+                    // answered on the tun peer, which reads as "DNS is broken".
+                    MW_show_log(QObject::tr("Tun IPv4 range %1 has no usable peer address, so the tun DNS guard is off.")
+                                    .arg(settings.vpn_tun_ipv4_cidr));
                 }
             }
 
