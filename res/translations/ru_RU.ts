@@ -1839,6 +1839,14 @@ This backup may have been created with a newer version of the application.</sour
         <translation>Включить фрагментацию записи TLS</translation>
     </message>
     <message>
+        <source>Spoof SNI</source>
+        <translation>Подставной SNI</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Sends a decoy ClientHello carrying this SNI before the real one, so DPI classifies the flow by the decoy. Leave empty to disable. Requires elevated privileges; unavailable on Windows ARM.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Перед настоящим ClientHello отправляет подставной с этим SNI, и DPI относит соединение к нему. Пустое поле выключает спуф. Нужны повышенные права; недоступно на Windows ARM.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
         <source>Reality short id. Accept only one value.</source>
         <translation>Reality short id. Принимает только одно значение.</translation>
     </message>
@@ -2584,6 +2592,117 @@ For more information, see the document &quot;Configuration/DNS&quot;.</source>
     <message>
         <source>Add these remote routing profiles?</source>
         <translation>Добавить эти удалённые профили маршрутизации?</translation>
+    </message>
+</context>
+<context>
+    <name>DialogPresetSettings</name>
+    <message>
+        <source>DPI Bypass</source>
+        <translation>Обход DPI</translation>
+    </message>
+    <message>
+        <source>Makes blocked sites reachable over the direct outbound, without a proxy. Needs Tun Mode; the elevated privileges Tun already requests are enough. Not available on Windows ARM.</source>
+        <translation>Открывает заблокированные сайты напрямую, без прокси. Требуется режим TUN; прав, которые TUN и так запрашивает, достаточно. Недоступно на Windows ARM.</translation>
+    </message>
+    <message>
+        <source>Technique</source>
+        <translation>Способ</translation>
+    </message>
+    <message>
+        <source>Method</source>
+        <translation>Метод</translation>
+    </message>
+    <message>
+        <source>Spoof SNI</source>
+        <translation>Подставной SNI</translation>
+    </message>
+    <message>
+        <source>Desync</source>
+        <translation>Рассинхрон</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A decoy ClientHello carrying this name is sent before the real one, so DPI classifies the flow by the decoy. Pick a name your network lets through.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Перед настоящим ClientHello отправляется подставной с этим именем, и DPI относит соединение к нему. Укажите имя, которое ваша сеть пропускает.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;How the decoy packet is made invalid for the server while still convincing DPI. Which one works depends on your ISP, so try them in order.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Чем подставной пакет портится, чтобы сервер его отбросил, а DPI принял. Какой сработает — зависит от провайдера, перебирайте по порядку.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>Block QUIC (UDP/443)</source>
+        <translation>Резать QUIC (UDP/443)</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;There is no desync for QUIC, so blocking it makes browsers fall back to TLS over TCP, where the bypass works.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Для QUIC рассинхрона нет, поэтому его блокировка заставляет браузер откатиться на TLS поверх TCP, где обход работает.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>Domain lists</source>
+        <translation>Списки доменов</translation>
+    </message>
+    <message>
+        <source>Rule-set names or .srs URLs, one per line. Only these domains are treated; everything else is untouched.</source>
+        <translation>Имена рулсетов или ссылки на .srs, по одному в строке. Обрабатываются только эти домены, остальное не затрагивается.</translation>
+    </message>
+    <message>
+        <source>Presets:</source>
+        <translation>Готовые наборы:</translation>
+    </message>
+    <message>
+        <source>Russia</source>
+        <translation>Россия</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Очистить</translation>
+    </message>
+    <message>
+        <source>Create routing profile</source>
+        <translation>Создать профиль маршрутизации</translation>
+    </message>
+    <message>
+        <source>Fake ClientHello (spoof)</source>
+        <translation>Подставной ClientHello (спуф)</translation>
+    </message>
+    <message>
+        <source>TLS fragment</source>
+        <translation>Фрагментация TLS</translation>
+    </message>
+    <message>
+        <source>TLS record fragment</source>
+        <translation>Фрагментация TLS-записи</translation>
+    </message>
+    <message>
+        <source>Add at least one domain list first.</source>
+        <translation>Сначала добавьте хотя бы один список доменов.</translation>
+    </message>
+    <message>
+        <source>Spoofing needs a decoy SNI.</source>
+        <translation>Для спуфа нужен подставной SNI.</translation>
+    </message>
+    <message>
+        <source>Could not save the routing profile.</source>
+        <translation>Не удалось сохранить профиль маршрутизации.</translation>
+    </message>
+    <message>
+        <source>Direct (no proxy)</source>
+        <translation>Напрямую (без прокси)</translation>
+    </message>
+    <message>
+        <source>Added a &quot;%1&quot; profile to the current group.</source>
+        <translation>В текущую группу добавлен профиль &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Created routing profile &quot;%1&quot; and selected it.</source>
+        <translation>Профиль маршрутизации &quot;%1&quot; создан и выбран.</translation>
+    </message>
+    <message>
+        <source>Updated routing profile &quot;%1&quot; and selected it.</source>
+        <translation>Профиль маршрутизации &quot;%1&quot; обновлён и выбран.</translation>
+    </message>
+    <message>
+        <source>Turn on Tun Mode, then start a direct profile.</source>
+        <translation>Включите режим TUN и запустите профиль &quot;напрямую&quot;.</translation>
     </message>
 </context>
 <context>
@@ -4421,6 +4540,10 @@ https://matsuridayo.github.io/n-configuration/#vpn-tun</translation>
     <message>
         <source>Tun Settings</source>
         <translation>Настройки режима TUN</translation>
+    </message>
+    <message>
+        <source>DPI Bypass</source>
+        <translation>Обход DPI</translation>
     </message>
     <message>
         <source>Restart Program</source>

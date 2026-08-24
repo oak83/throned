@@ -1180,7 +1180,7 @@ QTabBar::tab:selected {
   </action>
   <action name="menu_preset_settings">
    <property name="text">
-    <string>Preset Settings</string>
+    <string>DPI Bypass</string>
    </property>
   </action>
   <action name="menu_otp_manager">
