@@ -6,6 +6,11 @@
 #include "include/database/ProfilesRepo.h"
 #include "include/ui/setting/RouteProfileSimpleEditor.h"
 #include "include/ui/setting/ThemeManager.hpp"
+#include "include/ui/widget/ThronedTitleBar.h"
+#include "include/ui/widget/ThronedWindowResizer.h"
+#include "include/global/GuiUtils.hpp"
+
+#include <QTabBar>
 
 namespace {
     constexpr auto kRouteProfileName = "DPI Bypass";
@@ -23,6 +28,34 @@ DialogPresetSettings::DialogPresetSettings(QWidget *parent) : QDialog(parent), u
     // Adopts the redesigned dialog styling, which is scoped to this object name.
     setObjectName(QStringLiteral("routeProfileEditor"));
     themeManager->RegisterStyle(this, RouteProfileSimpleEditor::dialogStyleSheet());
+
+    setWindowFlag(Qt::FramelessWindowHint, true);
+    new ThronedWindowResizer(this);
+    setMinimumSize(680, 560);
+    FitWindowToScreen(this, QSize(760, 620));
+
+    // One page, so the tab strip is noise; the title bar carries the name and the close button.
+    ui->tabWidget->tabBar()->hide();
+    ui->buttonBox->hide();
+    ui->tabWidget->setStyleSheet({});
+
+    auto *root = ui->verticalLayout;
+    root->setContentsMargins(1, 1, 1, 1);
+    root->setSpacing(0);
+    root->insertWidget(0, new ThronedTitleBar(tr("DPI Bypass"), this));
+
+    ui->tabWidget->setObjectName(QStringLiteral("routeBody"));
+    ui->dpi_layout->setContentsMargins(16, 14, 16, 14);
+    ui->dpi_layout->setSpacing(12);
+    // generalBox is the card treatment the redesign uses for grouped fields.
+    ui->dpi_technique_box->setObjectName(QStringLiteral("generalBox"));
+    ui->dpi_lists_box->setObjectName(QStringLiteral("generalBox"));
+    ui->dpi_form->setContentsMargins(14, 16, 14, 14);
+    ui->dpi_form->setHorizontalSpacing(12);
+    ui->dpi_form->setVerticalSpacing(10);
+    ui->dpi_lists_layout->setContentsMargins(14, 16, 14, 14);
+    ui->dpi_lists_layout->setSpacing(10);
+    ui->dpi_apply_row->setSpacing(12);
     // Style hooks live on the object name; the ui-> pointers are unaffected.
     ui->dpi_apply->setObjectName(QStringLiteral("routeSaveButton"));
     ui->dpi_preset_ru->setObjectName(QStringLiteral("routeSecondaryButton"));
