@@ -1078,8 +1078,12 @@ namespace Configs {
             if (ctx.forTest && settings.spmode_vpn) {
                 const auto directDnsType = directDnsObj.value("type").toString();
                 if (directDnsType == "udp" && directDnsObj.value("server_port").toInt(53) == 53) {
-                    // DoT keeps the configured resolver, it only changes the port.
+                    // DoT keeps the configured resolver, it only changes the port -- but only
+                    // if the plain-DNS port is dropped first. Carrying an explicit :53 over
+                    // asks for DoT where nothing serves it, and the test times out for a
+                    // reason that has nothing to do with the profile.
                     directDnsObj["type"] = "tls";
+                    directDnsObj.remove("server_port");
                 } else if (directDnsType == "local" || directDnsType == "dhcp") {
                     // The system resolver is the unreachable one, so it cannot be kept.
                     directDnsObj = buildDnsObj(ctx, upgradeUdpDnsToDoH(directDnsObj.value("server").toString()));
