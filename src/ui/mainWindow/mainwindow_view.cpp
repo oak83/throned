@@ -75,7 +75,6 @@ void MainWindow::refresh_auto_selector_view()
     const auto view = Stats::autoSelectorMonitor->Snapshot();
     dataViewHtmlGenerator_.setAutoSelectorStatus(view.valid ? view.summary() : QString(),
                                                  view.valid ? view.detail() : QString());
-    // The Tools entry only makes sense while a selector is actually running.
     ui->actionAuto_Selector->setVisible(view.valid);
     UpdateDataView();
     if (m_autoSelectorDialog != nullptr) m_autoSelectorDialog->refresh();
@@ -152,7 +151,6 @@ void MainWindow::refresh_status(const QString &traffic_update) {
         }
     };
 
-    // From TrafficLooper
     if (!traffic_update.isEmpty() && !settings->disable_traffic_stats) {
         traffic_update_cache = traffic_update;
         if (traffic_update == "STOP") {
@@ -165,7 +163,6 @@ void MainWindow::refresh_status(const QString &traffic_update) {
 
     refresh_speed_label();
 
-    // From UI
     QString group_name;
     if (running != nullptr) {
         auto group = Configs::dataManager->groupsRepo->GetGroup(running->gid);
@@ -192,7 +189,6 @@ void MainWindow::refresh_status(const QString &traffic_update) {
                               : tr("Connection"));
         }
     }
-    //
     const auto display_socks = DisplayAddress(settings->inbound_address, settings->inbound_socks_port);
     const auto inbound_disabled = settings->disable_mixed_inbound;
     const auto inbound_txt = QString("Mixed: %1").arg(inbound_disabled ? "Disabled" : display_socks);
@@ -248,11 +244,9 @@ void MainWindow::refresh_status(const QString &traffic_update) {
         }
     }
 
-    // refresh title & window icon
     setWindowTitle(make_title(false));
     if (icon_status_new != icon_status) QApplication::setWindowIcon(GetTrayIcon(icon_status_new));
 
-    // refresh tray
     if (tray != nullptr) {
         tray->setToolTip(make_title(true));
         if (icon_status_new != icon_status) tray->setIcon(Icon::GetTrayIcon(icon_status_new));
@@ -269,8 +263,6 @@ void MainWindow::refresh_startstop_button() {
 
     const auto &settings = Configs::dataManager->settingsRepo;
 
-    // Ring colour reflects the active proxy mode (mirrors the tray-icon logic
-    // above); it only shows while running.
     auto mode = StartStopButton::Mode::Off;
     if (running != nullptr) {
         if (settings->spmode_vpn) mode = StartStopButton::Mode::Tun;
@@ -309,8 +301,7 @@ void MainWindow::refresh_proxy_list_column_size() {
 
     auto *hHeader = dynamic_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader());
     QTimer::singleShot(0, ui->profilesTableView, [=, this]() {
-        // Stop the resizeSection / scrollbar-policy changes below from re-entering
-        // this routine via the vertical scrollbar's valueChanged signal.
+        // The resizeSection / scrollbar-policy changes below re-enter here via valueChanged.
         if (m_adjustingColumns) return;
         m_adjustingColumns = true;
         QScrollBar *vBar = ui->profilesTableView->verticalScrollBar();
@@ -328,8 +319,7 @@ void MainWindow::refresh_proxy_list_column_size() {
             hHeader->setSectionResizeMode(ProfilesTableModel::ColName, QHeaderView::Stretch);
             hHeader->setSectionResizeMode(ProfilesTableModel::ColTestResult, QHeaderView::ResizeToContents);
             hHeader->setSectionResizeMode(ProfilesTableModel::ColTraffic, QHeaderView::ResizeToContents);
-            // ResizeToContents only measures on-screen rows, so pin these columns to the
-            // widest seen for this group or they jitter while scrolling.
+            // ResizeToContents only measures on-screen rows, so pin these or they jitter while scrolling.
             for (int col : {ProfilesTableModel::ColType,
                             ProfilesTableModel::ColTestResult, ProfilesTableModel::ColTraffic}) {
                 if (group->calculated_column_width.size() > col &&
@@ -381,16 +371,13 @@ void MainWindow::refresh_proxy_list_impl(const QList<int>& ids, bool mayNeedRese
         MW_show_log("Could not find current group!");
         return;
     }
-    // refresh data
     refresh_proxy_list_impl_refresh_data(ids, mayNeedReset);
-    // now refresh column sizes
     refresh_proxy_list_column_size();
 }
 
 void MainWindow::refresh_proxy_list_impl_refresh_data(const QList<int>& ids, bool mayNeedReset) {
     const auto currentGroup = Configs::dataManager->groupsRepo->CurrentGroup();
     if (currentGroup == nullptr) return;
-    // The model holds the group in full; the proxy decides what is on screen.
     if (!ids.isEmpty()) {
         for (auto id:ids) profilesTableModel->refreshProfileId(id);
     } else {
@@ -443,7 +430,6 @@ QString MainWindow::liveVpnConnectOkText() {
     return connected ? text : QString();
 }
 
-// Owns no test session, so unlike the group sweeps it stays out of TestRunner.
 void MainWindow::url_test_current() {
     last_test_time = QDateTime::currentSecsSinceEpoch();
     setStatusText(ui->label_running, tr("Testing"));

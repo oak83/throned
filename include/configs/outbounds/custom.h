@@ -15,9 +15,7 @@ namespace Configs
         QString config;
         QString type;
 
-        // Transient bridge fields, populated during build for CustomXrayFullConfig.
-        // Build() returns a sing-box socks outbound pointing at this port; the
-        // generated Xray config receives a matching socks inbound.
+        // Transient bridge fields: Build() emits a socks outbound on this port; Xray gets the matching inbound.
         int bridgePort = 0;
         QString bridgeAuth;
         QString bridgeHost = "127.0.0.1";
@@ -87,15 +85,13 @@ namespace Configs
             return type;
         };
 
-        // Analyzes the embedded config's egress outbound; blank when unknown.
         SecurityInfo GetSecurity() override;
 
         QJsonObject ExportIdentity() override;
 
         bool IsEndpoint() override
         {
-            // Only raw sing-box outbound JSON can describe an endpoint; Xray
-            // subtypes and full configs never do.
+            // Only raw sing-box outbound JSON can describe an endpoint.
             if (type != CustomOutbound) return false;
             const auto t = QString2QJsonObject(config)["type"].toString();
             return t == "wireguard" || t == "tailscale";
@@ -105,11 +101,7 @@ namespace Configs
 
         bool IsXrayFullConfig() override { return type == CustomXrayFullConfig; }
 
-        // Every server address embedded in a custom Xray full config's outbounds
-        // (vnext / servers / address). sing-box needs the domain ones in its
-        // direct-DNS set so the proxy servers resolve directly instead of
-        // looping back through the proxy. Returns raw addresses; callers filter
-        // out literal IPs.
+        // Raw addresses (callers filter literal IPs) for sing-box's direct-DNS carve-out.
         QStringList GetXrayFullConfigServerDomains() {
             QStringList domains;
             if (type != CustomXrayFullConfig) return domains;
@@ -144,8 +136,7 @@ namespace Configs
                         }, ""};
             }
             if (type == CustomXrayOutbound) {
-                // Dummy sing-box outbound so sing-box CheckConfig accepts the
-                // config during validation. The real outbound is in BuildXray().
+                // Dummy outbound so sing-box CheckConfig passes; the real one is in BuildXray().
                 return {QJsonObject{
                             {"type", "socks"},
                             {"server", "127.0.0.1"},
@@ -157,9 +148,7 @@ namespace Configs
         BuildResult BuildXray() override
         {
             if (type == CustomXrayOutbound) {
-                // Outbound server-domain resolution is wired onto the Xray
-                // instance after creation (ThroneWiring), not baked into the
-                // config as a sockopt.domainStrategy.
+                // Domain resolution is wired on at instance creation (ThroneWiring), not as sockopt.domainStrategy.
                 return {QString2QJsonObject(config), ""};
             }
             return {};

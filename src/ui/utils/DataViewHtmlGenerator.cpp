@@ -65,8 +65,7 @@ QString DataViewHtmlGenerator::buildHtml() {
     if (latencyTest_.visible) {
         html += latencyTestSectionHtml();
     }
-    // Deliberately last and conditional: the selector panel is ambient status,
-    // so it yields the view entirely whenever a job wants to report progress.
+    // Last and conditional: ambient status yields the view whenever a job wants to report progress.
     if (html.isEmpty() && autoSelector_.visible) {
         html += autoSelectorSectionHtml();
     }

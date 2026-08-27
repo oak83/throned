@@ -829,9 +829,7 @@ namespace Configs {
     QString xrayStreamSetting::ExportToLink() {
         QUrlQuery query;
         if (!network.isEmpty()) query.addQueryItem("type", network == "raw" ? "tcp" : network);
-        // value(), never operator[]: the mutable QJsonObject::operator[] inserts a null
-        // entry for a missing key, which would leave "header": null behind in rawSettings
-        // and end up in the generated Xray config
+        // value(), never operator[]: the mutable operator[] inserts a null entry for a missing key.
         if (const auto header = rawSettings.value("header").toObject();
             network == "raw" && header.value("type").toString() == "http") {
             query.addQueryItem("headerType", "http");
@@ -871,8 +869,7 @@ namespace Configs {
         QJsonObject object;
         object["network"] = network;
         object["security"] = security;
-        // no rawSettings here: identity matches a profile across a subscription update,
-        // so it must not carry values the subscription rotates (Host header, paths)
+        // No rawSettings: identity must not carry values a subscription rotates (Host header, paths).
         if (security == "reality") {
             if (!reality->serverName.isEmpty()) object["sni"] = reality->serverName;
             if (!reality->fingerprint.isEmpty()) object["fingerprint"] = reality->fingerprint;
@@ -894,9 +891,7 @@ namespace Configs {
     }
 
     BuildResult xrayStreamSetting::Build() {
-        // Egress interface binding and outbound domain resolution are wired onto
-        // the Xray instance after creation (ThroneWiring), not baked into the
-        // config, so no sockopt is emitted here.
+        // Interface binding and domain resolution are wired on at instance creation (ThroneWiring), not here.
         return {ExportToJson(), ""};
     }
 }

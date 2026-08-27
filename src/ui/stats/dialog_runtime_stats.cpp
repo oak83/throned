@@ -131,18 +131,15 @@ void DialogRuntimeStats::refreshLive() {
     ui->vSubUpdate->setText(nextUpd(settings->sub_auto_update, settings->sub_auto_update_last));
     ui->vRouteUpdate->setText(nextUpd(settings->route_auto_update, settings->route_auto_update_last));
 
-    // --- On-disk size of the databases (main + stats, incl. WAL/SHM sidecars) ---
     qint64 dbBytes = 0;
     const QDir dir(QDir::currentPath());
     for (const QFileInfo& fi : dir.entryInfoList(QStringList{QStringLiteral("throne*.db*")}, QDir::Files))
         dbBytes += fi.size();
     ui->vDbSize->setText(ReadableSize(dbBytes));
 
-    // --- Throne uptime ---
     const qint64 up = appStartEpoch > 0 ? QDateTime::currentSecsSinceEpoch() - appStartEpoch : 0;
     ui->vUptime->setText(Stats::HumanizeDuration(up));
 
-    // --- Running config identity + button-free egress probe (on change or every 30s) ---
     const QString cfgName = mw ? mw->GetRunningConfigName() : QString();
     const qint64 nowSecs = QDateTime::currentSecsSinceEpoch();
     if (cfgName.isEmpty()) {
@@ -216,7 +213,7 @@ QString DialogRuntimeStats::selectedEndpointTag() const {
 // A table's size hint ignores its rows, and the header's geometry is meaningless before show.
 void DialogRuntimeStats::fitEndpointTable() {
     auto* table = ui->endpointsTable;
-    // Rows keep the vertical header's default section size until asked; that padding is dead space.
+    // Rows keep the vertical header's default section size until asked.
     table->resizeRowsToContents();
     // A cell widget is invisible to resizeRowsToContents, so the button sets the floor.
     for (int row = 0; row < table->rowCount(); row++) {
@@ -272,7 +269,6 @@ void DialogRuntimeStats::applyEndpoints(const QList<Stats::VpnEndpointView>& vie
         table->item(row, 0)->setText(view.displayName);
         table->item(row, 1)->setText(Stats::VpnStateText(view.state));
         table->item(row, 1)->setForeground(QBrush(Stats::VpnStateColor(view.state)));
-        // The error lost its own column, so it rides the row's tooltips.
         const QString hint = view.error.isEmpty() ? view.tag : view.tag + QLatin1Char(0x0a) + view.error;
         table->item(row, 0)->setToolTip(hint);
         table->item(row, 1)->setToolTip(hint);
@@ -316,7 +312,7 @@ void DialogRuntimeStats::openEndpointDetails(const QString& tag) {
 }
 
 void DialogRuntimeStats::probeEgress() {
-    if (probing_.exchange(true)) return; // a probe is already running
+    if (probing_.exchange(true)) return;
 
     auto* mw = GetMainWindow();
     if (mw == nullptr || mw->GetRunningConfigName().isEmpty()) {
@@ -324,14 +320,12 @@ void DialogRuntimeStats::probeEgress() {
         return;
     }
 
-    // Immediate feedback while the (blocking) probe runs.
     ui->vPing->setText(QStringLiteral("…"));
     if (ui->vOutIp->text() == QStringLiteral("—")) ui->vOutIp->setText(QStringLiteral("…"));
     if (ui->vCountry->text() == QStringLiteral("—")) ui->vCountry->setText(QStringLiteral("…"));
 
     QPointer<DialogRuntimeStats> self(this);
     runOnNewThread([self]() {
-        // Ping: latency of the live instance (same call as "test current").
         QString pingText;
         {
             libcore::TestReq req;
@@ -349,10 +343,9 @@ void DialogRuntimeStats::probeEgress() {
             }
         }
 
-        // Out IP + country: ip-api through the running proxy (as done at profile start).
         QString ipText = DialogRuntimeStats::tr("N/A");
         QString countryText = DialogRuntimeStats::tr("N/A");
-        bool egressOk = false; // did the lookup yield a real out IP?
+        bool egressOk = false;
         const auto resp = NetworkRequestHelper::HttpGet(QStringLiteral("http://ip-api.com/json/"), false, true);
         if (resp.error.isEmpty()) {
             const QJsonDocument doc = QJsonDocument::fromJson(resp.data);

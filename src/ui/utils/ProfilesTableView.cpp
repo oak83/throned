@@ -44,8 +44,6 @@ int ProfilesTableView::firstVisibleRow() {
 
 
 void ProfilesTableView::keyPressEvent(QKeyEvent *event) {
-    // A full viewport leaves no blank area to click, so Escape is the only way to
-    // drop the selection.
     if (event->key() == Qt::Key_Escape && selectionModel() && selectionModel()->hasSelection()) {
         clearSelection();
         selectionModel()->clearCurrentIndex();

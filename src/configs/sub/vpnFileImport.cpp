@@ -211,7 +211,6 @@ namespace Configs {
             "tls-crypt-v2-verify", "tls-export-cert", "x509-track", "x509-username-field",
         };
 
-        // A client profile cannot be built out of a server configuration.
         const QSet<QString> vpnfiOvpnServerOnly = {
             "client-config-dir", "ifconfig-pool", "push", "server", "server-bridge", "tls-server",
         };
@@ -1142,7 +1141,6 @@ namespace Configs {
 
         QStringList argv;
         if (vpnfiIsOcCommandLine(body)) {
-            // A wrapped command line: fold the continuations back into one line.
             QString joined;
             for (const auto& line : body.split('\n')) {
                 auto trimmed = line.trimmed();
@@ -1153,7 +1151,6 @@ namespace Configs {
             }
             argv = vpnfiTokenize(joined);
         } else {
-            // Config-file form: the same long names, one per line, without `--`.
             for (const auto& line : body.split('\n')) {
                 const auto tokens = vpnfiTokenize(line);
                 if (tokens.isEmpty()) continue;

@@ -6,10 +6,7 @@
 
 #include <shlobj.h>
 
-// Per-user registration under HKCU\Software\Classes — needs no admin and takes
-// precedence over any system-wide handler. In QSettings NativeFormat the value
-// name "Default" maps to a registry key's unnamed (Default) value, and '/'
-// separates subkeys.
+// In QSettings NativeFormat the value name "Default" is a key's unnamed (Default) value, and '/' separates subkeys.
 
 static const QString kClasses = "HKEY_CURRENT_USER\\Software\\Classes";
 static const QString kProgId = "Throned.Config";
@@ -87,8 +84,7 @@ void UrlScheme_Apply() {
     progId.setValue("DefaultIcon/Default", exe + ",0");
     progId.setValue("shell/open/command/Default", command);
 
-    // OpenWithProgids is the additive half of an association: the extension lists
-    // us as one possible handler, its default (HKCU\...\<ext>\Default) is left alone.
+    // OpenWithProgids is the additive half of an association: the extension's own default is left alone.
     for (const QString &ext : kConfigExtensions) {
         QSettings assoc(kClasses + "\\" + ext + "\\OpenWithProgids", QSettings::NativeFormat);
         assoc.setValue(kProgId, "");
@@ -105,8 +101,7 @@ void UrlScheme_Apply() {
         app.setValue("SupportedTypes/" + ext, "");
     }
 
-    // QSettings only reaches the registry on sync, and the shell caches association
-    // data until told otherwise, so flush before announcing the change.
+    // QSettings only reaches the registry on sync, so flush before SHChangeNotify.
     scheme.sync();
     progId.sync();
     app.sync();

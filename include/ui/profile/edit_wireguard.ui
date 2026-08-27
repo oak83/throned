@@ -394,6 +394,26 @@
       <item row="23" column="1">
        <widget class="QLineEdit" name="max_handshake_attempts"/>
       </item>
+      <item row="25" column="0" colspan="2">
+       <widget class="QCheckBox" name="random_trailers">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;AmneziaWG 3.1. Appends a random trailer to every packet, so message types are no longer identifiable by size.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>Random Trailers</string>
+        </property>
+       </widget>
+      </item>
+      <item row="25" column="2" colspan="2">
+       <widget class="QCheckBox" name="disable_cookies">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;AmneziaWG 3.1. Never send cookie replies, so an under-load peer stays silent instead of answering with a fixed-size message.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>Disable Cookies</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -434,6 +454,8 @@
   <tabstop>reject_after_time</tabstop>
   <tabstop>keepalive_timeout</tabstop>
   <tabstop>max_handshake_attempts</tabstop>
+  <tabstop>random_trailers</tabstop>
+  <tabstop>disable_cookies</tabstop>
  </tabstops>
  <resources/>
  <connections/>

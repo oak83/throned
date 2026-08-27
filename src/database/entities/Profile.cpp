@@ -29,8 +29,7 @@ namespace Configs
 
     void Profile::SetLatency(int ms) {
         latency = ms;
-        // 0 means "never measured", so an explicit reset must clear the stamp
-        // rather than record the moment we forgot the result.
+        // 0 means "never measured", so a reset must clear the stamp rather than record now.
         latency_at = ms == 0 ? 0 : QDateTime::currentSecsSinceEpoch();
     }
 
@@ -138,9 +137,7 @@ namespace Configs
         for (const auto &ent: src) {
             srcByKey[ProfileFilter_ent_key(ent, ignoreMetadata)].append(ent);
         }
-        // A src entry can be claimed once. Handing the same one to every dst
-        // duplicate makes the caller map them all onto a single id, which
-        // collapses N identical servers into N slots of one profile (#1775).
+        // A src entry can be claimed once: handing the same one to every dst duplicate collapses N identical servers into one profile (#1775).
         for (const auto &ent: dst) {
             auto it = srcByKey.find(ProfileFilter_ent_key(ent, ignoreMetadata));
             if (it == srcByKey.end() || it->isEmpty()) continue;

@@ -2635,7 +2635,7 @@ For more information, see the document &quot;Configuration/DNS&quot;.</source>
     </message>
 </context>
 <context>
-    <name>DialogPresetSettings</name>
+    <name>DialogDpiBypass</name>
     <message>
         <source>DPI Bypass</source>
         <translation>Обход DPI</translation>
@@ -4580,6 +4580,10 @@ https://matsuridayo.github.io/n-configuration/#vpn-tun</translation>
     <message>
         <source>Tun Settings</source>
         <translation>Настройки режима TUN</translation>
+    </message>
+    <message>
+        <source>Preset Settings</source>
+        <translation>Настройки пресетов</translation>
     </message>
     <message>
         <source>DPI Bypass</source>

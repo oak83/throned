@@ -58,7 +58,6 @@ namespace Subscription {
             auto obj = doc.object();
             bool hasInbound = obj.contains("inbounds");
             bool hasOutbound = obj.contains("outbounds") || obj.contains("endpoints");
-            // if (hasInbound && hasOutbound) return SingBoxSubType::fullConfig;
             if (hasOutbound) return SingBoxSubType::outboundInJson;
             if (obj.contains("type")) return SingBoxSubType::outboundObject;
             return SingBoxSubType::invalid;
@@ -75,9 +74,7 @@ namespace Subscription {
         return SingBoxSubType::invalid;
     }
 
-    // Xray uses "protocol" instead of sing-box's "type" field on outbounds, so
-    // we can disambiguate by inspecting individual outbound objects rather than
-    // the wrapper.
+    // Xray tags outbounds with "protocol" where sing-box uses "type".
     XraySubType getXraySubType(const QJsonDocument &doc) {
         if (doc.isObject()) {
             auto obj = doc.object();
@@ -95,12 +92,7 @@ namespace Subscription {
             auto first = doc.array().first();
             if (first.isObject()) {
                 auto obj = first.toObject();
-                // Array of bare outbounds (each tagged with "protocol").
                 if (obj.contains("protocol")) return XraySubType::outboundJsonArray;
-                // Array of complete Xray configs (the "Xray JSON subscription"
-                // format): each element carries an "outbounds" array of its own.
-                // Require a "protocol"-tagged outbound so this only matches Xray
-                // configs, not sing-box ones (whose outbounds use "type").
                 if (obj.contains("outbounds")) {
                     for (const auto &item : obj["outbounds"].toArray()) {
                         if (item.isObject() && item.toObject().contains("protocol")) {
@@ -113,13 +105,10 @@ namespace Subscription {
         return XraySubType::invalid;
     }
 
-    // Convert a real Xray VLESS outbound (settings.vnext[0].address etc.) into
-    // the simplified shape Throne's xrayVless::ParseFromJson expects. Returns
-    // an empty object if the input doesn't have the expected structure.
+    // Real Xray VLESS nests the server under settings.vnext[0]; ParseFromJson wants it flat.
     QJsonObject normalizeXrayVlessForParse(const QJsonObject &out) {
         if (out["protocol"].toString() != "vless") return {};
         auto settings = out["settings"].toObject();
-        // Already in simplified form.
         if (settings.contains("address") && !settings.contains("vnext")) return out;
         auto vnext = settings["vnext"].toArray();
         if (vnext.isEmpty()) return {};
@@ -142,7 +131,6 @@ namespace Subscription {
     std::shared_ptr<Configs::Profile> makeProfileForXrayOutbound(const QJsonObject &out) {
         if (out.isEmpty()) return nullptr;
         auto protocol = out["protocol"].toString();
-        // System protocols don't make sense as user profiles.
         if (protocol == "freedom" || protocol == "blackhole" || protocol == "dns" || protocol == "loopback") {
             return nullptr;
         }
@@ -160,7 +148,6 @@ namespace Subscription {
         return ent;
     }
 
-    // Only directives at the start of a line count, so a stray "remote" cannot pull one in.
     bool looksLikeOvpnConfig(const QString &str) {
         bool hasRemote = false;
         bool hasClientMarker = false;
@@ -180,7 +167,6 @@ namespace Subscription {
         return false;
     }
 
-    // Every marker names openconnect itself, so no share link or subscription matches.
     bool looksLikeOpenConnectProfile(const QString &str) {
         if (str.contains("<AnyConnectProfile") || str.contains("<ServerList")) return true;
         static const QRegularExpression cliRe(R"((?:^|\s)--protocol[= ](?:anyconnect|nc|gp|pulse|f5|fortinet)\b)");
@@ -196,7 +182,6 @@ namespace Subscription {
     }
 
     void RawUpdater::update(const QString &str, bool needParse, bool isBase64Decoded) {
-        // Base64 encoded subscription
         if (!isBase64Decoded) {
             if (auto str2 = DecodeB64IfValid(str); !str2.isEmpty()) {
                 update(str2, true, true);
@@ -206,13 +191,10 @@ namespace Subscription {
 
         std::shared_ptr<Configs::Profile> ent;
 
-        // Json
         QJsonParseError error;
         auto doc = QJsonDocument::fromJson(str.toUtf8(), &error);
         if (error.error == QJsonParseError::NoError) {
-            // Xray (checked first since its outbounds are tagged with
-            // "protocol", which lets us cleanly disambiguate from sing-box
-            // configs that share the "outbounds" wrapper).
+            // Xray first: its configs share the "outbounds" wrapper with sing-box.
             auto xrayType = getXraySubType(doc);
             if (xrayType == XraySubType::outboundObject) {
                 if (auto e = makeProfileForXrayOutbound(doc.object()); e != nullptr) {
@@ -226,7 +208,6 @@ namespace Subscription {
                 return;
             }
 
-            // SingBox
             auto subType = getSingBoxSubType(doc);
             if (subType == SingBoxSubType::fullConfig) {
                 ent = Configs::ProfilesRepo::NewProfile("custom");
@@ -243,7 +224,6 @@ namespace Subscription {
                 return;
             }
 
-            // SIP008
             if (str.contains("version") && str.contains("servers"))
             {
                 updateSIP008(str);
@@ -253,13 +233,11 @@ namespace Subscription {
             return;
         }
 
-        // Clash
         if (str.contains("proxies:")) {
             updateClash(str);
             return;
         }
 
-        // Wireguard Config
         if (str.contains("[Interface]") && str.contains("[Peer]"))
         {
             updateWireguardFileConfig(str);
@@ -276,7 +254,6 @@ namespace Subscription {
             return;
         }
 
-        // Multi line
         if (str.count("\n") > 0 && needParse) {
             auto list = Disect(str);
             for (const auto &str2: list) {
@@ -285,12 +262,10 @@ namespace Subscription {
             return;
         }
 
-        // is comment or too short
         if (str.startsWith("//") || str.startsWith("#") || str.length() < 2) {
             return;
         }
 
-        // Json base64 link format
         if (str.startsWith("json://")) {
             auto link = QUrl(str);
             if (!link.isValid()) return;
@@ -307,7 +282,6 @@ namespace Subscription {
             ent->outbound->ParseFromJson(data);
         }
 
-        // throne://add/ deep link
         if (str.startsWith("throne://add/", Qt::CaseInsensitive)) {
             auto link = QUrl(str);
             if (!link.isValid()) return;
@@ -324,7 +298,6 @@ namespace Subscription {
             ent->outbound->ParseFromJson(data);
         }
 
-        // Json
         if (str.startsWith('{')) {
             ent = Configs::ProfilesRepo::NewProfile("custom");
             auto custom = ent->Custom();
@@ -340,7 +313,6 @@ namespace Subscription {
             }
         }
 
-        // SOCKS
         if (str.startsWith("socks5://") || str.startsWith("socks4://") ||
             str.startsWith("socks4a://") || str.startsWith("socks://")) {
             ent = Configs::ProfilesRepo::NewProfile("socks");
@@ -348,28 +320,24 @@ namespace Subscription {
             if (!ok) return;
         }
 
-        // HTTP
         if (str.startsWith("http://") || str.startsWith("https://")) {
             ent = Configs::ProfilesRepo::NewProfile("http");
             auto ok = ent->Http()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // ShadowSocks
         if (str.startsWith("ss://")) {
             ent = Configs::ProfilesRepo::NewProfile("shadowsocks");
             auto ok = ent->ShadowSocks()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // VMess
         if (str.startsWith("vmess://")) {
             ent = Configs::ProfilesRepo::NewProfile("vmess");
             auto ok = ent->VMess()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // VLESS
         if (str.startsWith("vless://")) {
             if (Configs::useXrayVless(str)) {
                 ent = Configs::ProfilesRepo::NewProfile("xrayvless");
@@ -382,85 +350,73 @@ namespace Subscription {
             }
         }
 
-        // Trojan
         if (str.startsWith("trojan://")) {
             ent = Configs::ProfilesRepo::NewProfile("trojan");
             auto ok = ent->Trojan()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // AnyTLS
         if (str.startsWith("anytls://")) {
             ent = Configs::ProfilesRepo::NewProfile("anytls");
             auto ok = ent->AnyTLS()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // Mieru (mierus:// is the "simple" sharing link; the base64 "standard"
-        // mieru:// link is rejected inside ParseFromLink rather than mis-parsed)
+        // mierus:// is the "simple" link; base64 mieru:// is rejected inside ParseFromLink.
         if (str.startsWith("mierus://") || str.startsWith("mieru://")) {
             ent = Configs::ProfilesRepo::NewProfile("mieru");
             auto ok = ent->Mieru()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // Snell
         if (str.startsWith("snell://")) {
             ent = Configs::ProfilesRepo::NewProfile("snell");
             auto ok = ent->Snell()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // Hysteria
         if (str.startsWith("hysteria://") || str.startsWith("hysteria2://") || str.startsWith("hy2://")) {
             ent = Configs::ProfilesRepo::NewProfile("hysteria");
             auto ok = ent->Hysteria()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // TUIC
         if (str.startsWith("tuic://")) {
             ent = Configs::ProfilesRepo::NewProfile("tuic");
             auto ok = ent->TUIC()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // Juicity
         if (str.startsWith("juicity://")) {
             ent = Configs::ProfilesRepo::NewProfile("juicity");
             auto ok = ent->Juicity()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // TrustTunnel
         if (str.startsWith("tt://")) {
             ent = Configs::ProfilesRepo::NewProfile("trusttunnel");
             auto ok = ent->TrustTunnel()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // ShadowTLS
         if (str.startsWith("shadowtls://")) {
             ent = Configs::ProfilesRepo::NewProfile("shadowtls");
             auto ok = ent->ShadowTLS()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // Wireguard
         if (str.startsWith("wg://")) {
             ent = Configs::ProfilesRepo::NewProfile("wireguard");
             auto ok = ent->Wireguard()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // SSH
         if (str.startsWith("ssh://")) {
             ent = Configs::ProfilesRepo::NewProfile("ssh");
             auto ok = ent->SSH()->ParseFromLink(str);
             if (!ok) return;
         }
 
-        // Naive
         if (str.startsWith("naive+https://") || str.startsWith("naive+quic://")) {
             ent = Configs::ProfilesRepo::NewProfile("naive");
             auto ok = ent->Naive()->ParseFromLink(str);
@@ -469,7 +425,6 @@ namespace Subscription {
 
         if (ent == nullptr) return;
 
-        // End
         updated_order += ent;
     }
 
@@ -508,119 +463,102 @@ namespace Subscription {
 
             std::shared_ptr<Configs::Profile> ent;
 
-            // SOCKS
             if (out["type"] == "socks") {
                 ent = Configs::ProfilesRepo::NewProfile("socks");
                 auto ok = ent->Socks()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // HTTP
             if (out["type"] == "http") {
                 ent = Configs::ProfilesRepo::NewProfile("http");
                 auto ok = ent->Http()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // ShadowSocks
             if (out["type"] == "shadowsocks") {
                 ent = Configs::ProfilesRepo::NewProfile("shadowsocks");
                 auto ok = ent->ShadowSocks()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // VMess
             if (out["type"] == "vmess") {
                 ent = Configs::ProfilesRepo::NewProfile("vmess");
                 auto ok = ent->VMess()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // VLESS
             if (out["type"] == "vless") {
                 ent = Configs::ProfilesRepo::NewProfile("vless");
                 auto ok = ent->VLESS()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // Trojan
             if (out["type"] == "trojan") {
                 ent = Configs::ProfilesRepo::NewProfile("trojan");
                 auto ok = ent->Trojan()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // AnyTLS
             if (out["type"] == "anytls") {
                 ent = Configs::ProfilesRepo::NewProfile("anytls");
                 auto ok = ent->AnyTLS()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // Mieru
             if (out["type"] == "mieru") {
                 ent = Configs::ProfilesRepo::NewProfile("mieru");
                 auto ok = ent->Mieru()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // Snell
             if (out["type"] == "snell") {
                 ent = Configs::ProfilesRepo::NewProfile("snell");
                 auto ok = ent->Snell()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // Hysteria
             if (out["type"] == "hysteria" || out["type"] == "hysteria2") {
                 ent = Configs::ProfilesRepo::NewProfile("hysteria");
                 auto ok = ent->Hysteria()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // TUIC
             if (out["type"] == "tuic") {
                 ent = Configs::ProfilesRepo::NewProfile("tuic");
                 auto ok = ent->TUIC()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // Juicity
             if (out["type"] == "juicity") {
                 ent = Configs::ProfilesRepo::NewProfile("juicity");
                 auto ok = ent->Juicity()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // TrustTunnel
             if (out["type"] == "trusttunnel") {
                 ent = Configs::ProfilesRepo::NewProfile("trusttunnel");
                 auto ok = ent->TrustTunnel()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // ShadowTLS
             if (out["type"] == "shadowtls") {
                 ent = Configs::ProfilesRepo::NewProfile("shadowtls");
                 auto ok = ent->ShadowTLS()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // Wireguard
             if (out["type"] == "wireguard") {
                 ent = Configs::ProfilesRepo::NewProfile("wireguard");
                 auto ok = ent->Wireguard()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // SSH
             if (out["type"] == "ssh") {
                 ent = Configs::ProfilesRepo::NewProfile("ssh");
                 auto ok = ent->SSH()->ParseFromJson(out);
                 if (!ok) continue;
             }
 
-            // Naive
             if (out["type"] == "naive") {
                 ent = Configs::ProfilesRepo::NewProfile("naive");
                 auto ok = ent->Naive()->ParseFromJson(out);
@@ -635,23 +573,13 @@ namespace Subscription {
 
     void RawUpdater::updateXray(const QJsonDocument &doc, XraySubType type)
     {
-        // "Xray JSON subscription": an array of complete, self-contained Xray
-        // configs. Each element carries its own inbounds/outbounds/routing and
-        // often relies on balancers and dialerProxy chains between its
-        // outbounds, so it can't be flattened into individual proxies without
-        // losing that logic. Import each as a CustomXrayFullConfig — the whole
-        // config runs verbatim as Throne's Xray instance behind a socks bridge.
+        // Each element is a self-contained config (balancers, dialerProxy chains) that must run verbatim.
         if (type == XraySubType::configJsonArray) {
             for (const auto &c : doc.array()) {
                 if (!c.isObject()) continue;
                 auto cfg = c.toObject();
                 if (!cfg.contains("outbounds")) continue;
-                // Drop the subscription's own client inbounds (typically socks
-                // 10808 / http 10809). Throne injects its own bridge inbound at
-                // build time and routes everything through it; the bundled
-                // inbounds are never in the traffic path and would only risk
-                // port-bind conflicts. Safe here because none of these configs'
-                // routing rules match on inboundTag.
+                // Throne injects its own bridge inbound; the bundled ones only risk port-bind conflicts.
                 cfg.remove("inbounds");
                 auto ent = Configs::ProfilesRepo::NewProfile("custom");
                 ent->Custom()->type = Configs::Custom::CustomXrayFullConfig;
@@ -678,19 +606,12 @@ namespace Subscription {
         }
     }
 
-    // fkYAML picks the input encoding from the first four bytes: a NUL among
-    // them makes it decode the whole document as UTF-16/UTF-32, and those
-    // decoders walk the buffer in fixed strides without an end check, so a body
-    // whose length isn't a multiple of the stride reads out of bounds (#1746).
-    // Well-formed UTF-8 with no NUL byte can match neither a UTF-16/32
-    // signature nor a non-UTF-8 BOM, which pins the parser to its UTF-8 path.
-    // NUL is not a legal YAML stream character anyway, so dropping it here
-    // cannot lose anything a conforming subscription could have sent.
+    // A NUL in the first four bytes makes fkYAML decode as UTF-16/32 and read out of bounds (#1746).
     std::string sanitizeClashYaml(const QString &str) {
         QString normalized = str;
         normalized.remove(QChar(QChar::Null));
         if (normalized.startsWith(QChar(QChar::ByteOrderMark))) normalized.remove(0, 1);
-        return normalized.toStdString(); // toStdString() == toUtf8(): always well-formed
+        return normalized.toStdString();
     }
 
     void RawUpdater::updateClash(const QString& str)
@@ -703,35 +624,30 @@ namespace Subscription {
             {
                 std::shared_ptr<Configs::Profile> ent;
     
-                // SOCKS
                 if (out.type == "socks5") {
                     ent = Configs::ProfilesRepo::NewProfile("socks");
                     auto ok = ent->Socks()->ParseFromClash(out);
                     if (!ok) continue;
                 }
     
-                // HTTP
                 if (out.type == "http") {
                     ent = Configs::ProfilesRepo::NewProfile("http");
                     auto ok = ent->Http()->ParseFromClash(out);
                     if (!ok) continue;
                 }
     
-                // ShadowSocks
                 if (out.type == "ss") {
                     ent = Configs::ProfilesRepo::NewProfile("shadowsocks");
                     auto ok = ent->ShadowSocks()->ParseFromClash(out);
                     if (!ok) continue;
                 }
     
-                // VMess
                 if (out.type == "vmess") {
                     ent = Configs::ProfilesRepo::NewProfile("vmess");
                     auto ok = ent->VMess()->ParseFromClash(out);
                     if (!ok) continue;
                 }
     
-                // VLESS
                 if (out.type == "vless") {
                     if (out.network == "xhttp" || (!out.encryption.empty() && out.encryption != "none")) {
                         ent = Configs::ProfilesRepo::NewProfile("xrayvless");
@@ -744,42 +660,36 @@ namespace Subscription {
                     }
                 }
     
-                // Trojan
                 if (out.type == "trojan") {
                     ent = Configs::ProfilesRepo::NewProfile("trojan");
                     auto ok = ent->Trojan()->ParseFromClash(out);
                     if (!ok) continue;
                 }
     
-                // AnyTLS
                 if (out.type == "anytls") {
                     ent = Configs::ProfilesRepo::NewProfile("anytls");
                     auto ok = ent->AnyTLS()->ParseFromClash(out);
                     if (!ok) continue;
                 }
     
-                // Hysteria
                 if (out.type == "hysteria" || out.type == "hysteria2") {
                     ent = Configs::ProfilesRepo::NewProfile("hysteria");
                     auto ok = ent->Hysteria()->ParseFromClash(out);
                     if (!ok) continue;
                 }
     
-                // TUIC
                 if (out.type == "tuic") {
                     ent = Configs::ProfilesRepo::NewProfile("tuic");
                     auto ok = ent->TUIC()->ParseFromClash(out);
                     if (!ok) continue;
                 }
     
-                // Snell
                 if (out.type == "snell") {
                     ent = Configs::ProfilesRepo::NewProfile("snell");
                     auto ok = ent->Snell()->ParseFromClash(out);
                     if (!ok) continue;
                 }
 
-                // SSH
                 if (out.type == "ssh") {
                     ent = Configs::ProfilesRepo::NewProfile("ssh");
                     auto ok = ent->SSH()->ParseFromClash(out);
@@ -790,10 +700,7 @@ namespace Subscription {
     
                 updated_order += ent;
             }
-        // Hostile subscription bodies reach the parser here, and it can fail with
-        // more than fkyaml::exception (std::bad_alloc / std::length_error from an
-        // oversized allocation, anything a from_node() overload throws), so catch
-        // broadly rather than letting an import take the app down.
+        // fkYAML can throw beyond fkyaml::exception on hostile input (bad_alloc, length_error).
         } catch (const std::exception &ex) {
             auto msg = QString::fromUtf8(ex.what());
             runOnUiThread([=] {
@@ -830,7 +737,6 @@ namespace Subscription {
     void RawUpdater::updateOpenConnectProfile(const QString& str)
     {
         QStringList problems;
-        // An XML profile carries a host list, so it imports as several profiles.
         if (str.contains("<AnyConnectProfile") || str.contains("<ServerList")) {
             QList<std::shared_ptr<Configs::openconnect>> hosts;
             auto ok = Configs::ParseAnyConnectXml(str, hosts, &problems);
@@ -877,7 +783,6 @@ namespace Subscription {
         }
     }
 
-    // 在新的 thread 运行
     void GroupUpdater::AsyncUpdate(const QString &str, int _sub_gid, const std::function<void()> &finish, bool showDiff) {
         auto content = str.trimmed();
         bool asURL = false;
@@ -938,8 +843,7 @@ namespace Subscription {
         });
     }
 
-    // BatchDeleteProfiles silently keeps the running profile by dropping its id
-    // from the list it was handed; trusting the request duplicates it (#1753).
+    // BatchDeleteProfiles silently drops the running profile from the list it was handed (#1753).
     struct DeleteOutcome {
         bool ok = false;
         QList<int> deleted;
@@ -1016,12 +920,10 @@ namespace Subscription {
     }
 
     void GroupUpdater::Update(const QString &_str, int _sub_gid, bool _not_sub_as_url, bool showDiff) {
-        // 创建 rawUpdater
         Configs::dataManager->settingsRepo->imported_count = 0;
         auto rawUpdater = std::make_unique<RawUpdater>();
         rawUpdater->gid_add_to = _sub_gid;
 
-        // 准备
         QString sub_user_info;
         QString sub_profile_title;
         bool asURL = _sub_gid >= 0 || _not_sub_as_url; // 把 _str 当作 url 处理（下载内容）
@@ -1029,7 +931,6 @@ namespace Subscription {
         auto group = Configs::dataManager->groupsRepo->GetGroup(_sub_gid);
         if (group != nullptr && group->archive) return;
 
-        // 网络请求
         if (asURL) {
             // A manually entered subscription URL may contain credentials in its
             // path or query. Logs only need to identify the kind of request.
@@ -1060,11 +961,8 @@ namespace Subscription {
         // refresh does not shuffle the group either.
         QList<QPair<int, int>> sticky; // (position in the group, profile id)
         QSet<int> stickyIDs;
-        // Profiles this refresh invalidated: deleted outright, or kept under the
-        // same id with different settings. A running auto selector that built
-        // any of them can no longer trust its config.
+        // Ids a running auto selector can no longer trust: deleted, or same id with new settings.
         QList<int> disturbed;
-        // Only a group that really emptied makes "everything below is new" true.
         bool cleared = false;
 
         if (group != nullptr) {
@@ -1072,7 +970,6 @@ namespace Subscription {
             group->info = sub_user_info;
             applySubscriptionHeaders(content, sub_profile_title, group);
             Configs::dataManager->groupsRepo->Save(group);
-            //
             for (int i = 0; i < group->profiles.size(); i++) {
                 auto ent = Configs::dataManager->profilesRepo->GetProfile(group->profiles[i]);
                 if (ent == nullptr || ent->type != "autoselector") continue;
@@ -1118,7 +1015,6 @@ namespace Subscription {
             QString change_text;
 
             if (cleared) {
-                // all is new profile
                 if (out_all.size() >= 1000) {
                     change_text += "[+] " + Int2String(out_all.size()) + " profiles\n";
                 } else {
@@ -1132,7 +1028,6 @@ namespace Subscription {
                 QList<std::shared_ptr<Configs::Profile>> only_out;
                 QList<std::shared_ptr<Configs::Profile>> only_in;
                 QList<std::shared_ptr<Configs::Profile>> out;
-                // find and delete not updated profile by ProfileFilter
                 Configs::ProfileFilter::OnlyInSrc_ByPointer(out_all, in, out);
                 Configs::ProfileFilter::OnlyInSrc(in, out, only_in, false);
                 Configs::ProfileFilter::OnlyInSrc(out, in, only_out, false);
@@ -1172,12 +1067,9 @@ namespace Subscription {
                     oldEnt->name = oldEnt->outbound->name;
                     Configs::dataManager->profilesRepo->Save(oldEnt);
                     supersededBy[changed_new[i].get()] = oldEnt->id;
-                    // Same id, different server: anything already running on it
-                    // is now working from a stale config.
                     disturbed << oldEnt->id;
                 }
 
-                // sort according to order in remote
                 const auto previousOrder = group->profiles;
                 group->profiles.clear();
                 for (const auto &ent: rawUpdater->updated_order) {
@@ -1193,7 +1085,6 @@ namespace Subscription {
                 }
                 Configs::dataManager->groupsRepo->Save(group);
 
-                // cleanup
                 QList<int> del_ids;
                 for (const auto &ent: out_all) {
                     if (!group->HasProfile(ent->id)) {
@@ -1208,8 +1099,7 @@ namespace Subscription {
                 }
                 disturbed << outcome.deleted;
 
-                // Nothing rebuilds group->profiles from the rows; a survivor left
-                // out here is orphaned for good.
+                // Nothing rebuilds group->profiles from the rows: a survivor left out here is orphaned.
                 QString notice_kept;
                 for (int id : outcome.kept) {
                     if (group->HasProfile(id)) continue;
@@ -1237,16 +1127,12 @@ namespace Subscription {
 
             MW_show_log("<<<<<<<< " + QObject::tr("Change of %1:").arg(group->name) + "\n" + change_text);
             if (showDiff && Configs::dataManager->settingsRepo->sub_show_change_popup) {
-                // Manual refresh: surface the same diff in a popup, not just the log.
                 const auto diffTitle = QObject::tr("Change of %1").arg(group->name);
                 auto diffBody = change_text.trimmed();
                 if (diffBody.isEmpty()) diffBody = QObject::tr("Nothing");
                 runOnUiThread([diffTitle, diffBody] { MessageBoxScrollable(diffTitle, diffBody); });
             }
-            // Auto selectors resolve their members from the group at build time,
-            // so a refresh can invalidate one without ever touching the profile
-            // itself. Hand over what changed and let the main window decide
-            // whether a running selector has to be rebuilt.
+            // Auto selectors resolve members from the group at build time, so a refresh can invalidate an untouched one.
             QStringList selectorArgs{Int2String(group->id)};
             for (int id : disturbed) selectorArgs << Int2String(id);
             MW_dialog_message(MwMessage::SubscriptionGroupChanged, selectorArgs);
@@ -1268,7 +1154,6 @@ void serialUpdateSubscription(const QList<int> &groupsTabOrder, int _order, bool
         return;
     }
 
-    // calculate this group
     auto group = Configs::dataManager->groupsRepo->GetGroup(groupsTabOrder[_order]);
     if (group == nullptr || should_skip_group(group)) {
         serialUpdateSubscription(groupsTabOrder, _order + 1, onlyAllowed);
@@ -1285,7 +1170,6 @@ void serialUpdateSubscription(const QList<int> &groupsTabOrder, int _order, bool
         nextOrder += 1;
     }
 
-    // Async update current group
     UI_update_all_groups_Updating = true;
     Subscription::groupUpdater->AsyncUpdate(group->url, group->id, [=] {
         serialUpdateSubscription(groupsTabOrder, nextOrder, onlyAllowed);

@@ -42,7 +42,6 @@ namespace Configs_network {
             }
             accessManager.setProxy(p);
         }
-        // Set attribute
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
         request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "WARP for Android");
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");

@@ -32,8 +32,6 @@ namespace RouteUpdate {
             if (profile->Rules[i]->type == Configs::endpointPreferredBy) endpointRules << qMakePair(i, profile->Rules[i]);
         }
 
-        // Overwrite the structured rules and default outbound, but keep the local identity
-        // and remote settings so the user's URL / auto-update survive.
         profile->isRaw = false;
         profile->rawRoute.clear();
         profile->Rules.clear();
@@ -45,8 +43,6 @@ namespace RouteUpdate {
         }
         profile->SyncEndpointRules();
         profile->defaultOutboundID = fetched->defaultOutboundID;
-        // Adopt the remote name when the profile doesn't have one yet (e.g. a freshly created
-        // remote profile). A name the user already chose is kept, so updates don't clobber it.
         if (profile->name.trimmed().isEmpty() && !fetched->name.trimmed().isEmpty()) {
             profile->name = fetched->name;
         }

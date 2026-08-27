@@ -11,8 +11,7 @@
 
 static const QString kDesktopId = "throned-url-handler.desktop";
 
-// For AppImage the launcher must point at the outer image ($APPIMAGE), not the
-// extracted binary inside the mount, which disappears after exit.
+// AppImage: point at the outer image ($APPIMAGE), not the extracted binary, which disappears after exit.
 static QString execTarget() {
     auto env = QProcessEnvironment::systemEnvironment();
     if (env.contains("APPIMAGE")) return env.value("APPIMAGE");
@@ -59,8 +58,7 @@ void UrlScheme_Apply() {
         f.close();
     }
 
-    // Refresh the desktop database and set us as the default handler. Both tools
-    // may be absent on minimal systems; execute() just returns nonzero then.
+    // Both tools may be absent on minimal systems; execute() just returns nonzero then.
     const QString appsDir = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
     QProcess::execute("update-desktop-database", {appsDir});
     QProcess::execute("xdg-mime", {"default", kDesktopId, "x-scheme-handler/throne"});

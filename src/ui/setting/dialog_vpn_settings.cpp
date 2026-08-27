@@ -84,7 +84,6 @@ DialogVPNSettings::~DialogVPNSettings() {
 }
 
 void DialogVPNSettings::accept() {
-    //
     auto mtu = ui->vpn_mtu->currentText().toInt();
     if (mtu > 10000 || mtu < 1000) mtu = 9000;
     const auto tunIPv4CIDR = ui->tun_ipv4_cidr->text().trimmed();
@@ -126,7 +125,6 @@ void DialogVPNSettings::accept() {
     Configs::dataManager->settingsRepo->vpn_private_ranges = privateRanges;
     Configs::dataManager->settingsRepo->vpn_auto_redirect = ui->auto_redirect->isChecked();
     Configs::dataManager->settingsRepo->vpn_l3_bridge = ui->l3_bridge->isChecked();
-    //
     MW_dialog_message(MwMessage::UpdateSettings, {MwArg::Vpn});
     QDialog::accept();
 }

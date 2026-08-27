@@ -22,6 +22,7 @@ public:
 
     QComboBox *_protocol_version;
     QComboBox *_obfuscation_type;
+    QCheckBox *_realm_enabled;
 
     void editHysteriaLayout(const QString& version, const QString& obfs_type);
 private:

@@ -37,7 +37,6 @@
 #include "include/ui/utils/ProfilesTableModel.h"
 
 namespace {
-    // How many profile names a removal confirmation lists before eliding.
     constexpr int removeListPreviewLimit = 20;
 }
 
@@ -84,9 +83,7 @@ void MainWindow::on_menu_delete_repeat_triggered() {
     const auto group = Configs::dataManager->groupsRepo->CurrentGroup();
     if (group == nullptr) return;
 
-    // A duplicate row is positional: one id can own several rows, and distinct ids
-    // can carry the same config. Walking the id list catches both, where shared_ptr
-    // identity caught neither, since a repeated id resolves to one object (#1775).
+    // Duplicates are positional: one id can own several rows, and distinct ids can share a config (#1775).
     const auto groupIds = group->Profiles();
     const auto groupProfiles = Configs::dataManager->profilesRepo->GetProfileBatch(groupIds);
 
@@ -110,8 +107,7 @@ void MainWindow::on_menu_delete_repeat_triggered() {
             newOrder += id;
             continue;
         }
-        // A repeated slot loses the row but keeps the profile; only a distinct id
-        // carrying an already-seen config is an actual profile to delete.
+        // A repeated slot loses the row but keeps the profile; only a distinct id is deleted.
         if (!repeatedSlot) del_ids += id;
         if (const auto ent = byId.value(id); ent != nullptr && remove_display_count < removeListPreviewLimit) {
             remove_display += ent->outbound->DisplayTypeAndName() + " \n ";
@@ -211,8 +207,7 @@ void MainWindow::on_menu_export_config_triggered() {
             MessageBoxWarning("Build Test config error", res->error);
             return;
         }
-        // An Xray full config is tested as its own sing-box+Xray pair rather than joining
-        // the shared batch, so surface that wrapper to keep "Copy test config" meaningful.
+        // An xray-full config is tested as its own box, so surface that wrapper here.
         if (!res->xrayFullConfigs.isEmpty()) config_core = res->xrayFullConfigs.first();
         else config_core = QJsonObject2QString(res->coreConfig, true);
         QApplication::clipboard()->setText(config_core);
@@ -227,10 +222,8 @@ void MainWindow::display_qr_link(bool nkrFormat) {
     public:
         QLabel *l = nullptr;
         QCheckBox *cb = nullptr;
-        //
         QPlainTextEdit *l2 = nullptr;
         QImage im;
-        //
         QString link;
         QString link_deep;
 
@@ -245,7 +238,6 @@ void MainWindow::display_qr_link(bool nkrFormat) {
             auto link_display = is_deep ? link_deep : link;
             l2->setPlainText(link_display);
             constexpr qint32 qr_padding = 2;
-            //
             try {
                 qrcodegen::QrCode qr = qrcodegen::QrCode::encodeText(link_display.toUtf8().data(), qrcodegen::QrCode::Ecc::MEDIUM);
                 qint32 sz = qr.getSize();
@@ -263,17 +255,14 @@ void MainWindow::display_qr_link(bool nkrFormat) {
             }
         }
 
-        // `showDeep` picks the encoding to open on; the checkbox still switches.
         W(const QString &link_, const QString &link_deep_, bool showDeep) {
             link = link_;
             link_deep = link_deep_;
-            //
             setLayout(new QVBoxLayout);
             setMinimumSize(256, 256);
             QSizePolicy sizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
             sizePolicy.setHeightForWidth(true);
             setSizePolicy(sizePolicy);
-            //
             l = new QLabel();
             l->setMinimumSize(256, 256);
             l->setMargin(6);
@@ -288,7 +277,6 @@ void MainWindow::display_qr_link(bool nkrFormat) {
             l2 = new QPlainTextEdit();
             l2->setReadOnly(true);
             layout()->addWidget(l2);
-            //
             connect(cb, &QCheckBox::toggled, this, &W::refresh);
             refresh(showDeep);
         }
@@ -384,8 +372,7 @@ void MainWindow::on_menu_remove_invalid_triggered() {
      QMutex mu;
      QMutex access;
      int profileSize = currentGroup->Profiles().size();
-     // Empty group: no worker is ever queued, so the join-mutex would never be
-     // unlocked and the worker thread would block forever on mu.lock() below.
+     // Empty group: no worker unlocks mu, so the join below would block forever.
      if (profileSize == 0) return;
      mu.lock();
      for (const auto& profileID : currentGroup->Profiles()) {
@@ -538,8 +525,7 @@ void MainWindow::saveProfileFocusState() {
 
     if (!profilesTableModel) return;
 
-    // hasFocus() is false when the header's filter fields hold the caret, which is
-    // what keeps restore from stealing it back mid-keystroke.
+    // hasFocus() is false while the header's filter fields hold the caret.
     m_profilesTableHadFocus = ui->profilesTableView->hasFocus();
     m_profilesScrollValue = ui->profilesTableView->verticalScrollBar()->value();
 

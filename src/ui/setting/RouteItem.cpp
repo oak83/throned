@@ -956,7 +956,6 @@ void RouteItem::rebuildAdvancedSummary() {
 }
 
 void RouteItem::setupRemoteSection() {
-    // The box is defined in RouteItem.ui; hide it for plain structured profiles.
     if (!chain->isRemote) {
         ui->remoteBox->hide();
         return;
@@ -987,12 +986,10 @@ void RouteItem::fetchRemote(bool applyToChain) {
     const QString origPreview = ui->remotePreviewBtn->text();
     (applyToChain ? ui->remoteFetchBtn : ui->remotePreviewBtn)->setText(tr("Fetching..."));
 
-    // Reflect the current name field so the "fill name if empty" step in UpdateProfile sees
-    // what the user has typed (and doesn't overwrite it with the remote name).
+    // UpdateProfile fills an empty name from the remote one; this stops it overwriting what the user typed.
     const QString currentName = ui->route_name->text();
 
     runOnNewThread([=, this] {
-        // For a preview we work on a throwaway copy so the editor's rules are untouched.
         auto target = applyToChain ? chain : std::make_shared<Configs::RouteProfile>(*chain);
         target->isRemote = true;
         target->remoteURL = url;
@@ -1195,7 +1192,6 @@ void RouteItem::syncEndpointRules() {
         if (!paired.contains(id)) chain->Rules << routeItemMakeEndpointRule(id);
     }
 
-    // The name is only a label for its endpoint, so it follows a renamed profile.
     for (const auto& rule : chain->Rules) {
         if (!routeItemIsEndpointRule(rule)) continue;
         rule->name = routeItemUniqueRuleName(
@@ -1223,7 +1219,6 @@ void RouteItem::applyRuleEditLock() {
 
 void RouteItem::reloadRuleViewsFromChain() {
     currentIndex = -1;
-    // A Fetch may have adopted the remote profile name (when the field was empty).
     ui->route_name->setText(chain->name);
     syncEndpointRules();
     simpleDirect->setPlainText(chain->GetSimpleRules(Configs::bypass));
@@ -1275,8 +1270,7 @@ void RouteItem::accept() {
     chain->endpointProfileIDs = endpointIDs;
     syncEndpointRules();
 
-    // A remote profile may legitimately be saved before its first fetch (rules are pulled
-    // later via Fetch / Update); only plain profiles must be non-empty.
+    // A remote profile may be saved before its first fetch; only plain profiles must be non-empty.
     if (!chain->isRemote && chain->IsEmpty()) {
         MessageBoxInfo(tr("Empty Route Profile"), tr("No valid rules are in the profile"));
         return;

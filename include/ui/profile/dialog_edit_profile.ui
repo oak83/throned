@@ -837,51 +837,6 @@
              </widget>
             </item>
             <item>
-             <widget class="QWidget" name="widget_tls_spoof" native="true">
-              <layout class="QHBoxLayout" name="horizontalLayout_tls_spoof">
-               <property name="leftMargin">
-                <number>0</number>
-               </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item>
-                <widget class="QLabel" name="tls_spoof_l">
-                 <property name="toolTip">
-                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Sends a decoy ClientHello carrying this SNI before the real one, so DPI classifies the flow by the decoy. Leave empty to disable. Requires elevated privileges; unavailable on Windows ARM.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                 </property>
-                 <property name="text">
-                  <string>Spoof SNI</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="MyLineEdit" name="tls_spoof">
-                 <property name="placeholderText">
-                  <string notr="true">api-maps.yandex.ru</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QLabel" name="tls_spoof_method_l">
-                 <property name="text">
-                  <string>Method</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QComboBox" name="tls_spoof_method"/>
-               </item>
-              </layout>
-             </widget>
-            </item>
-            <item>
              <widget class="QWidget" name="widget_tls_tricks" native="true">
               <layout class="QHBoxLayout" name="horizontalLayout_tls_tricks">
                <property name="leftMargin">

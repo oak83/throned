@@ -15,8 +15,7 @@ EditSnell::~EditSnell() {
     delete ui;
 }
 
-// Obfuscation is v4-only and the shaping mode is v6-only; the core rejects an
-// outbound carrying the other version's keys, so hide what does not apply.
+// Obfuscation is v4-only and the shaping mode v6-only; the core rejects the other version's keys.
 void EditSnell::applyVersion() {
     const bool v6 = ui->version->currentText() == "6";
     ui->obfs_mode_l->setVisible(!v6);

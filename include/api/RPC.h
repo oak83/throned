@@ -16,8 +16,6 @@ namespace API {
 
         ~Client();
 
-        // Adopt a freshly connected socket, replacing any previous
-        // connection. The Client itself is long-lived and never recreated.
         void Reconnect(QLocalSocket *socket);
 
         // QString returns is error string
@@ -28,9 +26,7 @@ namespace API {
 
         libcore::QueryStatsResp QueryStats();
 
-        // coreError (optional): on RPC failure, receives the core's error message
-        // so callers can react to it (e.g. missing Xray geo assets) rather than
-        // silently dropping the failed test.
+        // coreError (optional): on RPC failure, receives the core's error message.
         libcore::TestResp Test(bool *rpcOK, const libcore::TestReq &request, QString *coreError = nullptr);
 
         // Same request, but the core walks the path one hop at a time and returns
@@ -56,8 +52,6 @@ namespace API {
 
         [[nodiscard]] libcore::QueryConnectionsResp QueryConnections() const;
 
-        // isXray selects the validating core: false (default) validates a
-        // sing-box config, true validates an Xray-format config.
         QString CheckConfig(bool *rpcOK, const QString& config, bool isXray = false) const;
 
         bool IsPrivileged(bool *rpcOK) const;
@@ -72,16 +66,13 @@ namespace API {
 
         QString InstallDashboard(bool *rpcOK, const QString &archivePath, const QString &targetDir) const;
 
-        // Empty name = the OS has no default route. A local, censorship-proof
-        // way to tell "my network died" from "the servers died".
+        // Empty name = the OS has no default route.
         [[nodiscard]] libcore::GetDefaultInterfaceResponse GetDefaultInterface(bool *rpcOK) const;
 
-        // Idempotent snapshot of every running auto-selector group: it clears no
-        // core-side counters, so polling it alongside QueryStats is safe.
+        // Clears no core-side counters, so polling it alongside QueryStats is safe.
         [[nodiscard]] libcore::QueryAutoSelectorsResponse QueryAutoSelectors(bool *rpcOK) const;
 
-        // action: "recheck" forces a full sweep now, "select" pins the group to
-        // member. An empty tag targets every auto-selector group.
+        // action: "recheck" (sweep now) | "select" (pin to member); an empty tag targets every group.
         QString AutoSelectorAction(bool *rpcOK, const QString &tag, const QString &action,
                                    const QString &member = {}) const;
 

@@ -17,7 +17,6 @@ namespace Configs {
     bool isOutboundIDValid(int id) {
         switch (id) {
             case -1:
-                // return true;
             case -2:
                 return true;
             default:
@@ -33,10 +32,6 @@ namespace Configs {
         return INVALID_ID;
     }
 
-    // --- Raw routing profile outbound helpers ---
-    // In a raw profile the user references outbounds by numeric id in `outbound` (anywhere,
-    // including nested logical rules) and the top-level `final`. These walk the JSON to
-    // collect / translate those ids.
     static void collectRawOutboundIdsRec(const QJsonValue& node, QList<int>& out) {
         if (node.isObject()) {
             const QJsonObject o = node.toObject();
@@ -86,8 +81,6 @@ namespace Configs {
         return translateRawOutboundsRec(route, outboundMap).toObject();
     }
 
-    // Import-side remap: source ids -> local ids by matching the exported name, predefined
-    // negatives kept, unresolved -> proxy.
     static QJsonValue remapRawOutboundsByNameRec(const QJsonValue& node, const QJsonObject& names, QString* warnings) {
         if (node.isObject()) {
             const QJsonObject o = node.toObject();
@@ -261,10 +254,7 @@ namespace Configs {
         if (warnings) warnings->append(msg + "\n");
     }
 
-    // Parse one rule JSON object into a RouteRule. Tolerant by design (for sharing): an
-    // outbound that can't be resolved on this machine falls back to proxy with a warning
-    // rather than failing the whole import. The schema-only keys (name/type) are skipped
-    // here and applied by the caller.
+    // name/type are schema-only keys: skipped here, applied by the caller.
     static std::shared_ptr<RouteRule> parse_rule_object(const QJsonObject& obj, QString* warnings) {
         auto rule = std::make_shared<RouteRule>();
         for (const auto& key: obj.keys()) {
@@ -314,8 +304,6 @@ namespace Configs {
             }
             const QJsonObject ro = item.toObject();
             auto rule = parse_rule_object(ro, warnings);
-            // Preserve an explicit name if the array carries one (our exported rules do); plain
-            // sing-box rule arrays have no name, so those still get a stable placeholder.
             const QString nm = ro.value("name").toString();
             rule->name = nm.isEmpty() ? ("imported rule #" + Int2String(ruleID++)) : nm;
             rules << rule;
@@ -352,7 +340,6 @@ namespace Configs {
                 return {};
             }
         }
-        // one unstrippable hop disqualifies the whole endpoint
         auto strippable = [](const std::shared_ptr<Profile>& p) {
             return p->outbound->SupportsCredentialStrip();
         };
@@ -386,7 +373,6 @@ namespace Configs {
         return ent->type + "|" + QString::fromUtf8(QJsonDocument(ent->outbound->ExportIdentity()).toJson(QJsonDocument::Compact));
     }
 
-    // Identity match, so a repeated import reuses the profile instead of duplicating it.
     static int routeProfileMatchLocal(const std::shared_ptr<Profile>& candidate) {
         const QString key = routeProfileIdentityKey(candidate);
         for (const int id: Configs::dataManager->profilesRepo->GetProfileIdsByType(candidate->type)) {
@@ -437,7 +423,7 @@ namespace Configs {
         return routeProfileAdoptConfig(entry.value("config").toObject(), warnings, &hopMap);
     }
 
-    // Accepts both formats; fills *idMap with original->local so the paired rules can be remapped.
+    // *idMap is original id -> local id, so the paired rules can be remapped.
     static QList<int> routeProfileEndpointsFromJson(const QJsonArray& arr, QString* warnings, bool materialize, QMap<int, int>* idMap) {
         QList<int> ids;
         for (const auto& item: arr) {
@@ -479,8 +465,7 @@ namespace Configs {
             root["prevent_modifications"] = preventModifications;
             const auto routeObj = QString2QJsonObject(rawRoute);
             root["route"] = routeObj;
-            // carry an id->name map of the referenced server profiles so the importer can
-            // re-resolve them by name on another machine.
+            // id -> name of the referenced server profiles, so the importer can re-resolve them on another machine.
             QJsonObject names;
             for (const int oid : CollectRawOutboundIds(routeObj)) {
                 if (oid < 0) continue; // predefined outbounds (proxy/direct/warp-bypass) are stable
@@ -495,11 +480,11 @@ namespace Configs {
         for (const auto& entry: endpointsArr) sharedEndpoints << entry.toObject().value("id").toInt(INVALID_ID);
         QJsonArray rulesArr;
         for (const auto& rule: Rules) {
-            if (rule->type != custom && rule->isEmpty()) continue; // drop unused simple-rule stubs
+            if (rule->type != custom && rule->isEmpty()) continue;
             // a rule and its endpoint drop or survive together
             if (rule->type == endpointPreferredBy && !sharedEndpoints.contains(rule->outboundID)) continue;
             auto obj = rule->to_share_json();
-            if (obj.isEmpty()) continue; // outbound profile missing on this machine
+            if (obj.isEmpty()) continue;
             rulesArr.append(obj);
         }
         root["rules"] = rulesArr;
@@ -520,7 +505,6 @@ namespace Configs {
             return nullptr;
         }
 
-        // throne://route/<base64> deep link
         if (text.startsWith("throne://route/", Qt::CaseInsensitive)) {
             const QUrl u(text);
             if (!u.isValid()) {
@@ -534,7 +518,6 @@ namespace Configs {
             }
         }
 
-        // Resolve to JSON: try raw first, then base64 (url-safe, then standard).
         QJsonDocument doc = QJsonDocument::fromJson(text.toUtf8());
         if (doc.isNull()) {
             doc = QJsonDocument::fromJson(QByteArray::fromBase64(text.toUtf8(), QByteArray::Base64UrlEncoding));
@@ -546,7 +529,6 @@ namespace Configs {
             return nullptr;
         }
 
-        // New schema: a tagged object carrying the whole profile.
         if (doc.isObject()) {
             const QJsonObject root = doc.object();
             if (root.value("kind").toString() != QStringLiteral("throne-route-profile")) {
@@ -586,12 +568,10 @@ namespace Configs {
                 if (rule->name.isEmpty()) rule->name = "rule_" + Int2String(fallbackNum++);
                 profile->Rules << rule;
             }
-            // endpoint ids that did not resolve here are already gone, so their rules must go too
             profile->SyncEndpointRules();
             return profile;
         }
 
-        // Legacy schema: a bare array of rules (no name / default outbound).
         if (doc.isArray()) {
             QString fe;
             auto rules = parseJsonArray(doc.array(), &fe, warnings);
@@ -733,8 +713,7 @@ namespace Configs {
     std::shared_ptr<QList<int>> RouteProfile::get_used_outbounds() {
         auto res = std::make_shared<QList<int>>();
         if (isRaw) {
-            // referenced outbounds come from the raw route JSON (so they get built and
-            // their server domains added to direct DNS, exactly like structured rules).
+            // Raw ids must be collected too, so their servers get built and their domains added to direct DNS.
             *res = CollectRawOutboundIds(QString2QJsonObject(rawRoute));
             return res;
         }
@@ -836,8 +815,7 @@ namespace Configs {
         for (const auto& item: Rules) {
             if (item->action == "route" && item->outboundID == directID) continue;
             if (item->action != "route" && item->action != "reject") continue;
-            // ip_is_private covers every range the Tun bypass carves out, so it
-            // hijacks all of them at once.
+            // ip_is_private covers every range the Tun bypass carves out, so it hijacks all of them at once.
             if (item->ip_is_private) res << dataManager->settingsRepo->vpn_private_ranges;
             for (const auto& cidr: item->ip_cidr) res << cidr;
         }

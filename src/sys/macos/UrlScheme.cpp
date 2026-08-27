@@ -4,11 +4,7 @@
 #include <QDir>
 #include <QProcess>
 
-// macOS registration is declarative: CFBundleURLTypes and CFBundleDocumentTypes
-// in Info.plist plus LaunchServices indexing the bundle. Launching from anywhere
-// normally registers it, but a moved bundle leaves a stale path, so on change we
-// force a re-index of the current location with `lsregister -f`. No file is
-// written here.
+// Registration is declarative (Info.plist + LaunchServices), but a moved bundle leaves a stale path, hence the forced `lsregister -f`.
 
 static const QString kLsregister =
     "/System/Library/Frameworks/CoreServices.framework/Frameworks/"

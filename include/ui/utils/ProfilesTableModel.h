@@ -10,16 +10,11 @@ namespace Configs {
     class Profile;
 }
 
-// On-demand profile list model with configurable LRU cache.
-// Holds only profile IDs; cell data is loaded via ProfilesRepo when requested.
 class ProfilesTableModel : public QAbstractTableModel {
     Q_OBJECT
 public:
     enum { ProfileIdRole = Qt::UserRole };
 
-    // Column order of the proxy table. Everything that indexes the table by
-    // column (sorting, header menus, saved widths, the filter header) refers to
-    // these instead of raw numbers.
     enum Column {
         ColType = 0,
         ColAddress,
@@ -54,18 +49,15 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
 
-    // Set the list of profile IDs, in the group's own order.
     void refreshTable(const QList<int> &ids = {}, bool mayNeedReset = false);
 
-    // Invalidate one row so the view repaints (e.g. after latency/traffic update).
     void refreshProfileId(int profileId);
 
     void emplaceProfiles(int row1, int row2);
 
     int indexOfProfile(int id);
 
-    // Vertical header label: "✓" for the running profile, else displayRow + 1.
-    // A filter makes the two rows disagree, hence both arguments.
+    // A filter makes the source row and the display row disagree, hence both arguments.
     QString rowLabel(int sourceRow, int displayRow) const;
 
     // Null if the profile could not be loaded; valid until the next model change.

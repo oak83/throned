@@ -10,8 +10,6 @@
 #include "include/configs/generate.h"
 
 namespace Stats {
-    // Aggregate rate accumulator used for the status-bar / traffic-graph
-    // numbers (one for all proxied traffic combined, one for direct).
     struct TrafficLooperEntry {
         QString tag;
         double downlink_rate = 0;
@@ -37,20 +35,15 @@ namespace Stats {
                                       Rate(entry->downlink_rate));
     }
 
-    // Runtime view of a TrafficChainGroup: same watchTag + profile list, plus
-    // bookkeeping for delta-based rate computation.
     struct TrafficLooperGroup {
         QString watchTag;
-        // watchTag as the core's stats-map key; precomputed once
+        // watchTag as the core's stats-map key
         std::string watchTagKey;
         QList<std::shared_ptr<Configs::Profile>> profiles;
         long long last_update = 0;
         double uplink_rate = 0;
         double downlink_rate = 0;
         // Set when the group credited a non-zero delta since the last persist.
-        // Auto-selector pools contribute one idle group per unselected member,
-        // so persisting only dirty groups keeps that cost proportional to
-        // traffic rather than to pool size.
         bool dirty = false;
     };
 
@@ -67,9 +60,7 @@ namespace Stats {
 
         void Loop();
 
-        // Persist every active profile's legacy traffic total to disk in one
-        // batched transaction. Called on a slow cadence from the loop and once on
-        // stop/exit; runs synchronously on the caller's thread (no thread spawn).
+        // Runs synchronously on the caller's thread, in one batched transaction.
         void PersistTraffic();
 
         void SetChainGroups(const QList<Configs::TrafficChainGroup>& configGroups);

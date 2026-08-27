@@ -36,6 +36,7 @@
 #include "include/ui/setting/dialog_hotkey.h"
 #include "include/ui/setting/dialog_manage_routes.h"
 #include "include/ui/setting/dialog_otp_manager.h"
+#include "include/ui/setting/dialog_dpi_bypass.h"
 #include "include/ui/setting/dialog_preset_settings.h"
 #include "include/ui/setting/dialog_vpn_settings.h"
 
@@ -84,6 +85,10 @@ void MainWindow::on_menu_vpn_settings_triggered() {
     USE_DIALOG(DialogVPNSettings)
 }
 
+void MainWindow::on_menu_dpi_bypass_triggered() {
+    USE_DIALOG(DialogDpiBypass)
+}
+
 void MainWindow::on_menu_preset_settings_triggered() {
     USE_DIALOG(DialogPresetSettings)
 }
@@ -116,8 +121,7 @@ void MainWindow::on_commitDataRequest() {
     }
     settings->splitter_state = ui->splitter->saveState().toBase64();
 
-    // Backstop for the eager writes in set_spmode_*/UpdateStartedId: this only runs on a
-    // graceful exit, so it must never be the sole place the remembered state is recorded.
+    // Backstop only: this runs on a graceful exit, so it must never be the sole write.
     if (settings->remember_enable && settings->started_id >= 0) settings->remember_id = settings->started_id;
     settings->remember_system_proxy = settings->spmode_system_proxy;
     settings->remember_tun = settings->spmode_vpn;
@@ -138,14 +142,11 @@ void MainWindow::prepare_exit()
     }
     Configs::dataManager->settingsRepo->prepare_exit = true;
     LOG_INFO("prepare_exit started, tearing down proxy/tun/core");
-    //
     if (Configs::dataManager->settingsRepo->spmode_system_proxy) set_system_proxy(false);
     if (Configs::dataManager->settingsRepo->system_dns_set) set_system_dns(false, false);
     RegisterHiddenMenuShortcuts(true);
     RegisterHotkey(true);
-    //
     on_commitDataRequest();
-    //
     Configs::dataManager->settingsRepo->noSave = true; // don't change Configs::dataManager->settingsRepo after this line
     profile_stop(false, true);
 
@@ -162,7 +163,6 @@ void MainWindow::prepare_exit()
 
 void MainWindow::on_menu_exit_triggered() {
     prepare_exit();
-    //
     if (exit_reason == ExitReason::RunUpdater) {
         QDir::setCurrent(QApplication::applicationDirPath());
 #ifdef Q_OS_WIN
@@ -346,8 +346,8 @@ bool isNewer(QString assetName) {
     assetName = assetName.mid(firstDash + 1); // take out Throned- (or legacy Throne-)
     QString version;
     auto spl = assetName.split('-');
-    version += spl[0]; // version: 1.2.3
-    if (spl[1].contains("beta") || spl[1].contains("alpha") || spl[1].contains("rc")) version += "."+spl[1]; // .beta.13
+    version += spl[0];
+    if (spl[1].contains("beta") || spl[1].contains("alpha") || spl[1].contains("rc")) version += "."+spl[1];
     auto parts = version.split("."); // [1,2,3,beta,13]
     auto currentParts = QString(NKR_VERSION).replace("-", ".").split('.');
     if (parts.size() < 3 || currentParts.size() < 3)
@@ -357,7 +357,6 @@ bool isNewer(QString assetName) {
     }
     std::vector<int> verNums;
     std::vector<int> currNums;
-    // add base version first
     verNums.push_back(parts[0].toInt());
     verNums.push_back(parts[1].toInt());
     verNums.push_back(parts[2].toInt());
@@ -392,7 +391,6 @@ bool isNewer(QString assetName) {
         if (verNums[i] < currNums[i]) return false;
     }
 
-    // equal base version, check beta-ness
     if (verNums.size() == 5 && currNums.size() == 3) return false;
     if (verNums.size() == 3 && currNums.size() == 5) return true;
     if (verNums.size() == 5 && currNums.size() == 5)

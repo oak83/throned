@@ -45,7 +45,7 @@ namespace {
     }
     QMutex endpointDetailsProfilesMu;
     QMap<QString, int> endpointDetailsProfiles;
-} // namespace
+}
 
 namespace Stats {
     void SetVpnEndpointProfiles(const QMap<QString, int> &tagToProfileID) {

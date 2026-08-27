@@ -43,8 +43,7 @@ namespace Configs {
         int id = -1;
         int gid = 0;
         int latency = 0;
-        // Unix seconds when `latency` was measured; 0 = unknown/never. Lets a
-        // consumer decide whether a stored result is still worth trusting.
+        // Unix seconds when `latency` was measured; 0 = never.
         qint64 latency_at = 0;
         QString dl_speed;
         QString ul_speed;
@@ -63,8 +62,7 @@ namespace Configs {
 
         void ClearTestResults();
 
-        // Always set latency through here: it stamps latency_at, which is what
-        // lets consumers judge whether a stored result is still fresh.
+        // Always set latency through here: it also stamps latency_at.
         void SetLatency(int ms);
 
         [[nodiscard]] QString DisplayTestResult() const;

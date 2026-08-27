@@ -7,14 +7,12 @@
 
 namespace Configs {
     namespace {
-        // The core registers a v4 and a v6 client only; every other Snell version
-        // on the wire (v1-v3, v5) has no outbound we could build for it.
+        // The core registers a v4 and a v6 client only; no outbound exists for v1-v3 / v5.
         bool supportedVersion(int version) {
             return version == 4 || version == 6;
         }
 
-        // Clash also offers shadow-tls / restls / jls obfuscation, none of which
-        // the core's Snell client implements.
+        // Clash also offers shadow-tls / restls / jls obfs, none of which the core's Snell client implements.
         bool supportedObfsMode(const QString& mode) {
             return snellObfsModes.contains(mode);
         }
@@ -67,8 +65,7 @@ namespace Configs {
         if (object.type != "snell") return false;
         outbound::ParseFromClash(object);
         psk = QString::fromStdString(object.psk);
-        // Clash omits the key on legacy v1 nodes; assume the oldest version we
-        // can still dial rather than dropping every version-less entry.
+        // Clash omits the key on legacy v1 nodes; keep the default rather than dropping the entry.
         if (object.version > 0) version = object.version;
         if (!supportedVersion(version)) return false;
 
@@ -116,8 +113,7 @@ namespace Configs {
         if (!userkey.isEmpty()) object["userkey"] = userkey;
         if (reuse) object["reuse"] = true;
         if (!network.isEmpty()) object["network"] = network;
-        // The core unmarshals the version block strictly, so a key belonging to
-        // the other version fails the whole outbound rather than being ignored.
+        // The core unmarshals strictly: a key from the other version fails the whole outbound.
         if (version == 6) {
             if (!mode.isEmpty()) object["mode"] = mode;
         } else {

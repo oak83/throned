@@ -52,8 +52,7 @@ namespace Configs
         if (!url.isValid()) return false;
         auto query = QUrlQuery(url.query());
         const auto transport = query.queryItemValue("type");
-        // an absent "type" is raw, matching xrayStreamSetting::ParseFromLink's default;
-        // sing-box has no equivalent of the raw HTTP header, so these must go to Xray
+        // sing-box has no equivalent of the raw HTTP header, so these must go to Xray.
         const bool rawHttp = (transport.isEmpty() || transport == "tcp" || transport == "raw")
                              && query.queryItemValue("headerType") == "http";
 

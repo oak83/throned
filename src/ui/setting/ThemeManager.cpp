@@ -42,7 +42,7 @@ struct ThemeColors {
     QColor link;            // paints the active/running config row
     QColor tooltipBase, tooltipText;
     QColor placeholder;
-    QColor disabledText;    // dimmed text for disabled controls
+    QColor disabledText;
 };
 
 static QPalette buildThemePalette(const ThemeColors &c) {
@@ -70,15 +70,14 @@ static QPalette buildThemePalette(const ThemeColors &c) {
     setAll(QPalette::LinkVisited,     c.link);
     setAll(QPalette::PlaceholderText, c.placeholder);
 
-    // Derive the 3D bevel shades from the button tone so any frame/bevel the
-    // stylesheet doesn't cover matches the theme instead of Qt's light defaults.
+    // Frames and bevels the stylesheet doesn't cover fall back to Qt's light defaults otherwise.
     setAll(QPalette::Light,    c.button.lighter(130));
     setAll(QPalette::Midlight, c.button.lighter(115));
     setAll(QPalette::Mid,      c.button.darker(130));
     setAll(QPalette::Dark,     c.button.darker(160));
     setAll(QPalette::Shadow,   c.window.darker(180));
 
-    // Disabled controls get dimmed text regardless of the group defaults above.
+    // Must follow setAll(), which wrote the Disabled group too.
     p.setColor(QPalette::Disabled, QPalette::WindowText,      c.disabledText);
     p.setColor(QPalette::Disabled, QPalette::Text,            c.disabledText);
     p.setColor(QPalette::Disabled, QPalette::ButtonText,      c.disabledText);
@@ -88,14 +87,11 @@ static QPalette buildThemePalette(const ThemeColors &c) {
     return p;
 }
 
-// Lower-case theme name -> its complete palette. Built lazily on first use so the
-// QPalette objects are constructed after QApplication exists. The keys double as
-// the definition of "custom theme" used by ApplyTheme.
+// Lazy: a QPalette must not be constructed before QApplication exists. The keys also define "custom theme".
 static const QMap<QString, QPalette> &customThemePalettes() {
     static const QMap<QString, QPalette> palettes = [] {
         QMap<QString, QPalette> m;
 
-        // Light gray, near-monochrome.
         m["flatgray"] = buildThemePalette({
             .window = "#FFFFFF", .windowText = "#57595B",
             .base = "#FFFFFF", .alternateBase = "#F6F6F6",
@@ -108,7 +104,6 @@ static const QMap<QString, QPalette> &customThemePalettes() {
             .placeholder = "#9AA0A6", .disabledText = "#B0B0B0",
         });
 
-        // Light blue.
         m["lightblue"] = buildThemePalette({
             .window = "#EAF7FF", .windowText = "#386487",
             .base = "#FFFFFF", .alternateBase = "#DAEFFF",
@@ -121,7 +116,6 @@ static const QMap<QString, QPalette> &customThemePalettes() {
             .placeholder = "#7F9DB5", .disabledText = "#A6BCCE",
         });
 
-        // Light pink.
         m["softpink"] = buildThemePalette({
             .window = "#FFF0FB", .windowText = "#883983",
             .base = "#FFFFFF", .alternateBase = "#FBDDF5",
@@ -134,7 +128,6 @@ static const QMap<QString, QPalette> &customThemePalettes() {
             .placeholder = "#C08BBA", .disabledText = "#CBA6C6",
         });
 
-        // Dark gray.
         m["blacksoft"] = buildThemePalette({
             .window = "#444444", .windowText = "#DCDCDC",
             .base = "#444444", .alternateBase = "#525252",
@@ -147,7 +140,7 @@ static const QMap<QString, QPalette> &customThemePalettes() {
             .placeholder = "#9A9A9A", .disabledText = "#808080",
         });
 
-        // QDarkStyle (dark navy). Colors mirror the bundled darkstyle.qss.
+        // Mirrors the bundled darkstyle.qss.
         m["qdarkstyle"] = buildThemePalette({
             .window = "#19232D", .windowText = "#DFE1E2",
             .base = "#19232D", .alternateBase = "#37414F",

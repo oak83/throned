@@ -9,9 +9,7 @@ EditWireguard::EditWireguard(QWidget *parent) : QWidget(parent), ui(new Ui::Edit
 
     connect(ui->warp_autogen, &QPushButton::clicked, this, [=, this] {
         auto originalText = ui->warp_autogen->text();
-        // genWarpConfig blocks on a nested event loop, so the button stays
-        // clickable while the request is in flight; disable it to avoid firing
-        // a second request on a double click.
+        // genWarpConfig spins a nested event loop, so the button stays clickable through the request.
         ui->warp_autogen->setEnabled(false);
         ui->warp_autogen->setText(tr("Getting keypair..."));
         bool ok;
@@ -36,8 +34,7 @@ EditWireguard::EditWireguard(QWidget *parent) : QWidget(parent), ui(new Ui::Edit
         ui->local_addr->setText(conf->ipv4Address + "/32," + conf->ipv6Address + "/128");
         ui->mtu->setText("1280");
         ui->persistent_keepalive->setText("30");
-        // The endpoint (host:port) lives in the outer profile dialog's
-        // address/port fields, reached through the editor hooks.
+        // The endpoint lives in the outer profile dialog's address/port fields.
         if (auto sep = conf->endpoint.lastIndexOf(':'); sep > 0) {
             if (set_edit_text_serverAddress) set_edit_text_serverAddress(conf->endpoint.left(sep));
             if (set_edit_text_serverPort) set_edit_text_serverPort(conf->endpoint.mid(sep + 1));
@@ -97,6 +94,8 @@ void EditWireguard::onStart(std::shared_ptr<Configs::Profile> _ent) {
     ui->reject_after_time->setText(outbound->reject_after_time);
     ui->keepalive_timeout->setText(outbound->keepalive_timeout);
     ui->max_handshake_attempts->setText(outbound->max_handshake_attempts);
+    ui->random_trailers->setChecked(outbound->random_trailers);
+    ui->disable_cookies->setChecked(outbound->disable_cookies);
 }
 
 bool EditWireguard::onEnd() {
@@ -141,6 +140,8 @@ bool EditWireguard::onEnd() {
     outbound->reject_after_time = ui->reject_after_time->text().trimmed();
     outbound->keepalive_timeout = ui->keepalive_timeout->text().trimmed();
     outbound->max_handshake_attempts = ui->max_handshake_attempts->text().trimmed();
+    outbound->random_trailers = ui->random_trailers->isChecked();
+    outbound->disable_cookies = ui->disable_cookies->isChecked();
 
     return true;
 }

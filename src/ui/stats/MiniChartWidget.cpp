@@ -11,8 +11,6 @@
 #include <vector>
 
 namespace {
-    // Round a positive value up to a "nice" 1/2/5 * 10^n ceiling, so the scale
-    // label is stable and readable instead of jittering with every sample.
     double niceCeil(double v) {
         if (v <= 0) return 1.0;
         const double mag = std::pow(10.0, std::floor(std::log10(v)));
@@ -28,8 +26,6 @@ namespace {
 
 MiniChartWidget::MiniChartWidget(QWidget* parent) : QWidget(parent) {
     setMinimumHeight(46);
-    // Expand into whatever height the card gives it, so the process card fills
-    // instead of leaving dead space.
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 }
 

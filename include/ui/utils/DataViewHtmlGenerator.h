@@ -34,8 +34,6 @@ public:
         int totalProfiles = 0;
     };
 
-    // Lowest priority of all panels: it reports steady state rather than a
-    // running job, so anything transient takes the space instead.
     struct AutoSelectorPanelState {
         bool visible = false;
         QString summary;
@@ -71,8 +69,7 @@ private:
 
     QString autoSelectorSectionHtml();
 
-    // Pool threads seed panels while buildHtml reads them; QStrings need more
-    // than the atomic counter below.
+    // Pool threads seed panels while buildHtml reads them.
     mutable QMutex mu_;
 
     DownloadPanelState download_ = {};

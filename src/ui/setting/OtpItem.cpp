@@ -15,7 +15,7 @@ namespace {
         painter.end();
         return QIcon(pixmap);
     }
-} // namespace
+}
 
 OtpItem::OtpItem(QWidget *parent, std::shared_ptr<Configs::OtpProfile> profile_, QListWidgetItem *item_,
                  const Mode mode_)

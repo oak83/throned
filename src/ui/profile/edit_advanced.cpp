@@ -2,8 +2,10 @@
 
 #include "include/global/GuiUtils.hpp"
 
+#include <QGuiApplication>
 #include <QInputDialog>
 #include <QNetworkInterface>
+#include <QScreen>
 #include <QAbstractSocket>
 #include "include/database/DatabaseManager.h"
 #include "include/ui/profile/editor_table_utils.h"
@@ -33,7 +35,6 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
     ui->tcp_multipath->setChecked(dialFieldsObj->tcp_multi_path);
     ui->connect_timeout->setText(dialFieldsObj->connect_timeout);
 
-    // Collect system network interfaces and addresses
     for (const auto& ifc : QNetworkInterface::allInterfaces())
         m_systemInterfaces << ifc.humanReadableName();
     for (const auto& addr : QNetworkInterface::allAddresses()) {
@@ -64,6 +65,21 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
         ui->disable_sni->setChecked(tlsObj->disable_sni);
         ui->min_version->setText(tlsObj->min_version);
         ui->max_version->setText(tlsObj->max_version);
+        ui->tls_spoof_state->setCurrentIndex(tlsObj->getSpoofState());
+        ui->tls_spoof->setText(tlsObj->spoof);
+        // a non-editable combo drops setCurrentText while it holds no items
+        ui->tls_spoof_method->addItems(Configs::tlsSpoofMethods);
+        ui->tls_spoof_method->setCurrentText(tlsObj->spoof_method);
+        auto syncSpoofFields = [this] {
+            const bool on = ui->tls_spoof_state->currentIndex() != 2;
+            ui->tls_spoof->setEnabled(on);
+            ui->tls_spoof_l->setEnabled(on);
+            ui->tls_spoof_method->setEnabled(on && !ui->tls_spoof->text().isEmpty());
+            ui->tls_spoof_method_l->setEnabled(on && !ui->tls_spoof->text().isEmpty());
+        };
+        connect(ui->tls_spoof, &QLineEdit::textChanged, this, syncSpoofFields);
+        connect(ui->tls_spoof_state, &QComboBox::currentIndexChanged, this, syncSpoofFields);
+        syncSpoofFields();
         ui->enable_ech->setChecked(tlsObj->ech->enabled);
         ui->ech_server_name->setText(tlsObj->ech->serverName);
 
@@ -87,6 +103,19 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
         ui->tls_box->hide();
     }
 
+    if (ent->outbound->HasQUIC()) {
+        auto quicObj = ent->outbound->GetQUIC();
+        ui->quic_idle_timeout->setText(quicObj->idle_timeout);
+        ui->quic_keep_alive_period->setText(quicObj->keep_alive_period);
+        ui->quic_stream_receive_window->setText(quicObj->stream_receive_window);
+        ui->quic_connection_receive_window->setText(quicObj->connection_receive_window);
+        ui->quic_max_concurrent_streams->setText(EditorNumText(quicObj->max_concurrent_streams));
+        ui->quic_initial_packet_size->setText(EditorNumText(quicObj->initial_packet_size));
+        ui->quic_disable_path_mtu_discovery->setCurrentIndex(quicObj->getPathMtuState());
+    } else {
+        ui->quic_box->hide();
+    }
+
     if (auto fields = GetInterfaceFields(); fields.system != nullptr) {
         ui->udp_mapping->addItems({"", "endpoint_independent", "address_dependent", "address_and_port_dependent"});
         ui->udp_filtering->addItems({"", "endpoint_independent", "address_dependent", "address_and_port_dependent"});
@@ -101,7 +130,10 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
     }
 
     ADD_ASTERISK(this)
-    adjustSize();
+
+    // adjustSize() clamps to 2/3 of the screen.
+    const auto *scr = screen() != nullptr ? screen() : QGuiApplication::primaryScreen();
+    if (scr != nullptr) resize(sizeHint().boundedTo(scr->availableGeometry().size()));
 }
 
 EditAdvanced::~EditAdvanced()
@@ -138,12 +170,26 @@ void EditAdvanced::accept() {
         tlsObj->disable_sni = ui->disable_sni->isChecked();
         tlsObj->min_version = ui->min_version->text();
         tlsObj->max_version = ui->max_version->text();
+        tlsObj->saveSpoofState(ui->tls_spoof_state->currentIndex());
+        tlsObj->spoof = ui->tls_spoof->text();
+        tlsObj->spoof_method = ui->tls_spoof_method->currentText();
         tlsObj->ech->enabled = ui->enable_ech->isChecked();
         tlsObj->ech->serverName = ui->ech_server_name->text();
         tlsObj->ech->config = CACHE.echConfig;
         tlsObj->client_certificate = CACHE.clientCert;
         tlsObj->client_key = CACHE.clientKey;
         tlsObj->certificate_public_key_sha256 = CACHE.certSha256;
+    }
+
+    if (ent->outbound->HasQUIC()) {
+        auto quicObj = ent->outbound->GetQUIC();
+        quicObj->idle_timeout = ui->quic_idle_timeout->text();
+        quicObj->keep_alive_period = ui->quic_keep_alive_period->text();
+        quicObj->stream_receive_window = ui->quic_stream_receive_window->text();
+        quicObj->connection_receive_window = ui->quic_connection_receive_window->text();
+        quicObj->max_concurrent_streams = ui->quic_max_concurrent_streams->text().toInt();
+        quicObj->initial_packet_size = ui->quic_initial_packet_size->text().toInt();
+        quicObj->savePathMtuState(ui->quic_disable_path_mtu_discovery->currentIndex());
     }
 
     if (auto fields = GetInterfaceFields(); fields.system != nullptr) {

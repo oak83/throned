@@ -98,7 +98,6 @@ namespace Configs
     class OpenConnectTLS : public baseConfig
     {
         public:
-        // Tier 1: main editor.
         bool insecure = false;
         QString server_name;
         QStringList certificate_authority;
@@ -106,7 +105,7 @@ namespace Configs
         QStringList client_key;
         QString client_key_password;
 
-        // Tier 2: Advanced dialog. Each *_path conflicts with its inline value.
+        // Each *_path conflicts with its inline value.
         QStringList peer_fingerprint;
         bool system_trust_disabled = false;
         QString certificate_authority_path;
@@ -126,7 +125,6 @@ namespace Configs
     class openconnect : public outbound
     {
         public:
-        // Tier 1: main editor.
         QString flavor;
         QString username;
         QString password;
@@ -140,7 +138,6 @@ namespace Configs
         bool use_tunnel_dns = true;
         bool block_outside_dns = false;
 
-        // Tier 2: Advanced dialog.
         QString cookie;
         std::shared_ptr<OpenConnectToken> token = std::make_shared<OpenConnectToken>();
         QString reported_os;

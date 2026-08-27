@@ -34,9 +34,6 @@ namespace Stats {
         proxy->uplink_rate = 0;
         proxy->downlink_rate = 0;
 
-        // For each chain group, read the matched-outbound's delta-since-last-query
-        // and credit it to every user-visible profile in the chain. Aggregate
-        // rates from all groups into the proxy entry for the status bar.
         for (auto& group : groups) {
             const auto& tagKey = group.watchTagKey;
             if (!resp.ups.contains(tagKey)) continue;
@@ -45,14 +42,11 @@ namespace Stats {
             if (interval <= 0) continue;
             const auto up = resp.ups.at(tagKey);
             const auto down = resp.downs.at(tagKey);
-            // An auto-selector contributes one group per pool member, all but
-            // one of them idle at any moment. Skipping the zero deltas keeps a
-            // 300-member pool from doing 300 no-op stat writes every second.
+            // An auto-selector contributes one group per pool member, nearly all idle, so skip the zero deltas.
             if (up != 0 || down != 0) {
                 for (auto& profile : group.profiles) {
                     profile->traffic_uplink += up;
                     profile->traffic_downlink += down;
-                    // Mirror the per-profile crediting into the time-series module.
                     trafficStatsManager->AddConfigDelta(profile->id, up, down);
                 }
                 group.dirty = true;
@@ -63,8 +57,6 @@ namespace Stats {
             proxy->downlink_rate += group.downlink_rate;
         }
 
-        // direct: not part of any chain group, tracked on its own for the
-        // status-bar split.
         direct->uplink_rate = 0;
         direct->downlink_rate = 0;
         const std::string directTag = "direct";
@@ -85,15 +77,13 @@ namespace Stats {
         elapsedTimer.start();
         int secs_since_save = 0;
         while (true) {
-            QThread::msleep(1000); // refresh every one second
+            QThread::msleep(1000);
 
             if (Configs::dataManager->settingsRepo->disable_traffic_stats) {
                 continue;
             }
 
-            // profile start and stop
             if (!loop_enabled) {
-                // 停止
                 if (looping) {
                     looping = false;
                     runOnUiThread([=] {
@@ -108,13 +98,11 @@ namespace Stats {
                 });
                 continue;
             } else {
-                // 开始
                 if (!looping) {
                     looping = true;
                 }
             }
 
-            // do update
             loop_mutex.lock();
 
             UpdateAll();
@@ -126,15 +114,12 @@ namespace Stats {
                 PersistTraffic();
             }
 
-            // post to UI
             runOnUiThread([=,this] {
                 auto m = GetMainWindow();
                 if (proxy != nullptr) {
                     m->refresh_status(DisplaySpeed(proxy) + QChar(0x001F) + DisplaySpeed(direct));
                     m->update_traffic_graph(proxy->downlink_rate, proxy->uplink_rate, direct->downlink_rate, direct->uplink_rate);
                 }
-                // One batched refresh: a 300-member auto-selector pool would
-                // otherwise fire hundreds of list refreshes every second.
                 QList<int> ids;
                 QSet<int> seen;
                 for (const auto& group : groups) {
@@ -154,8 +139,7 @@ namespace Stats {
         QList<std::shared_ptr<Configs::Profile>> all;
         {
             QMutexLocker lk(&loop_mutex);
-            // A profile can appear in several groups (an auto selector is
-            // credited by every one of its members), so dedup before writing.
+            // A profile can appear in several groups (an auto selector is credited by every member), so dedup first.
             QSet<int> seen;
             for (auto& group : groups) {
                 if (!group.dirty) continue;
@@ -180,9 +164,7 @@ namespace Stats {
         direct = std::make_shared<TrafficLooperEntry>();
         direct->tag = "direct";
 
-        // Seed last_update to "now" so the first delta lands against the next
-        // tick rather than against time zero — otherwise the first rate sample
-        // gets divided by however long the app has been up.
+        // Seed last_update to now, or the first rate sample is divided by however long the app has been up.
         const auto now = elapsedTimer.isValid() ? elapsedTimer.elapsed() : 0;
 
         groups.clear();
@@ -197,8 +179,6 @@ namespace Stats {
         }
         direct_last_update = now;
 
-        // Snapshot reference metadata for the statistics module so per-config
-        // history stays meaningful even after a profile is renamed or removed.
         trafficStatsManager->EnsureDirectMeta();
         QSet<int> snapshotted;
         for (const auto& g : groups) {

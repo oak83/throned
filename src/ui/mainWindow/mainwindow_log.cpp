@@ -15,8 +15,6 @@
 namespace {
     constexpr qsizetype MAX_PENDING_LOG_CHARS = 2 * 1024 * 1024;
 
-    // Bypasses QTextEdit::append()'s per-call layout/scroll work, which dominates
-    // when the core spams lines; one edit block per batch instead.
     inline void FastAppendTextDocument(const QString &message, QTextDocument *doc) {
         QTextCursor cursor(doc);
         cursor.movePosition(QTextCursor::End);
@@ -36,8 +34,7 @@ void MainWindow::applyLogBrowserFont() {
 }
 
 void MainWindow::setLogHighlighter(bool darkMode) {
-    // A QSyntaxHighlighter attaches to the document and is never evicted by
-    // constructing another, so the old one must be deleted or they stack up.
+    // A QSyntaxHighlighter is never evicted by constructing another, so the old one must be deleted.
     delete logHighlighter;
     logHighlighter = new SyntaxHighlighter(darkMode, qvLogDocument);
 }
@@ -49,7 +46,6 @@ void MainWindow::append_log(const QString &log) {
     }
     QMutexLocker locker(&logMutex);
     if (logQueue.size() > 1000) {
-        // log is overloaded, just discard it
         return;
     }
     logQueue.enqueue(log);
@@ -62,8 +58,6 @@ void MainWindow::log_process_loop() {
         while (logQueue.isEmpty()) {
             logWaiter.wait(&logMutex);
         }
-        // Drain and snapshot under one lock, then filter unlocked: a burst becomes a
-        // single UI append and producers never block on the regex work.
         QQueue<QString> pending;
         pending.swap(logQueue);
         const LogFilter filter{
@@ -98,8 +92,7 @@ void MainWindow::log_process_loop() {
             needsPost = !logFlushScheduled;
             logFlushScheduled = true;
         }
-        // At most one flush in flight; anything produced meanwhile is picked up by
-        // the flush that is already pending, so the UI event queue cannot grow.
+        // At most one flush in flight; later text rides the pending one, so the event queue cannot grow.
         if (needsPost) runOnUiThread([this] { flush_log_batch(); });
     }
 }
@@ -119,8 +112,7 @@ void MainWindow::flush_log_batch() {
         bar->setValue(bar->maximum());
     } else {
         auto layout = qvLogDocument->documentLayout();
-        // Anchor to the block at the top of the viewport; if the append
-        // shifts its document-Y, replay the original sub-block offset.
+        // Anchor to the top block, then replay its sub-block offset after the append shifts document-Y.
         QTextBlock anchorBlock = ui->masterLogBrowser->cursorForPosition(QPoint(0, 0)).block();
         int viewportOffset = bar->value() - static_cast<int>(layout->blockBoundingRect(anchorBlock).y());
         FastAppendTextDocument(batch, qvLogDocument);

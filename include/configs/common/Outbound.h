@@ -2,6 +2,7 @@
 #include <QHostInfo>
 #include <utility>
 #include "DialFields.h"
+#include "QUICFields.h"
 #include "multiplex.h"
 #include "TLS.h"
 #include "transport.h"
@@ -97,11 +98,8 @@ namespace Configs
             return QString("[%1] %2").arg(DisplayType(), DisplayName());
         }
 
-        // Overridden by protocols with their own crypto (WireGuard, SSH, ...);
-        // the default reads TLS/transport (or the Xray stream settings).
         virtual SecurityInfo GetSecurity();
 
-        // GetSecurity() rendered for the type column, warning-prefixed when weak.
         QString DisplaySecurity();
 
     protected:
@@ -123,7 +121,11 @@ namespace Configs
 
         virtual bool MustTLS() { return false; }
 
+        virtual bool HasQUIC() { return false; }
+
         virtual std::shared_ptr<TLS> GetTLS() { return std::make_shared<TLS>(); }
+
+        virtual std::shared_ptr<QUICFields> GetQUIC() { return std::make_shared<QUICFields>(); }
 
         virtual std::shared_ptr<Transport> GetTransport() { return std::make_shared<Transport>(); }
 
@@ -135,7 +137,6 @@ namespace Configs
 
         virtual bool IsEndpoint() { return false; };
 
-        // Whether this protocol's class knows how to clear every secret it can hold.
         virtual bool SupportsCredentialStrip() const { return false; }
 
         virtual void StripCredentials() {}
@@ -153,7 +154,6 @@ namespace Configs
             return QStringLiteral("throne://add/") + QString::fromLatin1(b64);
         }
 
-        // baseConfig overrides
         bool ParseFromLink(const QString& link) override;
         bool ParseFromJson(const QJsonObject& object) override;
         bool ParseFromClash(const clash::Proxies& object) override;

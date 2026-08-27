@@ -60,7 +60,6 @@ void MainWindow::show_group(int gid) {
     Configs::dataManager->settingsRepo->refreshing_group = false;
 }
 
-// refresh_groups -> show_group -> refresh_proxy_list
 void MainWindow::refresh_groups() {
     Configs::dataManager->settingsRepo->refreshing_group_list = true;
 
@@ -85,7 +84,6 @@ void MainWindow::refresh_groups() {
         index++;
     }
 
-    // show after group changed
     if (Configs::dataManager->groupsRepo->CurrentGroup() == nullptr) {
         Configs::dataManager->settingsRepo->current_group = -1;
         ui->tabWidget->setCurrentIndex(groupId2TabIndex(0));
@@ -101,8 +99,6 @@ void MainWindow::refresh_groups() {
 
 void MainWindow::on_tabWidget_customContextMenuRequested(const QPoint &p) {
     const int clickedIndex = ui->tabWidget->tabBar()->tabAt(p);
-    // Stack-owned: exec() blocks until the menu closes, so the menu and the
-    // actions it parents are released here instead of piling up on the window.
     if (clickedIndex == -1) {
         QMenu menu(this);
         connect(menu.addAction(tr("Add new Group")), &QAction::triggered, this, [=,this]{
@@ -124,8 +120,6 @@ void MainWindow::on_tabWidget_customContextMenuRequested(const QPoint &p) {
     ui->tabWidget->setCurrentIndex(clickedIndex);
     QMenu menu(this);
 
-    // The tab context menu mirrors the most common Groups toolButton actions
-    // for the clicked group: add / edit / delete / update subscription.
     const auto clickedGroup = Configs::dataManager->groupsRepo->GetGroup(Configs::dataManager->groupsRepo->GetGroupsTabOrder()[clickedIndex]);
 
     connect(menu.addAction(tr("Add new Group")), &QAction::triggered, this, [=,this]{
@@ -165,7 +159,6 @@ void MainWindow::on_tabWidget_customContextMenuRequested(const QPoint &p) {
             }
         });
     }
-    // Update subscription only applies to subscription-based groups (those with a URL).
     if (clickedGroup != nullptr && !clickedGroup->url.isEmpty()) {
         connect(menu.addAction(tr("Update subscription")), &QAction::triggered, this, [=,this]{
             const auto id = Configs::dataManager->groupsRepo->GetGroupsTabOrder()[clickedIndex];

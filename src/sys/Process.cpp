@@ -59,14 +59,13 @@ namespace Configs_sys {
             }
 
             if (!Configs::dataManager->settingsRepo->prepare_exit && state == NotRunning) {
-                if (failed_to_start) return; // no retry
+                if (failed_to_start) return;
                 if (restarting) return;
 
                 MW_show_log("[Fatal] " + QObject::tr("Core exited, cleaning up..."));
 
                 GetMainWindow()->profile_stop(true, true);
 
-                // Retry rate limit
                 if (coreRestartTimer.isValid()) {
                     if (coreRestartTimer.restart() < 10 * 1000) {
                         coreRestartTimer = QElapsedTimer();
@@ -77,7 +76,6 @@ namespace Configs_sys {
                     coreRestartTimer.start();
                 }
 
-                // Restart
                 start_profile_when_core_is_up = Configs::dataManager->settingsRepo->started_id;
                 MW_show_log("[Warn] " + QObject::tr("Restarting the core ..."));
                 setTimeout([=,this] { Restart(); }, this, 200);

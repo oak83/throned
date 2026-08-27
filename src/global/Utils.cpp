@@ -101,14 +101,12 @@ quint64 GetRandomUint64() {
     return dist(mt);
 }
 
-// QString >> QJson
 QJsonObject QString2QJsonObject(const QString &jsonString) {
     QJsonDocument jsonDocument = QJsonDocument::fromJson(jsonString.toUtf8());
     QJsonObject jsonObject = jsonDocument.object();
     return jsonObject;
 }
 
-// QJson >> QString
 QString QJsonObject2QString(const QJsonObject &jsonObject, bool compact) {
     return QJsonDocument(jsonObject).toJson(compact ? QJsonDocument::Compact : QJsonDocument::Indented);
 }
@@ -410,7 +408,6 @@ void runOnUiThread(const std::function<void()> &callback, bool wait) {
 
     QEventLoop loop;
     QObject::connect(timer, &QTimer::timeout, [=, &loop]() {
-        // main thread
         callback();
         timer->deleteLater();
 
@@ -455,8 +452,7 @@ static QStringList g_pendingFiles;
 
 QStringList LaunchFiles_ExtractFromArgs(const QStringList &args, const QDir &launchDir) {
     QStringList files;
-    // Skip argv[0], our own flags, and the deeplink. "-appdata" is the only flag
-    // taking a value, and that directory must not be read as a config to import.
+    // "-appdata" is the only flag taking a value, and that directory must not be imported as a config.
     for (int i = 1; i < args.size(); i++) {
         const auto &arg = args[i];
         if (arg.startsWith('-')) {
@@ -465,9 +461,7 @@ QStringList LaunchFiles_ExtractFromArgs(const QStringList &args, const QDir &lau
         }
         if (arg.startsWith("throne://")) continue;
 
-        // Desktop launchers hand over file:// URLs, terminals plain paths, and a
-        // relative path resolves against the directory we were launched from -
-        // which main() abandons early on.
+        // A relative path resolves against the directory we were launched from, which main() abandons early.
         auto path = arg.startsWith("file://") ? QUrl(arg).toLocalFile() : arg;
         if (path.isEmpty()) continue;
         const QFileInfo info(launchDir, path);

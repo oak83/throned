@@ -32,12 +32,11 @@ namespace Configs
     class OpenVPNControlWrap : public baseConfig
     {
         public:
-        // Tier 1: main editor.
         QString type;
         QStringList key;
         QString direction;
 
-        // Tier 2: Advanced dialog. Conflicts with `key`.
+        // Conflicts with `key`.
         QString key_path;
 
         bool ParseFromJson(const QJsonObject& object) override;
@@ -48,13 +47,12 @@ namespace Configs
     class OpenVPNTLS : public baseConfig
     {
         public:
-        // Tier 1: main editor.
         QStringList certificate;
         QStringList client_certificate;
         QStringList client_key;
         std::shared_ptr<OpenVPNControlWrap> control_wrap = std::make_shared<OpenVPNControlWrap>();
 
-        // Tier 2: Advanced dialog. Each *_path conflicts with its inline value.
+        // Each *_path conflicts with its inline value.
         QString server_name;
         QString server_name_type;
         QString certificate_path;
@@ -80,7 +78,6 @@ namespace Configs
     class openvpn : public outbound
     {
         public:
-        // Tier 1: main editor.
         QString network;
         QString username;
         QString password;
@@ -94,7 +91,6 @@ namespace Configs
         bool use_tunnel_dns = true;
         bool block_outside_dns = false;
 
-        // Tier 2: Advanced dialog.
         QString mode;
         QList<std::shared_ptr<OpenVPNRemote>> servers;
         bool remote_random = false;

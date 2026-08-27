@@ -54,10 +54,7 @@ DialogEditGroup::DialogEditGroup(const std::shared_ptr<Configs::Group> &ent, QWi
     idToName.reserve(proxyListRaw.size());
     for (const auto& [id, name] : proxyListRaw) idToName.insert(id, name);
     QList<std::pair<int, QString>> proxyList;
-    // Front and landing proxies are fixed hops wrapped around every profile in
-    // the group. An auto selector moves to a different server on its own, so it
-    // cannot hold one of those slots — and it would take the whole group down
-    // with it at build time.
+    // An auto selector moves server on its own, so it cannot hold a fixed front/landing slot.
     const auto selectorIDsRaw = Configs::dataManager->profilesRepo->GetProfileIdsByType("autoselector");
     const QSet<int> selectorIDs(selectorIDsRaw.begin(), selectorIDsRaw.end());
     auto groupIDs = Configs::dataManager->groupsRepo->GetGroupsTabOrder();

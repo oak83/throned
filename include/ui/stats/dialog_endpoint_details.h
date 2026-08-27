@@ -71,14 +71,12 @@ public:
 
     void applyStatus(const Stats::VpnEndpointView &view);
 
-    // The endpoint stopped being reported by the core.
     void markGone();
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
-    // A labelled field, a section heading spanning both columns, or one value under such a heading.
     struct DetailRow {
         enum Kind { Field, Section, Value };
 

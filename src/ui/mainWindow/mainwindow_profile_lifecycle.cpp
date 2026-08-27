@@ -33,11 +33,9 @@
 using namespace API;
 
 void MainWindow::setup_rpc(QLocalSocket *socket) {
-    // The Client is never recreated, only its connection swapped, so worker threads
-    // holding `defaultClient` never touch freed memory.
+    // The Client is never recreated, only its connection swapped, so workers never touch freed memory.
     defaultClient->Reconnect(socket);
 
-    // Loopers run for the lifetime of the app, start only once
     if (!rpc_started) {
         rpc_started = true;
         runOnNewThread([=, this] { Stats::trafficLooper->Loop(); });
@@ -97,18 +95,15 @@ int MainWindow::get_profile_to_start() {
 }
 
 bool MainWindow::handleXrayGeoAssetError(const QString& error, const QString& contextName) {
-    // Two geoip/geosite failures surface here: the .dat is not installed ("failed to
-    // open geoip.dat"), or it lacks the category ("failed to load code cn ...: EOF").
+    // Both "failed to open geoip.dat" and "failed to load code cn ...: EOF" arrive here.
     const bool refGeoip = error.contains("geoip.dat");
     const bool refGeosite = error.contains("geosite.dat");
     if (!refGeoip && !refGeosite) return false;
 
     runOnUiThread([=, this] {
-        // A batch test can raise this for many profiles at once — only act once.
         if (m_xrayGeoAssetBusy) return;
         m_xrayGeoAssetBusy = true;
-        // Small delay so any in-flight UI teardown (e.g. Connecting -> idle)
-        // settles before the modal prompt appears.
+        // Small delay so any in-flight UI teardown settles before the modal prompt appears.
         setTimeout([=, this] {
             const QString base = Configs::GetBasePath();
             const bool haveGeoip = QFile::exists(base + "/geoip.dat");
@@ -141,7 +136,6 @@ bool MainWindow::handleXrayGeoAssetError(const QString& error, const QString& co
                 return;
             }
 
-            // Case 1: the referenced asset file is missing -> offer to download it.
             if (QMessageBox::question(this, tr("Geo asset files required"),
                     tr("The Xray config \"%1\" uses geoip/geosite routing rules, but the "
                        "required data files (geoip.dat / geosite.dat) are not installed.\n\n"
@@ -212,8 +206,7 @@ void MainWindow::profile_start(int _id) {
     const auto group = Configs::dataManager->groupsRepo->GetGroup(ent->gid);
     if (group == nullptr || group->archive) return;
 
-    // A selector with more candidates than it can run must rank before the config is
-    // built, and measuring blocks - so hop off the UI thread and come back to start.
+    // Ranking must run before the config is built and it blocks, so hop off the UI thread.
     if (ent->type == "autoselector" && !auto_selector_ranked) {
         const auto plan = Configs::PlanAutoSelector(ent);
         if (plan.error.isEmpty() && plan.needsRanking) {
@@ -267,17 +260,14 @@ void MainWindow::profile_start(int _id) {
         req.need_xray = !result->xrayConfig.isEmpty();
         for (const auto &full : result->xrayFullConfigs) req.xray_full_configs.push_back(full.toStdString());
         if (req.need_xray || !req.xray_full_configs.empty()) {
-            // Resolution is wired in the core (ThroneWiring), not baked into the config: point
-            // it at sing-box's loopback DNS-in. Test instances leave these empty.
+            // Resolution is wired in the core, not the config: point Xray at sing-box's loopback DNS-in.
             req.xray_outbound_dns_address = ("127.0.0.1:" + QString::number(Configs::dataManager->settingsRepo->core_dns_in_port)).toStdString();
             req.xray_outbound_dns_strategy = Configs::getXrayOutboundDomainStrategy().toStdString();
             if (auto selector = ent->AutoSelector(); selector != nullptr) {
-                // A pool's Xray members may be probe-only, so let the sidecar stay cold between
-                // dials. The idle window must outlast the probe interval or it restarts every round.
+                // The idle window must outlast the probe interval or the sidecar restarts every round.
                 req.xray_lazy_start = true;
                 req.xray_idle_seconds = std::max(120, selector->intervalSec * 2);
-                // Resident on purpose: recycling would only put an instance build in
-                // front of every failover.
+                // 0 = resident: recycling would put an instance build in front of every failover.
                 req.xray_full_idle_seconds = 0;
             }
         }
@@ -295,8 +285,7 @@ void MainWindow::profile_start(int _id) {
             return false;
         }
         if (!error.isEmpty()) {
-            // Fail now and let handleXrayGeoAssetError prompt asynchronously; blocking to
-            // download would trip the "no response" restart prompt. Starting again picks them up.
+            // Blocking to download here would trip the core's "no response" restart prompt.
             if (handleXrayGeoAssetError(error, ent->outbound->DisplayTypeAndName())) {
                 return false;
             }
@@ -384,8 +373,6 @@ void MainWindow::profile_start(int _id) {
             start_vpn_challenge_poll();
             refresh_status();
             refresh_proxy_list({ent->id});
-            // Reveals the Tools entry and seeds the data-view panel before the
-            // first poll lands, so a selector never starts up invisibly.
             refresh_auto_selector_view();
 
             // "Only route advertised network" rejects this probe, so the corner carries tunnel state.
@@ -419,7 +406,6 @@ void MainWindow::profile_start(int _id) {
     }
     mu_stopping.unlock();
 
-    // check core state
     if (!Configs::dataManager->settingsRepo->core_running) {
         runOnThread(
             [=, this] {
@@ -429,16 +415,14 @@ void MainWindow::profile_start(int _id) {
             },
             DS_cores);
         mu_starting.unlock();
-        return; // let CoreProcess call profile_start when core is up
+        return;
     }
 
-    // timeout message
     const auto restartMsgbox = new QMessageBox(QMessageBox::Question, software_name, tr("If there is no response for a long time, it is recommended to restart the software."),
                                          QMessageBox::Yes | QMessageBox::No, this);
     connect(restartMsgbox, &QMessageBox::accepted, this, [=,this] { MW_dialog_message(MwMessage::RestartProgram, {}); });
     const auto restartMsgboxTimer = new MessageBoxTimer(this, restartMsgbox, 10000);
 
-    // Show the "Connecting" state until the start resolves below.
     runOnUiThread([this] {
         m_profileConnecting = true;
         refresh_startstop_button();
@@ -474,7 +458,6 @@ void MainWindow::profile_start(int _id) {
             mu_stopping.lock();
             mu_stopping.unlock();
         }
-        // do start
         MW_show_log(">>>>>>>> " + tr("Starting profile %1").arg(ent->outbound->DisplayTypeAndName()));
         if (!profile_start_stage2()) {
             MW_show_log("<<<<<<<< " + tr("Failed to start profile %1").arg(ent->outbound->DisplayTypeAndName()));
@@ -484,7 +467,6 @@ void MainWindow::profile_start(int _id) {
             restartMsgboxTimer->cancel();
             restartMsgboxTimer->deleteLater();
             restartMsgbox->deleteLater();
-            // Start has resolved (success or failure); leave the Connecting state.
             m_profileConnecting = false;
             refresh_startstop_button();
         });
@@ -525,7 +507,6 @@ void MainWindow::profile_stop(bool crash, bool block, bool manual) {
 
     UpdateConnectionListWithRecreate({});
 
-    // Show a "Disconnecting" spinner immediately; the stop itself can lag.
     runOnUiThread([this] {
         m_profileDisconnecting = true;
         refresh_startstop_button();
@@ -540,13 +521,10 @@ void MainWindow::profile_stop(bool crash, bool block, bool manual) {
         Stats::trafficLooper->loop_mutex.lock();
         Stats::trafficLooper->UpdateAll();
         Stats::trafficLooper->loop_mutex.unlock();
-        // Flush the final per-profile totals (only persisted every few seconds
-        // during the session) and the partial minute bucket before going down.
         Stats::trafficLooper->PersistTraffic();
         Stats::trafficStatsManager->Flush();
 
-        // Null until the blocking hop assigns them: runOnUiThread is a no-op before qApp
-        // exists, and the teardown must not chase an uninitialized pointer.
+        // runOnUiThread is a no-op before qApp exists, so the teardown must not chase these.
         QMessageBox* restartMsgbox = nullptr;
         MessageBoxTimer* restartMsgboxTimer = nullptr;
         runOnUiThread([=, this, &restartMsgbox, &restartMsgboxTimer] {
@@ -556,8 +534,7 @@ void MainWindow::profile_stop(bool crash, bool block, bool manual) {
             restartMsgboxTimer = new MessageBoxTimer(this, restartMsgbox, 5000);
         }, true);
 
-        // do stop. Snapshot the profile: `running` is cleared below and can also
-        // be reassigned by a start racing this teardown.
+        // Snapshot: `running` is cleared below and a racing start can reassign it.
         const auto stopping = running;
         if (stopping != nullptr) {
             MW_show_log(">>>>>>>> " + tr("Stopping profile %1").arg(stopping->outbound->DisplayTypeAndName()));
@@ -612,7 +589,6 @@ void MainWindow::stop_vpn_challenge_poll() {
 
 void MainWindow::poll_vpn_challenges() {
     if (Configs::dataManager->settingsRepo->started_id < 0) return;
-    // A slow or dead RPC must not stack polls behind it.
     if (m_vpnChallengeBusy.exchange(true)) return;
 
     runOnNewThread([this] {
@@ -666,7 +642,6 @@ void MainWindow::poll_vpn_challenges() {
 
         runOnUiThread([=, this] {
             m_vpnChallengeBusy.store(false);
-            // The profile may have stopped while this poll was in flight.
             if (m_vpnChallengeTimer == nullptr || !m_vpnChallengeTimer->isActive()) return;
             m_vpnEndpointState = exitState;
             for (const auto &challenge : pending) show_vpn_challenge(challenge);

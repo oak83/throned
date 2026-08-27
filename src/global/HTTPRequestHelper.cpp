@@ -67,11 +67,9 @@ namespace Configs_network {
             c.setPeerVerifyMode(QSslSocket::PeerVerifyMode::VerifyNone);
             request.setSslConfiguration(c);
         }
-        //Attach HWID and device info headers if enabled in settings
         if (sendHwid) {
             auto details = GetDeviceDetails();
 
-            // Parse custom parameters if provided
             QMap<QString, QString> customParams;
             if (!Configs::dataManager->settingsRepo->sub_custom_hwid_params.isEmpty()) {
                 QStringList pairs = Configs::dataManager->settingsRepo->sub_custom_hwid_params.split(',');
@@ -81,12 +79,10 @@ namespace Configs_network {
                     if (eqPos > 0) {
                         QString key = trimmed.left(eqPos).trimmed();
                         QString value = trimmed.mid(eqPos + 1).trimmed();
-                        // Validate: key must be one of the allowed parameters, value must not contain newlines
                         if (!key.isEmpty() && !value.isEmpty() &&
                             !value.contains('\n') && !value.contains('\r') &&
-                            value.length() < 1000) { // Reasonable length limit
+                            value.length() < 1000) {
                             QString lowerKey = key.toLower();
-                            // Only accept known parameter keys
                             if (lowerKey == "hwid" || lowerKey == "os" ||
                                 lowerKey == "osversion" || lowerKey == "model") {
                                 customParams[lowerKey] = value;
@@ -96,7 +92,6 @@ namespace Configs_network {
                 }
             }
 
-            // Use custom values if provided, otherwise use default values
             QString hwid = customParams.contains("hwid") ? customParams["hwid"] : details.hwid;
             QString os = customParams.contains("os") ? customParams["os"] : details.os;
             QString osVersion = customParams.contains("osversion") ? customParams["osversion"] : details.osVersion;
@@ -107,7 +102,6 @@ namespace Configs_network {
             if (!osVersion.isEmpty()) request.setRawHeader("x-ver-os", osVersion.toUtf8());
             if (!model.isEmpty()) request.setRawHeader("x-device-model", model.toUtf8());
         }
-        //
         auto _reply = accessManager.get(request);
         connect(_reply, &QNetworkReply::sslErrors, _reply, [](const QList<QSslError> &errors) {
             QStringList error_str;
@@ -116,12 +110,10 @@ namespace Configs_network {
             }
             MW_show_log(QString("SSL Errors: %1 %2").arg(error_str.join(","), Configs::dataManager->settingsRepo->net_insecure ? "(Ignored)" : ""));
         });
-        // Wait for response
         QEventLoop loop;
         connect(_reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
         loop.exec();
 
-        //
         auto result = HTTPResponse{_reply->error() == QNetworkReply::NetworkError::NoError ? "" : _reply->errorString(),
                                        _reply->readAll(), _reply->rawHeaderPairs()};
         _reply->deleteLater();

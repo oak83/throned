@@ -14,4 +14,4 @@ namespace Icon {
     };
 
     QPixmap GetTrayIcon(TrayIconStatus status);
-} // namespace Icon
+}

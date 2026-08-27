@@ -46,9 +46,7 @@ namespace Configs {
                     }
                 }
 
-                // Fields the V2RayN schema cannot express, carried in a Throne-only key
-                // as the same query string the extended vmess:// link used to hold; the
-                // dummy authority is there only to satisfy QUrl, nothing reads it.
+                // throneExtra holds what the V2RayN schema cannot; the dummy authority only satisfies QUrl.
                 if (const auto extra = objN["throneExtra"].toString(); !extra.isEmpty()) {
                     const QString extraLink = "vmess://x@127.0.0.1:1?" + extra;
                     transport->ParseFromLink(extraLink);
@@ -133,8 +131,7 @@ namespace Configs {
                                  : transport->type == "http" ? QStringLiteral("h2") : transport->type;
         const auto path = network == "grpc" ? transport->service_name : transport->path;
 
-        // everything the V2RayN schema has no room for; other clients ignore the
-        // unknown key, so the link stays importable everywhere
+        // What the V2RayN schema has no room for; other clients ignore the unknown key.
         QUrlQuery extra;
         mergeUrlQuery(extra, transport->ExportToLink());
         mergeUrlQuery(extra, multiplex->ExportToLink());

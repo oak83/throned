@@ -24,8 +24,6 @@ namespace {
     constexpr int kSpeedPollIntervalMs = 100;
     constexpr int kTrafficFlushIntervalMs = 1000;
 
-    // An auto selector has no server of its own: whichever member answers changes
-    // minute to minute, so a stored result would be noise on that row.
     QList<int> withoutAutoSelectors(const QList<int>& profileIDs) {
         const auto selectors = Configs::dataManager->profilesRepo->GetProfileIdsByType("autoselector");
         if (selectors.isEmpty()) return profileIDs;
@@ -38,7 +36,6 @@ namespace {
         return filtered;
     }
 
-    // A cancelled probe is not a verdict on the profile; the row keeps its state.
     bool isTestAborted(const QString& error) {
         return error.contains("test aborted") || error.contains("context canceled");
     }
@@ -66,8 +63,7 @@ namespace {
         for (const auto& xc : target.xrayFullConfigs) req.xray_full_configs.push_back(xc.toStdString());
     }
 
-    // Drains partial results while a test RPC blocks. Stopping does not join: the
-    // poll may itself sit in a 30s RPC, and the batch driver must not stall on it.
+    // Stopping does not join: the poll may itself sit in a 30s RPC and must not stall the batch.
     class ResultPoller {
     public:
         ResultPoller(std::function<void()> tick, int intervalMs)
@@ -275,8 +271,7 @@ void TestRunner::runUrlProbe(const Target& target) {
     }
 
     if (!rpcOK || result.results.empty()) {
-        // A failed Test RPC yields no per-result errors, so inspect it here for the
-        // geo-asset prompt - the same flow profile start uses.
+        // A failed Test RPC yields no per-result errors, so inspect it here.
         if (!rpcOK) mw_->handleXrayGeoAssetError(coreError, contextName(target.entID));
         return;
     }
@@ -342,7 +337,6 @@ void TestRunner::runIpProbe(const Target& target) {
     }
 
     if (!rpcOK || result.results.empty()) {
-        // Detect missing Xray geo assets from a failed IPTest RPC (see runUrlProbe).
         if (!rpcOK) mw_->handleXrayGeoAssetError(coreError, contextName(target.entID));
         return;
     }
@@ -410,12 +404,10 @@ void TestRunner::runLatencyGroup(LatencyKind kind, const QList<int>& requestedID
                 return;
             }
 
-            // xray-full configs are folded into the single outboundTags test box
-            // (their tags live in outboundTags), so they add no separate tests.
+            // xray-full tags live in outboundTags, so those configs add no separate tests.
             const int testCount = buildObject->fullConfigs.size() + (buildObject->outboundTags.empty() ? 0 : 1);
             if (testCount == 0) return;
 
-            // Its own latch: reusing the session mutex left it unheld between batches.
             QSemaphore batchDone;
             const auto probe = [this, isUrl, isUdp, &batchDone](const Target& target) {
                 mw_->parallelCoreCallPool->start([this, isUrl, isUdp, target, &batchDone] {
@@ -482,8 +474,7 @@ void TestRunner::runLatencyGroup(LatencyKind kind, const QList<int>& requestedID
 
 void TestRunner::runSpeedTests(const QList<int>& requestedIDs, bool testCurrent)
 {
-    // A live-connection test stays valid for a running selector: it measures
-    // whichever member actually carries traffic.
+    // A live-connection test stays valid for a selector: it measures whichever member carries traffic.
     const auto profileIDs = testCurrent ? requestedIDs : withoutAutoSelectors(requestedIDs);
     if (profileIDs.isEmpty() && !testCurrent) {
         return;
@@ -652,7 +643,6 @@ void TestRunner::pollCountryTest(const QMap<QString, int>& tag2entID, bool testC
         const auto tag = QString::fromStdString(result.outbound_tag.value());
         auto profile = testCurrent ? mw_->running
                                    : Configs::dataManager->profilesRepo->GetProfile(tag2entID.value(tag, -1));
-        // One unknown tag must not drop the rest of the drained batch.
         if (profile == nullptr)
         {
             continue;
@@ -713,7 +703,6 @@ void TestRunner::runSpeedProbe(const Target& target)
     flushTrafficCredits();
 
     if (!rpcOK || result.results.empty()) {
-        // Detect missing Xray geo assets from a failed SpeedTest RPC (see runUrlProbe).
         if (!rpcOK) mw_->handleXrayGeoAssetError(coreError, contextName(contextID));
         return;
     }

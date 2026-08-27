@@ -124,7 +124,6 @@ namespace Configs {
             else
                 obj["rule_set"] = get_as_array(rule_set, false, get_rule_set_name);
         if (invert) obj["invert"] = invert;
-        // fix action type
         if (action == "route")
         {
             if (outboundID == -3) action = "reject";
@@ -202,9 +201,7 @@ namespace Configs {
                 {"outbound", outboundID},
             };
         }
-        // Faithful, portable representation of a single rule for sharing: the sing-box
-        // fields with outbound as a portable string (no adblock injection), plus our own
-        // name + type token so simple/advanced rules round-trip.
+        // forView=true renders outbound as a portable string and skips the adblock injection.
         QJsonObject obj = get_rule_json(true);
         if (obj.isEmpty()) return obj; // outbound profile missing; caller skips it
         obj["name"] = name;
@@ -243,6 +240,7 @@ namespace Configs {
                 if (attr == QStringLiteral("override_address")) return rule.override_address.isEmpty();
                 if (attr == QStringLiteral("override_port"))
                     return rule.override_port.isEmpty() || rule.override_port.trimmed().isEmpty() || rule.override_port.toInt() <= 0;
+                if (attr == QStringLiteral("tls_spoof")) return rule.tls_spoof.isEmpty();
                 return !isValidStrArray(rule.get_current_value_string(attr));
         }
         return true;

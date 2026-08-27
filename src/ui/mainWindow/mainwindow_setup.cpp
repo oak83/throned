@@ -46,8 +46,7 @@
 
 #ifdef Q_OS_WIN
 #include <windows.h>
-// <windows.h> pulls in winspool.h's `#define SetPort SetPortW`, which under unity
-// builds clobbers Configs::outbound::SetPort in sibling files. Drop it.
+// <windows.h> defines SetPort, which under unity builds clobbers Configs::outbound::SetPort.
 #undef SetPort
 #else
 #ifdef Q_OS_LINUX
@@ -287,8 +286,6 @@ bool MainWindow::verify_core_pid(QLocalSocket *socket) {
 #endif
 }
 
-// Maps a theme name to the log viewer's syntax-highlight mode (true = dark, false = light).
-// Stylesheet themes have a known brightness; plain QStyle themes follow the OS preference.
 static bool themeUsesDarkLog(const QString &theme) {
     return themeManager->IsDarkTheme(theme);
 }
@@ -315,15 +312,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         });
     };
 
-    // handle AutoRun migration and stale task settings
     AutoRun_FixTaskIfNeeded();
     AutoRun_MigrateIfNeeded();
 
-    // register the throne:// URL scheme and the config file handler (self-heals if
-    // the install was moved)
     UrlScheme_RegisterIfNeeded();
 
-    // Setup misc UI
     // migrate old themes
     bool isNum;
     Configs::dataManager->settingsRepo->theme.toInt(&isNum);
@@ -743,13 +736,11 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
 
     last_running_profile_id = Configs::dataManager->settingsRepo->remember_id;
 
-    // geometry remembering
     if (!Configs::dataManager->settingsRepo->mainWindowGeometry.isEmpty()) {
         auto geo = DecodeB64IfValid(Configs::dataManager->settingsRepo->mainWindowGeometry);
         this->restoreGeometry(geo);
     }
 
-    // setup log
     ui->splitter->restoreState(DecodeB64IfValid(Configs::dataManager->settingsRepo->splitter_state));
     ui->splitter->setChildrenCollapsible(false);
     ui->splitter->setStretchFactor(0, 3);
@@ -792,22 +783,18 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         Logging::WriteUserLog(log);
     };
 
-    // Listen port if random
     if (Configs::dataManager->settingsRepo->random_inbound_port)
     {
         Configs::dataManager->settingsRepo->inbound_socks_port = MkPort(Configs::dataManager->settingsRepo->inbound_address);
     }
 
-    //init HWID data
     runOnNewThread([=, this] {GetDeviceDetails(); });
 
-    // Prepare core
     auto core_path = QApplication::applicationDirPath() + "/";
     core_path += "ThronedCore";
 
     bool coreDebugMode = (Configs::dataManager->settingsRepo->log_level == "debug");
 
-    // Create IPC server with a random UUID name
     Configs::dataManager->settingsRepo->core_socket_name =
         "thronedIPC-" + QUuid::createUuid().toString(QUuid::WithoutBraces);
     core_server = new QLocalServer(this);
@@ -821,8 +808,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         auto socket = core_server->nextPendingConnection();
         int profileId = -1;
         {
-            // Hold coreProcessMutex so we never observe a half-published
-            // core_process while DS_cores is still constructing/starting it.
+            // Hold coreProcessMutex: DS_cores may still be constructing core_process.
             QMutexLocker lock(&coreProcessMutex);
             if (!verify_core_pid(socket)) {
                 MW_show_log("[Warn] IPC connection from unexpected process rejected");
@@ -841,7 +827,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         MW_dialog_message(MwMessage::CoreStarted, {Int2String(profileId)});
     });
 
-    // Start core
     auto socketFullName = core_server->fullServerName();
     runOnThread(
         [=, this] {
@@ -867,21 +852,18 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         qApp->setFont(font);
     }
 
-    parallelCoreCallPool->setMaxThreadCount(10); // constant value
+    parallelCoreCallPool->setMaxThreadCount(10);
     testRunner = std::make_unique<TestRunner>(this);
-    //
     // The .ui carries Return; numpad Enter is the same gesture.
     ui->menu_start->setShortcuts({QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
     connect(ui->menu_start, &QAction::triggered, this, [=,this]() { profile_start(); });
     connect(ui->menu_stop, &QAction::triggered, this, [=,this]() { profile_stop(false, false, true); });
     connect(ui->toolButton_startstop, &QAbstractButton::clicked, this, [=,this]() {
-        // The button is disabled while Connecting/Disabled, so a click here means
-        // either a running profile (stop it) or a selected, idle one (start it).
+        // The button is disabled while Connecting, so a click is stop-running or start-selected.
         if (running != nullptr) profile_stop(false, false, true);
         else profile_start();
     });
     connect(ui->tabWidget->tabBar(), &QTabBar::tabMoved, this, [=,this](int from, int to) {
-        // use tabData to track tab & gid
         QList<int> tabOrder;
         for (int i = 0; i < ui->tabWidget->tabBar()->count(); i++) {
             tabOrder += ui->tabWidget->tabBar()->tabData(i).toInt();
@@ -893,7 +875,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     ui->label_inbound->installEventFilter(this);
     ui->splitter->installEventFilter(this);
     ui->tabWidget->installEventFilter(this);
-    //
     auto btnFilter = new QToolButton(this);
     btnFilter->setObjectName(QStringLiteral("tableFilterButton"));
     btnFilter->setToolTip(QString("%1\n%2").arg(tr("Enable Filter"), QKeySequence(QKeySequence::Find).toString(QKeySequence::NativeText)));
@@ -941,7 +922,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     connect(themeManager, &ThemeManager::themeChanged, this, retintTableTools);
     //
     RegisterHotkey(false);
-    //
     auto last_size = Configs::dataManager->settingsRepo->mw_size.split("x");
     if (last_size.length() == 2) {
         auto w = last_size[0].toInt();
@@ -954,7 +934,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     // software_name
     software_name = "Throned";
     software_core_name = "sing-box";
-    //
     if (auto dashDir = QDir("dashboard"); !dashDir.exists() && QDir().mkdir("dashboard")) {
         if (auto dashFile = QFile(":/Throned/dashboard-notice.html"); dashFile.exists() && dashFile.open(QIODevice::ReadOnly))
         {
@@ -973,7 +952,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         QDir().mkdir("icons") ? qDebug("created icons dir") : qDebug("Failed to create icons dir");
     }
 
-    // top bar
     ui->toolButton_program->setMenu(ui->menu_program);
     ui->toolButton_preferences->setMenu(ui->menu_preferences);
     ui->toolButton_routing->setMenu(ui->menuRouting_Menu);
@@ -992,8 +970,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     connect(ui->actionTraffic_Stats, &QAction::triggered, this, [=, this]() {
         USE_DIALOG(DialogTrafficStats)
     });
-    // Only meaningful while a selector profile is running; refresh_auto_selector_view
-    // shows and hides it as the monitor starts and stops.
+    // refresh_auto_selector_view shows and hides this as the selector monitor starts and stops.
     ui->actionAuto_Selector->setVisible(false);
     connect(ui->actionAuto_Selector, &QAction::triggered, this, [=,this]() {
         if (m_autoSelectorDialog == nullptr) {
@@ -1014,7 +991,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         ui->actionCheck_For_Update->setDisabled(true);
     }
 
-    // setup connection UI
     setupConnectionList();
     ui->stats_widget->tabBar()->setCurrentIndex(Configs::dataManager->settingsRepo->stats_tab);
     connect(ui->stats_widget->tabBar(), &QTabBar::currentChanged, this, [=,this](int index)
@@ -1022,7 +998,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         Configs::dataManager->settingsRepo->stats_tab = ui->stats_widget->tabBar()->currentIndex();
         syncConnectionViewState();
     });
-    // Seed the lister's view state from the restored tab selection.
     syncConnectionViewState();
     connect(ui->connections->horizontalHeader(), &QHeaderView::sectionClicked, this, [=,this](int index)
     {
@@ -1042,7 +1017,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
             Stats::connection_lister->ForceUpdate();
     });
 
-    // setup Speed Chart
     speedChartWidget = new SpeedWidget(this);
     ui->graph_tab->layout()->addWidget(speedChartWidget);
 
@@ -1126,7 +1100,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     profilesFilterModel = new ProfilesFilterProxyModel(this);
     profilesFilterModel->setSourceModel(profilesTableModel);
     ui->profilesTableView->setModel(profilesFilterModel);
-    // Keep the start/stop button's enabled/disabled state in sync with selection.
     connect(ui->profilesTableView->selectionModel(), &QItemSelectionModel::selectionChanged, this,
             [this] {
                 refresh_startstop_button();
@@ -1402,7 +1375,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         refresh_proxy_list_column_size();
     });
 
-    // search box
     auto *filterHeader = static_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader());
     filterHeader->setLastFilterColumn(Configs::dataManager->settingsRepo->last_filter_column);
     connect(filterHeader, &ProfilesTableFilterHeader::lastFilterColumnChanged, this, [](int column)
@@ -1439,10 +1411,8 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     connect(filterHeader, &ProfilesTableFilterHeader::focusTableRequested, this,
             [this](bool selectFirst) { focusProfilesTable(selectFirst); });
 
-    // refresh
     this->refresh_groups();
 
-    // Setup Tray
     tray = new QSystemTrayIcon(nullptr);
     tray->setIcon(GetTrayIcon(Icon::NONE));
     QApplication::setWindowIcon(Icon::GetTrayIcon(Icon::NONE));
@@ -1490,7 +1460,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         }
     });
 
-    // Misc menu
     ui->actionRemember_last_proxy->setChecked(Configs::dataManager->settingsRepo->remember_enable);
     ui->actionStart_with_system->setChecked(AutoRun_IsEnabled());
     ui->actionAllow_LAN->setChecked(QStringList{"::", "0.0.0.0"}.contains(Configs::dataManager->settingsRepo->inbound_address));
@@ -1561,7 +1530,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     });
 
     connect(ui->menuTesting, &QMenu::aboutToShow, this, [=,this](){
-        // Deleting the last remaining group is not allowed.
         ui->actionDelete_Group->setEnabled(Configs::dataManager->groupsRepo->GetAllGroupIds().size() > 1);
         if (testRunner->isRunning()) {
             ui->menuTesting->addAction(ui->menu_stop_testing);
@@ -1571,7 +1539,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     });
 
     connect(ui->menuTools, &QMenu::aboutToShow, this, [=,this](){
-        // Speedtest Current only makes sense against a live instance.
         ui->actionSpeedtest_Current->setEnabled(running != nullptr);
     });
 
@@ -1743,7 +1710,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         testRunner->runIpTests(Configs::dataManager->groupsRepo->CurrentGroup()->Profiles());
     });
     connect(ui->menu_stop_testing, &QAction::triggered, this, [=,this]() { testRunner->stop(); });
-    //
     auto set_selected_or_group = [=,this](int mode) {
         // 0=group 1=select 2=unknown(menu is hide)
         ui->menu_server->setProperty("selected_or_group", mode);
@@ -1752,7 +1718,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
         setTimeout([=,this] { set_selected_or_group(2); }, this, 200);
     });
     set_selected_or_group(2);
-    //
     connect(ui->menu_share_item, &QMenu::aboutToShow, this, [=,this] {
         QString name;
         auto selected = get_now_selected_list();
@@ -1835,8 +1800,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     });
     connect(ui->actionAdd_profile_from_File, &QAction::triggered, this, [=,this]()
     {
-        // "All files" is listed first so it is the default: config files routinely
-        // carry no extension, and a type filter would hide them from the picker.
+        // QFileDialog defaults to the first filter; config files routinely carry no extension.
         const auto filters = QStringList{
             tr("All files (*)"),
             tr("Config files (*.json *.conf *.txt *.yaml *.yml *.ini)"),
@@ -1857,25 +1821,19 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
     connect(t, &QTimer::timeout, this, [&] { Configs_sys::logCounter.fetchAndStoreRelaxed(0); });
     t->start(1000);
 
-    // Debounced so font/theme/resize changes settle; fired from changeEvent,
-    // resizeEvent and ThemeManager::themeChanged.
     m_proxyListRefreshDebounce = new QTimer(this);
     m_proxyListRefreshDebounce->setSingleShot(true);
     connect(m_proxyListRefreshDebounce, &QTimer::timeout, this, [this] { refresh_proxy_list({}, false); });
 
-    // The auto-selector monitor polls the core from its own thread; both
-    // handlers are queued onto the UI thread.
+    // The selector monitor emits from its own poll thread.
     connect(Stats::autoSelectorMonitor, &Stats::AutoSelectorMonitor::poolExhausted, this,
             [this](int profileID) { on_auto_selector_exhausted(profileID); }, Qt::QueuedConnection);
     connect(Stats::autoSelectorMonitor, &Stats::AutoSelectorMonitor::updated, this,
             [this] { refresh_auto_selector_view(); }, Qt::QueuedConnection);
 
-    // The runner persists each job's last-run time, so closing the app past the
-    // interval still triggers an update next launch instead of resetting the clock.
     {
         auto* runner = Throne::PeriodicRunner::instance();
-        // Settings store the interval sign-encoded (negative = disabled); < 30 min is
-        // treated as off, matching the "invalid if less than 30" UI hint.
+        // Interval is sign-encoded in settings (negative = disabled); < 30 min counts as off.
         const auto minutesOf = [](int v) { return v >= 30 ? v : 0; };
         runner->Add({
             tr("subscriptions"),

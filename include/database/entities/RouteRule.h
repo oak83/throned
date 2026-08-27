@@ -51,8 +51,7 @@ namespace Configs {
         return {"invalid"};
     }
 
-    // Stable, machine-readable token for a rule's type, used in the share schema so
-    // that simple-vs-advanced rules round-trip independently of enum order or UI labels.
+    // Share-schema tokens: must stay stable across enum reordering and UI relabelling.
     inline QString ruleTypeToToken(int type)
     {
         switch (type) {
@@ -141,26 +140,23 @@ namespace Configs {
         // since sing-box 1.11.0
         QString action = "route";
 
-        // reject options
         QString rejectMethod;
         bool no_drop = false;
 
-        // route options
         QString override_address;
         QString override_port;
         // tls_fragment and tls_record_fragment are mutually exclusive; the core rejects both at once.
         bool tls_fragment = false;
         QString tls_fragment_fallback_delay;
         bool tls_record_fragment = false;
+        // since sing-box 1.14.0
         QString tls_spoof;
         QString tls_spoof_method;
         // TODO maybe add some of dial fields?
 
-        // sniff options
         QStringList sniffers;
         bool sniffOverrideDest = false;
 
-        // resolve options
         QString strategy;
 
         QSet<QString> uiVisibleAttributes;
