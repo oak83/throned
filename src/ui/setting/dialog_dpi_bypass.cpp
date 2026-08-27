@@ -1,7 +1,7 @@
 #include "include/ui/setting/dialog_dpi_bypass.h"
 
+#include "include/configs/common/TLS.h"
 #include "include/global/Configs.hpp"
-#include "include/global/Const.hpp"
 #include "include/database/entities/RouteProfile.h"
 #include "include/database/ProfilesRepo.h"
 #include "include/database/RoutesRepo.h"
@@ -65,7 +65,10 @@ DialogDpiBypass::DialogDpiBypass(QWidget *parent) : QDialog(parent), ui(new Ui::
     ui->dpi_preset_clear->setCursor(Qt::PointingHandCursor);
 
     ui->dpi_method->addItems({tr("Fake ClientHello (spoof)"), tr("TLS fragment"), tr("TLS record fragment")});
-    ui->dpi_spoof_method->addItems(Configs::SingboxOptions::tlsSpoofMethods);
+    // The empty entry means "inherit the global preset", which this preset must not offer.
+    auto spoofMethods = Configs::tlsSpoofMethods;
+    spoofMethods.removeAll(QString());
+    ui->dpi_spoof_method->addItems(spoofMethods);
 
     loadDpiSettings();
     refreshDpiEnabledState();

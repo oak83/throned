@@ -1,6 +1,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include "include/database/entities/RouteRule.h"
+#include "include/configs/common/TLS.h"
 
 
 #include "include/database/ProfilesRepo.h"
@@ -389,9 +390,7 @@ namespace Configs {
         }
         if (fieldName == "tls_spoof_method")
         {
-            auto resp = SingboxOptions::tlsSpoofMethods;
-            resp.prepend("");
-            return resp;
+            return tlsSpoofMethods;
         }
         return {};
     }
