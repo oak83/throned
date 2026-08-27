@@ -84,7 +84,11 @@ QString normalizedExecutablePath(QString value) {
         if (exeEnd >= 0) value = value.left(exeEnd + 4);
     }
     value = QDir::fromNativeSeparators(value);
-    return QFileInfo(value).exists() ? QDir::toNativeSeparators(QFileInfo(value).absoluteFilePath()) : QString();
+    const QFileInfo info(value);
+    // DisplayIcon frequently names an .ico rather than the program. A routing rule on
+    // one can never match a process, so an entry without a real executable is dropped.
+    if (info.suffix().compare(QStringLiteral("exe"), Qt::CaseInsensitive) != 0) return {};
+    return info.exists() ? QDir::toNativeSeparators(info.absoluteFilePath()) : QString();
 }
 
 void appendUnique(QList<ApplicationEntry> &entries, QSet<QString> &seen, QString name, QString path) {
