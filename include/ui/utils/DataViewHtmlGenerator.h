@@ -60,6 +60,9 @@ public:
 private:
     static QString getProgressBar(long long current, long long total);
 
+    // The core can hand back a result from an earlier run, so the counter is bounded where it is read rather than trusted.
+    int cappedProgress(int total) const { return qBound(0, testProgress.load(), total); }
+
     // The *SectionHtml helpers assume buildHtml already holds mu_.
     QString downloadSectionHtml();
 

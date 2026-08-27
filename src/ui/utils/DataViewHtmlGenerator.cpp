@@ -109,7 +109,7 @@ QString DataViewHtmlGenerator::speedtestSectionHtml() {
     if (speedtest_.kind == SpeedtestPanelState::Kind::Speed) {
         auto firstLine = QStringLiteral("Running Speedtest: %1").arg(speedtest_.profileName);
         if (speedtest_.totalProfiles > 1) {
-            firstLine += QString(" (%1 / %2)").arg(Int2String(testProgress.load()), Int2String(speedtest_.totalProfiles));
+            firstLine += QString(" (%1 / %2)").arg(Int2String(cappedProgress(speedtest_.totalProfiles)), Int2String(speedtest_.totalProfiles));
         }
         if (speedtest_.serverName.isEmpty()) return QString("<p style='text-align:center;margin:0;'>%1</p>").arg(firstLine);
         return QString(
@@ -125,10 +125,10 @@ QString DataViewHtmlGenerator::speedtestSectionHtml() {
         QString res;
         auto content = QString("Running Country Test");
         if (speedtest_.totalProfiles > 1) {
-            auto progress = getProgressBar(testProgress.load(), speedtest_.totalProfiles);
-            progress += QString(" ") + Int2String(100 * testProgress.load() / speedtest_.totalProfiles) + "%";
+            auto progress = getProgressBar(cappedProgress(speedtest_.totalProfiles), speedtest_.totalProfiles);
+            progress += QString(" ") + Int2String(100 * cappedProgress(speedtest_.totalProfiles) / speedtest_.totalProfiles) + "%";
             res = QString("<p style='text-align:center;margin:0;'>%1</p>").arg(progress);
-            content += QString(" (%1 / %2)").arg(Int2String(testProgress.load()), Int2String(speedtest_.totalProfiles));
+            content += QString(" (%1 / %2)").arg(Int2String(cappedProgress(speedtest_.totalProfiles)), Int2String(speedtest_.totalProfiles));
         }
         res += QString("<p style='text-align:center;margin:0;'>%1</p>").arg(content);
         return res;
@@ -142,10 +142,10 @@ QString DataViewHtmlGenerator::latencyTestSectionHtml() {
         : latencyTest_.kind == LatencyTestPanelState::Kind::Udp ? QString("Running UDP test")
                                                                 : QString("Running IP test");
     if (latencyTest_.totalProfiles > 1) {
-        auto progress = getProgressBar(testProgress.load(), latencyTest_.totalProfiles);
-        progress += QString(" ") + Int2String(100 * testProgress.load() / latencyTest_.totalProfiles) + "%";
+        auto progress = getProgressBar(cappedProgress(latencyTest_.totalProfiles), latencyTest_.totalProfiles);
+        progress += QString(" ") + Int2String(100 * cappedProgress(latencyTest_.totalProfiles) / latencyTest_.totalProfiles) + "%";
         res = QString("<p style='text-align:center;margin:0;'>%1</p>").arg(progress);
-        content += QString(" (%1 / %2)").arg(Int2String(testProgress.load()), Int2String(latencyTest_.totalProfiles));
+        content += QString(" (%1 / %2)").arg(Int2String(cappedProgress(latencyTest_.totalProfiles)), Int2String(latencyTest_.totalProfiles));
     }
     res += QString("<p style='text-align:center;margin:0;'>%1</p>").arg(content);
     return res;
