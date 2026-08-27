@@ -1018,7 +1018,7 @@ void RouteProfileSimpleEditor::rebuild() {
                       QColor(Cyan), domains, true, remove, [this] { addRule(QStringLiteral("domain")); }, this));
     cardsLayout_->insertWidget(cardsLayout_->count() - 1,
         new RuleCard(tr("Rule sets"), tr("Remote geosite lists, matched as a whole."), MaterialIcon::Glyph::List,
-                      QColor(Purple), ruleSets, true, remove, [this] { addRule(QStringLiteral("domain")); }, this));
+                      QColor(Purple), ruleSets, true, remove, [this] { addRule(QStringLiteral("ruleset")); }, this));
     cardsLayout_->insertWidget(cardsLayout_->count() - 1,
         new RuleCard(tr("IP addresses & ranges"), tr("Match destination IP addresses, CIDR ranges, and geoip lists."), MaterialIcon::Glyph::Process,
                       QColor(Green), network, false, remove, [this] { addRule(QStringLiteral("network")); }, this));
@@ -1143,11 +1143,13 @@ void RouteProfileSimpleEditor::addApplicationRules() {
 
 void RouteProfileSimpleEditor::addRule(const QString &section) {
     QDialog dialog(this);
-    dialog.setWindowTitle(tr("Add routing rule"));
+    dialog.setWindowTitle(section == QStringLiteral("ruleset") ? tr("Add rule sets") : tr("Add routing rule"));
     dialog.setObjectName("routeAddDialog");
     auto *layout = new QVBoxLayout(&dialog);
     auto *hint = new QLabel(section == QStringLiteral("network")
         ? tr("Paste one or more destination IP addresses or CIDR ranges, one per line.")
+        : section == QStringLiteral("ruleset")
+        ? tr("Pick one or more geosite lists. Each is matched as a whole.")
         : tr("Paste one or more values, one per line, or choose several rule sets."), &dialog);
     hint->setObjectName("routeMuted");
     layout->addWidget(hint);
@@ -1155,6 +1157,11 @@ void RouteProfileSimpleEditor::addRule(const QString &section) {
     if (section == QStringLiteral("network")) {
         type->addItem(tr("IP / CIDR"), "ip");
         type->addItem(tr("GeoIP rule set"), "geoip");
+    } else if (section == QStringLiteral("ruleset")) {
+        // This card holds nothing else: a geoip set would be sorted into the address
+        // card instead, so offering the choice here would only misplace the entry.
+        type->addItem(tr("Geosite rule set"), "geosite");
+        type->hide();
     } else {
         type->addItem(tr("Domain"), "domain");
         type->addItem(tr("Domain suffix"), "suffix");
@@ -1217,8 +1224,9 @@ void RouteProfileSimpleEditor::addRule(const QString &section) {
     layout->addWidget(buttons);
     dialog.setStyleSheet(styleSheet());
     dialog.setMinimumWidth(460);
-    value->setFocus();
     updateCatalog();
+    if (section == QStringLiteral("ruleset")) catalogSearch->setFocus();
+    else value->setFocus();
     if (dialog.exec() != QDialog::Accepted) return;
     const QString kind = type->currentData().toString();
     const bool selectedRuleSet = kind == QStringLiteral("geosite") || kind == QStringLiteral("geoip");
