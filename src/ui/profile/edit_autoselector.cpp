@@ -6,13 +6,12 @@
 #include "include/database/ProfilesRepo.h"
 #include "include/database/entities/Group.h"
 #include "include/database/entities/Profile.h"
+#include "include/global/Utils.hpp"
 #include "include/stats/autoselector/AutoSelectorMonitor.hpp"
 #include "include/ui/mainwindow_interface.h"
 
 #include <QFormLayout>
 #include <QGridLayout>
-#include <QGuiApplication>
-#include <QScreen>
 
 EditAutoSelector::EditAutoSelector(QWidget *parent) : QWidget(parent), ui(new Ui::EditAutoSelector) {
     ui->setupUi(this);
@@ -89,11 +88,10 @@ void EditAutoSelector::resizeDialogToContent() {
 
     runOnThread([dialog] {
         if (auto *dialogLayout = dialog->layout()) dialogLayout->activate();
-        // resize(sizeHint()) rather than adjustSize(), which clamps to 2/3 of
-        // the screen; bound it ourselves so a tall form still cannot exceed the
-        // available desktop area.
-        const auto available = QGuiApplication::primaryScreen()->availableGeometry().size();
-        dialog->resize(dialog->sizeHint().boundedTo(available));
+        // adjustSize() clamps top-level windows to 2/3 of the screen. Use the
+        // shared screen-aware bound instead; the editor itself scrolls when the
+        // complete advanced form is taller than the available work area.
+        FitWindowToScreen(dialog, dialog->sizeHint());
     }, dialog);
 }
 

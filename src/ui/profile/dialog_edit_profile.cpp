@@ -97,6 +97,7 @@ void rebuildTabOrder(const QList<QWidget *> &tabOrder) {
 void DialogEditProfile::queueRefreshDialogLayout() {
     runOnThread([=,this] {
         adjustSize();
+        FitWindowToScreen(this, size());
         adjustPosition(mainwindow);
     }, this);
 }
@@ -130,7 +131,9 @@ DialogEditProfile::DialogEditProfile(const QString &_type, int profileOrGroupId,
     ui->dialog_layout->setStretch(1, 1);
     ui->dialog_layout->setStretch(2, 1);
     ui->dialog_layout->setAlignment(ui->left, Qt::AlignTop);
-    ui->left->setAlignment(Qt::AlignTop);
+    ui->left->setStretch(0, 1);
+    ui->left->setStretch(1, 0);
+    ui->left_scroll_layout->setAlignment(Qt::AlignTop);
     ui->right_layout->setAlignment(Qt::AlignTop);
     ui->verticalLayout_5->setAlignment(Qt::AlignTop);
     ui->verticalLayout_8->setAlignment(Qt::AlignTop);
@@ -745,6 +748,7 @@ void DialogEditProfile::typeSelected(const QString &newType) {
     editor_cache_updated_impl();
     runOnThread([=,this] {
         adjustSize();
+        FitWindowToScreen(this, size());
         adjustPosition(mainwindow);
         if (isHidden()) show();
     }, this);
