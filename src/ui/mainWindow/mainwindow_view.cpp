@@ -36,7 +36,10 @@ void MainWindow::applyTopBarMetrics() {
         button->setMaximumWidth(QWIDGETSIZE_MAX);
         button->updateGeometry();
     }
-    setMinimumSize(designMinimumSize);
+    // An explicit minimum stops the layout raising the floor itself, and translated nav labels can outgrow the designed one.
+    const QSize contentMin = minimumSizeHint();
+    setMinimumSize(qMax(designMinimumSize.width(), contentMin.width()),
+                   qMax(designMinimumSize.height(), contentMin.height()));
     FitWindowToScreen(this);
 }
 
