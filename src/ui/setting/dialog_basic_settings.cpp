@@ -67,6 +67,12 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     ui->random_listen_port->setChecked(Configs::dataManager->settingsRepo->random_inbound_port);
     D_LOAD_INT(test_concurrent)
     D_LOAD_STRING(test_latency_url)
+    D_LOAD_STRING(quick_link_name_1)
+    D_LOAD_STRING(quick_link_1)
+    D_LOAD_STRING(quick_link_name_2)
+    D_LOAD_STRING(quick_link_2)
+    D_LOAD_STRING(quick_link_name_3)
+    D_LOAD_STRING(quick_link_3)
     D_LOAD_BOOL(disable_tray)
     ui->reset_proxy_on_disable_sp->setChecked(Configs::dataManager->settingsRepo->reset_proxy_on_disable_sp);
     ui->url_timeout->setText(Int2String(Configs::dataManager->settingsRepo->url_test_timeout_ms));
@@ -963,6 +969,12 @@ void DialogBasicSettings::accept() {
     Configs::dataManager->settingsRepo->random_inbound_port = ui->random_listen_port->isChecked();
     D_SAVE_INT(test_concurrent)
     D_SAVE_STRING(test_latency_url)
+    D_SAVE_STRING(quick_link_name_1)
+    D_SAVE_STRING(quick_link_1)
+    D_SAVE_STRING(quick_link_name_2)
+    D_SAVE_STRING(quick_link_2)
+    D_SAVE_STRING(quick_link_name_3)
+    D_SAVE_STRING(quick_link_3)
     D_SAVE_BOOL(disable_tray)
     Configs::dataManager->settingsRepo->proxy_scheme = ui->proxy_scheme->currentText().toLower();
     Configs::dataManager->settingsRepo->speed_test_mode = ui->speedtest_mode->currentIndex();

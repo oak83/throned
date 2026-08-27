@@ -14,6 +14,8 @@
 #include "include/database/entities/RouteProfile.h"
 #include "include/ui/setting/RouteItem.h"
 #include "include/ui/mainWindow/MainWindowInternal.h"
+#include <QDesktopServices>
+#include <QUrl>
 
 void MainWindow::trayClickEvent() {
     constexpr qint64 recentlyActiveMs = 350;
@@ -295,4 +297,47 @@ void MainWindow::start_select_mode(QObject *context, const std::function<void(in
     select_mode = true;
     connectOnce(this, &MainWindow::profile_selected, context, callback);
     refresh_status();
+}
+
+
+void MainWindow::refreshQuickLinkButtons() {
+    if (quickLinkBtn1) quickLinkBtn1->setText(
+        Configs::dataManager->settingsRepo->quick_link_name_1.isEmpty()
+            ? tr("Link 1") : Configs::dataManager->settingsRepo->quick_link_name_1);
+    if (quickLinkBtn2) quickLinkBtn2->setText(
+        Configs::dataManager->settingsRepo->quick_link_name_2.isEmpty()
+            ? tr("Link 2") : Configs::dataManager->settingsRepo->quick_link_name_2);
+    if (quickLinkBtn3) quickLinkBtn3->setText(
+        Configs::dataManager->settingsRepo->quick_link_name_3.isEmpty()
+            ? tr("Link 3") : Configs::dataManager->settingsRepo->quick_link_name_3);
+}
+
+void MainWindow::on_quickLinkBtn1_clicked() {
+    const QString &url = Configs::dataManager->settingsRepo->quick_link_1;
+    if (url.isEmpty()) {
+        QMessageBox::information(this, tr("Quick Link 1"),
+            tr("Set the URL in Settings → Basic Settings → Quick Links."));
+        return;
+    }
+    QDesktopServices::openUrl(QUrl(url));
+}
+
+void MainWindow::on_quickLinkBtn2_clicked() {
+    const QString &url = Configs::dataManager->settingsRepo->quick_link_2;
+    if (url.isEmpty()) {
+        QMessageBox::information(this, tr("Quick Link 2"),
+            tr("Set the URL in Settings → Basic Settings → Quick Links."));
+        return;
+    }
+    QDesktopServices::openUrl(QUrl(url));
+}
+
+void MainWindow::on_quickLinkBtn3_clicked() {
+    const QString &url = Configs::dataManager->settingsRepo->quick_link_3;
+    if (url.isEmpty()) {
+        QMessageBox::information(this, tr("Quick Link 3"),
+            tr("Set the URL in Settings → Basic Settings → Quick Links."));
+        return;
+    }
+    QDesktopServices::openUrl(QUrl(url));
 }

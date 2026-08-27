@@ -412,6 +412,21 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     commandLayout->addSpacing(8);
     commandLayout->addWidget(ui->toolButton_startstop);
     rootLayout->addWidget(commandBar);
+    // Quick Link buttons
+    auto makeQuickBtn = [this, commandBar](QToolButton *&btn, const QString &name, const char *slot) {
+        btn = new QToolButton(commandBar);
+        btn->setObjectName(name);
+        btn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        btn->setIconSize(QSize(16, 16));
+        btn->setFixedHeight(38);
+        btn->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        connect(btn, SIGNAL(clicked()), this, slot);
+        commandLayout->addWidget(btn);
+    };
+    makeQuickBtn(quickLinkBtn1, QStringLiteral("quickLinkBtn1"), SLOT(on_quickLinkBtn1_clicked()));
+    makeQuickBtn(quickLinkBtn2, QStringLiteral("quickLinkBtn2"), SLOT(on_quickLinkBtn2_clicked()));
+    makeQuickBtn(quickLinkBtn3, QStringLiteral("quickLinkBtn3"), SLOT(on_quickLinkBtn3_clicked()));
+    refreshQuickLinkButtons();
 
     ui->data_view->setParent(redesignedCentral);
     ui->data_view->setObjectName(QStringLiteral("selectionStatus"));

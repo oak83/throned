@@ -257,6 +257,14 @@ private:
     void openTraySelector(bool routing);
     QPointer<RoutingQuickMenu> routingQuickMenu;
     void openRoutingQuickMenu(const QPoint &globalPos);
+    // Quick Link toolbar buttons
+    QToolButton *quickLinkBtn1 = nullptr;
+    QToolButton *quickLinkBtn2 = nullptr;
+    QToolButton *quickLinkBtn3 = nullptr;
+    void refreshQuickLinkButtons();
+    void on_quickLinkBtn1_clicked();
+    void on_quickLinkBtn2_clicked();
+    void on_quickLinkBtn3_clicked();
     QLabel *statusConnectionCaption = nullptr;
     QLabel *statusDirectSpeed = nullptr;
     QList<QPointer<QLabel>> statusElidedLabels;

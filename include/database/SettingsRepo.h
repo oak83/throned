@@ -236,6 +236,14 @@ namespace Configs {
         QString vpn_implementation = "system";
         bool vpn_strict_route = false;
 #endif
+
+        // Quick Links (custom toolbar buttons)
+        QString quick_link_name_1 = "";
+        QString quick_link_1 = "";
+        QString quick_link_name_2 = "";
+        QString quick_link_2 = "";
+        QString quick_link_name_3 = "";
+        QString quick_link_3 = "";
         // Linux only: emit `auto_redirect` on the Tun inbound. Newer kernels need it for the
         // system/mixed stacks to pass traffic, at the cost of this host acting as a gateway.
         bool vpn_auto_redirect = true;
