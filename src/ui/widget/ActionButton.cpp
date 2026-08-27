@@ -25,6 +25,8 @@ void ActionButton::setCount(int count) {
 
 void ActionButton::setScrollsWhenTooLong(bool enabled) {
     if (!enabled) return;
+    // Start inside the dwell so the first pass shows the head as long as every later one.
+    offset_ = -kMarqueePause;
     marquee_ = new QTimer(this);
     marquee_->setInterval(40);
     connect(marquee_, &QTimer::timeout, this, [this] {
