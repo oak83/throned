@@ -1,4 +1,5 @@
 #pragma once
+#include <QRegularExpression>
 #include <QString>
 #include <QStringList>
 
@@ -64,6 +65,30 @@ namespace Configs {
 
     namespace VPNImplementation {
         inline QStringList VPNImplementation = {"system", "gvisor", "mixed"};
+    }
+
+    namespace SingBox {
+        // Ordered least to most severe: a line shows when its rank is >= the selected one.
+        inline QStringList LogLevels = {"trace", "debug", "info", "warn", "error", "fatal", "panic"};
+
+        inline QString NormalizeLogLevel(const QString &level) {
+            const auto lower = level.trimmed().toLower();
+            // The core accepts "warning" as an alias, but only "warn" is in its own vocabulary.
+            if (lower == "warning") return QStringLiteral("warn");
+            return LogLevels.contains(lower) ? lower : QStringLiteral("info");
+        }
+
+        inline int LogLevelRank(const QString &level) { return LogLevels.indexOf(NormalizeLogLevel(level)); }
+
+        // Severity a core log line announces, or -1 when it carries none (our own messages).
+        inline int LogLineRank(const QString &line) {
+            static const QRegularExpression re(QStringLiteral(R"(\b(trace|debug|info|warn(?:ing)?|error|fatal|panic)\b)"),
+                                               QRegularExpression::CaseInsensitiveOption);
+            // Both cores lead with the level (sing-box "INFO[0001] ...", Xray "... [Info] ..."),
+            // so only the head is searched: past it the word belongs to the message.
+            const auto match = re.match(line.left(48));
+            return match.hasMatch() ? LogLevelRank(match.captured(1)) : -1;
+        }
     }
 
     namespace Xray {

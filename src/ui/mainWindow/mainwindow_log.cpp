@@ -69,7 +69,7 @@ void MainWindow::log_process_loop() {
         const LogFilter filter{
             Configs::dataManager->settingsRepo->log_enable_include,
             Configs::dataManager->settingsRepo->log_enable_exclude,
-            includeKeywords, excludeKeywords, includeCombined, excludeCombined,
+            includeKeywords, excludeKeywords, includeCombined, excludeCombined, minLogLevelRank,
         };
         logMutex.unlock();
 
@@ -131,8 +131,20 @@ void MainWindow::flush_log_batch() {
     }
 }
 
+void MainWindow::clear_log_view() {
+    {
+        // Without this the batch already in flight lands right after the clear.
+        QMutexLocker pendingLocker(&logPendingMutex);
+        logPendingText.clear();
+    }
+    qvLogDocument->clear();
+    ui->masterLogBrowser->clear();
+}
+
 bool MainWindow::should_print_log(const QString &log, const LogFilter &filter) {
     if (QStringView(log).trimmed().isEmpty()) return false;
+    // Lines without a level are ours, and are never hidden by the level selector.
+    if (const auto rank = Configs::SingBox::LogLineRank(log); rank >= 0 && rank < filter.minLevelRank) return false;
     bool result = true;
     if (filter.enableInclude) {
         result = false;

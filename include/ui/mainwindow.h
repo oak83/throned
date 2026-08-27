@@ -31,6 +31,7 @@
 #include <QSet>
 #include <QHash>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QLabel>
 #include <QToolButton>
 #include <QSemaphore>
@@ -372,6 +373,9 @@ private:
     QStringList excludeKeywords;
     QRegularExpression includeCombined;
     QRegularExpression excludeCombined;
+    // -1 until the first updateLogFilterFields(), so startup is not treated as a change.
+    int minLogLevelRank = -1;
+    QComboBox *logLevelSelector = nullptr;
     QMutex logMutex;
     QQueue<QString> logQueue;
     QWaitCondition logWaiter;
@@ -392,6 +396,7 @@ private:
         QStringList excludeKeywords;
         QRegularExpression includeCombined;
         QRegularExpression excludeCombined;
+        int minLevelRank = 0;
     };
 
     void append_log(const QString &log);
@@ -401,6 +406,8 @@ private:
     void flush_log_batch();
 
     bool should_print_log(const QString &log, const LogFilter &filter);
+
+    void clear_log_view();
 
     void updateLogFilterFields();
 

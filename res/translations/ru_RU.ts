@@ -5508,8 +5508,8 @@ Name: %1</source>
         <translation>Скопировано!</translation>
     </message>
     <message>
-        <source>Core log level; applies on the next start</source>
-        <translation>Уровень логов ядра; применяется при следующем запуске</translation>
+        <source>Hides log lines below this level, and sets the core&apos;s own log level for the next start</source>
+        <translation>Скрывает строки лога ниже этого уровня и задаёт уровень логов ядра для следующего запуска</translation>
     </message>
 </context>
 <context>

@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QScopeGuard>
 #include <QFrame>
+#include <QSignalBlocker>
 #include <QHeaderView>
 #include <QScrollBar>
 #include <QTimer>
@@ -81,15 +82,29 @@ void MainWindow::refresh_auto_selector_view()
 }
 
 void MainWindow::updateLogFilterFields() {
-    QMutexLocker locker(&logMutex);
-    includeKeywords.clear();
-    excludeKeywords.clear();
-    for (const auto& inKeyword : Configs::dataManager->settingsRepo->log_include_keyword) includeKeywords.append(inKeyword);
-    for (const auto& exKeyword : Configs::dataManager->settingsRepo->log_exclude_keyword) excludeKeywords.append(exKeyword);
-    includeCombined.setPattern(Configs::dataManager->settingsRepo->log_include_regex.join("|"));
-    excludeCombined.setPattern(Configs::dataManager->settingsRepo->log_exclude_regex.join("|"));
-    includeCombined.optimize();
-    excludeCombined.optimize();
+    const auto level = Configs::SingBox::NormalizeLogLevel(Configs::dataManager->settingsRepo->log_level);
+    if (logLevelSelector != nullptr) {
+        const QSignalBlocker blocker(logLevelSelector);
+        if (const int index = logLevelSelector->findData(level); index >= 0) logLevelSelector->setCurrentIndex(index);
+    }
+    const int rank = Configs::SingBox::LogLevelRank(level);
+    bool levelChanged;
+    {
+        QMutexLocker locker(&logMutex);
+        levelChanged = minLogLevelRank >= 0 && rank != minLogLevelRank;
+        minLogLevelRank = rank;
+        includeKeywords.clear();
+        excludeKeywords.clear();
+        for (const auto& inKeyword : Configs::dataManager->settingsRepo->log_include_keyword) includeKeywords.append(inKeyword);
+        for (const auto& exKeyword : Configs::dataManager->settingsRepo->log_exclude_keyword) excludeKeywords.append(exKeyword);
+        includeCombined.setPattern(Configs::dataManager->settingsRepo->log_include_regex.join("|"));
+        excludeCombined.setPattern(Configs::dataManager->settingsRepo->log_exclude_regex.join("|"));
+        includeCombined.optimize();
+        excludeCombined.optimize();
+    }
+    // The lines already on screen went through the old threshold, so leaving them
+    // would read as the selector doing nothing.
+    if (levelChanged) clear_log_view();
 }
 
 void MainWindow::applyProfileFilters()

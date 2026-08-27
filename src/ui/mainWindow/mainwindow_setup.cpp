@@ -446,18 +446,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     logToolsLayout->addWidget(autoScroll);
     auto *logLevel = new QComboBox(logTools);
     logLevel->setObjectName(QStringLiteral("logLevelSelector"));
-    logLevel->addItem(QStringLiteral("INFO"), QStringLiteral("info"));
-    logLevel->addItem(QStringLiteral("DEBUG"), QStringLiteral("debug"));
-    logLevel->addItem(QStringLiteral("WARNING"), QStringLiteral("warning"));
-    const int currentLogLevel = logLevel->findData(Configs::dataManager->settingsRepo->log_level);
+    for (const auto &level : Configs::SingBox::LogLevels) logLevel->addItem(level.toUpper(), level);
+    const int currentLogLevel =
+        logLevel->findData(Configs::SingBox::NormalizeLogLevel(Configs::dataManager->settingsRepo->log_level));
     logLevel->setCurrentIndex(currentLogLevel >= 0 ? currentLogLevel : 0);
     logLevel->setFixedWidth(106);
-    logLevel->setToolTip(tr("Core log level; applies on the next start"));
+    logLevel->setToolTip(tr("Hides log lines below this level, and sets the core's own log level for the next start"));
+    logLevelSelector = logLevel;
     logToolsLayout->addWidget(logLevel);
-    connect(clearLog, &QPushButton::clicked, this, [this] {
-        qvLogDocument->clear();
-        ui->masterLogBrowser->clear();
-    });
+    connect(clearLog, &QPushButton::clicked, this, [this] { clear_log_view(); });
     connect(copyLog, &QPushButton::clicked, this, [this] {
         QApplication::clipboard()->setText(ui->masterLogBrowser->toPlainText());
     });
@@ -465,9 +462,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         Configs::dataManager->settingsRepo->log_auto_scroll = enabled;
         Configs::dataManager->settingsRepo->Save();
     });
-    connect(logLevel, &QComboBox::currentIndexChanged, this, [logLevel] {
+    connect(logLevel, &QComboBox::currentIndexChanged, this, [logLevel, this] {
         Configs::dataManager->settingsRepo->log_level = logLevel->currentData().toString();
         Configs::dataManager->settingsRepo->Save();
+        updateLogFilterFields();
     });
     ui->stats_widget->setCornerWidget(logTools, Qt::TopRightCorner);
     bodyLayout->addWidget(ui->splitter, 1);

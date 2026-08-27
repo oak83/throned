@@ -54,7 +54,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
 
     // Common
     ui->inbound_socks_port_l->setText(ui->inbound_socks_port_l->text().replace("Socks", "Mixed (SOCKS+HTTP)"));
-    ui->log_level->addItems(QString("trace debug info warn error fatal panic").split(" "));
+    ui->log_level->addItems(Configs::SingBox::LogLevels);
     ui->xray_loglevel->addItems(Configs::Xray::XrayLogLevels);
     ui->mux_protocol->addItems({"h2mux", "smux", "yamux"});
     ui->fragment_implementation->addItems({"built-in", "custom"});
@@ -105,7 +105,9 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     // Logging
     ui->max_log_line->setText(QString::number(Configs::dataManager->settingsRepo->max_log_line));
     D_LOAD_BOOL(log_auto_scroll)
-    ui->log_level->setCurrentText(Configs::dataManager->settingsRepo->log_level);
+    // A value this list does not carry would silently leave the box on its first
+    // item, and saving would then write that back over the real setting.
+    ui->log_level->setCurrentText(Configs::SingBox::NormalizeLogLevel(Configs::dataManager->settingsRepo->log_level));
     ui->xray_loglevel->setCurrentText(Configs::dataManager->settingsRepo->xray_log_level);
     ui->enable_log_include->setChecked(Configs::dataManager->settingsRepo->log_enable_include);
     ui->enable_log_exclude->setChecked(Configs::dataManager->settingsRepo->log_enable_exclude);
