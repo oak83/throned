@@ -169,6 +169,7 @@ signals:
     void profile_selected(int id);
 
 public slots:
+    void refreshQuickLinkButtons();
 
     void on_commitDataRequest();
 
@@ -261,7 +262,6 @@ private:
     QToolButton *quickLinkBtn1 = nullptr;
     QToolButton *quickLinkBtn2 = nullptr;
     QToolButton *quickLinkBtn3 = nullptr;
-    void refreshQuickLinkButtons();
     void on_quickLinkBtn1_clicked();
     void on_quickLinkBtn2_clicked();
     void on_quickLinkBtn3_clicked();
