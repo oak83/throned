@@ -1,5 +1,6 @@
 #pragma once
 #include <climits>
+#include <utility>
 
 #include "include/database/entities/RouteRule.h"
 #include <QUrl>
@@ -33,6 +34,9 @@ namespace Configs {
     // line cannot be placed. Accepts the typed prefixes, their sing-box
     // spellings, and bare values whose kind is unambiguous.
     QString NormalizeRuleLine(const QString& line);
+
+    // A canonical "kind:value" line split into its two halves, both trimmed, or an empty kind when there is no usable separator.
+    std::pair<QString, QString> SplitRuleLine(const QString& line);
 
     class RouteProfile {
     public:

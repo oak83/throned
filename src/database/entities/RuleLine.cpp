@@ -47,6 +47,14 @@ namespace Configs {
     return {};
 }
 
+std::pair<QString, QString> SplitRuleLine(const QString &line) {
+    const QString clean = line.trimmed();
+    const int separator = clean.indexOf(QLatin1Char(':'));
+    if (separator <= 0) return {};
+    // Only the first colon separates, so a Windows process path keeps its drive letter.
+    return {clean.left(separator).trimmed(), clean.mid(separator + 1).trimmed()};
+}
+
 QString NormalizeRuleLine(const QString &line) {
     QString clean = line.trimmed();
     if (clean.isEmpty() || clean.startsWith(QLatin1Char('#')) || clean.startsWith(QStringLiteral("//"))) return {};

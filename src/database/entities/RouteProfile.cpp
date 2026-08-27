@@ -893,8 +893,9 @@ namespace Configs {
         for (auto t : types) {
             ResetSimpleRule(t, outbound);
         }
-        for (const auto& raw : items) {
-            if (raw.trimmed().isEmpty()) continue;
+        for (const auto& item : items) {
+            const QString raw = item.trimmed();
+            if (raw.isEmpty()) continue;
             auto type = get_rule_type(raw, action);
             if (type == custom) {
                 res += "invalid rule:" + raw + "\n";
@@ -963,10 +964,9 @@ namespace Configs {
 
     bool RouteProfile::add_simple_address_rule(const QString& content, const std::shared_ptr<RouteRule>& rule)
     {
-        auto colonIdx = content.indexOf(':');
-        if (colonIdx == -1) return false;
-        const QString& address = content.mid(colonIdx+1);
-        const QString& subType = content.left(colonIdx);
+        const auto [subType, address] = SplitRuleLine(content);
+        // An empty value would leave a rule that is all action and no condition.
+        if (subType.isEmpty() || address.isEmpty()) return false;
         if (subType == "domain") {
             if (!rule->domain.contains(address)) rule->domain.append(address);
             return true;
@@ -992,9 +992,8 @@ namespace Configs {
 
     bool RouteProfile::add_simple_process_rule(const QString& content, const std::shared_ptr<RouteRule>& rule)
     {
-        if (!content.contains(":")) return false;
-        auto prefix = content.first(content.indexOf(':'));
-        const QString& address = content.section(':', 1);
+        const auto [prefix, address] = SplitRuleLine(content);
+        if (prefix.isEmpty() || address.isEmpty()) return false;
         if (prefix == "processPath")
         {
             if (!rule->process_path.contains(address)) rule->process_path.append(address);
