@@ -229,6 +229,7 @@ void MainWindow::profile_start(int _id) {
         MessageBoxWarning(tr("BuildConfig return error"), result->error);
         return;
     }
+    coreLogLevelRank_ = Configs::SingBox::LogLevelRank(Configs::dataManager->settingsRepo->log_level);
     Stats::SetVpnEndpointProfiles(result->vpnEndpointProfiles);
 
     // Validate Xray while the currently running profile (and therefore the

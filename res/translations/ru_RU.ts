@@ -5515,6 +5515,14 @@ Name: %1</source>
         <source>Hides log lines below this level, and sets the core&apos;s own log level for the next start</source>
         <translation>Скрывает строки лога ниже этого уровня и задаёт уровень логов ядра для следующего запуска</translation>
     </message>
+    <message>
+        <source>Log level: %1. Only lines at this level and above are shown.</source>
+        <translation>Уровень логов: %1. Дальше показываются только строки этого уровня и выше.</translation>
+    </message>
+    <message>
+        <source>The running core writes at %1 - restart it to get more.</source>
+        <translation>Запущенное ядро пишет на уровне %1 — перезапустите его, чтобы увидеть больше.</translation>
+    </message>
 </context>
 <context>
     <name>ProfilesTableFilterHeader</name>

@@ -374,6 +374,8 @@ private:
     QRegularExpression excludeCombined;
     // -1 until the first updateLogFilterFields(), so startup is not treated as a change.
     int minLogLevelRank = -1;
+    // Level the running core was configured with, so a selection below it can say so.
+    int coreLogLevelRank_ = -1;
     QComboBox *logLevelSelector = nullptr;
     QMutex logMutex;
     QQueue<QString> logQueue;

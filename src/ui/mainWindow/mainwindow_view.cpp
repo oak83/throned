@@ -106,7 +106,18 @@ void MainWindow::updateLogFilterFields() {
     }
     // The lines already on screen went through the old threshold, so leaving them
     // would read as the selector doing nothing.
-    if (levelChanged) clear_log_view();
+    if (levelChanged) {
+        clear_log_view();
+        QString notice = tr("Log level: %1. Only lines at this level and above are shown.").arg(level);
+        // Raising hides lines at once, but lowering cannot invent what the core never
+        // emitted: it keeps writing at the level it started with until it restarts.
+        if (Configs::dataManager->settingsRepo->started_id >= 0 && coreLogLevelRank_ >= 0 && rank < coreLogLevelRank_) {
+            notice += QLatin1Char(' ')
+                + tr("The running core writes at %1 - restart it to get more.")
+                      .arg(Configs::SingBox::LogLevels.value(coreLogLevelRank_));
+        }
+        MW_show_log(notice);
+    }
 }
 
 void MainWindow::applyProfileFilters()
