@@ -3,6 +3,7 @@
 #include "include/ui/group/dialog_edit_group.h"
 #include "include/global/GuiUtils.hpp"
 #include "include/configs/sub/GroupUpdater.hpp"
+#include "include/configs/sub/SubInfo.h"
 
 #include <QMessageBox>
 
@@ -10,38 +11,13 @@
 #include "include/ui/mainwindow.h"
 
 
-QString ParseSubInfo(const QString &info) {
-    if (info.trimmed().isEmpty()) return "";
-
-    QString result;
-
-    long long used = 0;
-    long long total = 0;
-    long long expire = 0;
-
-    auto re0m = QRegularExpression("total=([0-9]+)").match(info);
-    if (re0m.lastCapturedIndex() >= 1) {
-        total = re0m.captured(1).toLongLong();
-    } else {
-        return "";
-    }
-    auto re1m = QRegularExpression("upload=([0-9]+)").match(info);
-    if (re1m.lastCapturedIndex() >= 1) {
-        used += re1m.captured(1).toLongLong();
-    }
-    auto re2m = QRegularExpression("download=([0-9]+)").match(info);
-    if (re2m.lastCapturedIndex() >= 1) {
-        used += re2m.captured(1).toLongLong();
-    }
-    auto re3m = QRegularExpression("expire=([0-9]+)").match(info);
-    if (re3m.lastCapturedIndex() >= 1) {
-        expire = re3m.captured(1).toLongLong();
-    }
-
-    result = QObject::tr("Used: %1 Remain: %2 Expire: %3")
-                         .arg(ReadableSize(used), (total == 0) ? QString::fromUtf8("\u221E") : ReadableSize(total - used), DisplayTime(expire, QLocale::ShortFormat));
-
-    return result;
+QString FormatSubInfo(const QString &info) {
+    const auto sub = Configs::ParseSubInfo(info);
+    if (!sub.valid) return "";
+    return QObject::tr("Used: %1 Remain: %2 Expire: %3")
+        .arg(ReadableSize(sub.used()),
+             (sub.total == 0) ? QString::fromUtf8("\u221E") : ReadableSize(qMax<qint64>(0, sub.total - sub.used())),
+             DisplayTime(sub.expire, QLocale::ShortFormat));
 }
 
 GroupItem::GroupItem(QWidget *parent, const std::shared_ptr<Configs::Group> &ent, QListWidgetItem *item) : QWidget(parent), ui(new Ui::GroupItem) {
@@ -81,7 +57,7 @@ void GroupItem::refresh_data() {
         if (ent->sub_last_update != 0) {
             info << tr("Last update: %1").arg(DisplayTime(ent->sub_last_update, QLocale::ShortFormat));
         }
-        auto subinfo = ParseSubInfo(ent->info);
+        auto subinfo = FormatSubInfo(ent->info);
         if (!ent->info.isEmpty()) {
             info << subinfo;
         }

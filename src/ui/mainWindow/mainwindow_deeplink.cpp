@@ -334,6 +334,7 @@ void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {
         break;
     case MwMessage::SubscriptionFinished:
         refresh_proxy_list({}, true);
+        refreshSubscriptionReadouts();
         if (!changed(MwArg::Quiet)) {
             MW_show_log(tr("Imported %1 profile(s)").arg(settings->imported_count));
         }

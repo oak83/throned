@@ -176,6 +176,8 @@ set(PROJECT_SOURCES
 
         include/configs/sub/GroupUpdater.hpp
         src/configs/sub/GroupUpdater.cpp
+        include/configs/sub/SubInfo.h
+        src/configs/sub/SubInfo.cpp
         include/configs/sub/RouteUpdater.hpp
         src/configs/sub/RouteUpdater.cpp
         src/configs/sub/clash.cpp
@@ -221,6 +223,8 @@ set(PROJECT_SOURCES
         include/ui/mainwindow.ui
         include/ui/widget/StartStopButton.hpp
         src/ui/widget/StartStopButton.cpp
+        include/ui/widget/GroupTabBar.h
+        src/ui/widget/GroupTabBar.cpp
         include/ui/widget/TrayProfileSelector.hpp
         src/ui/widget/TrayProfileSelector.cpp
         include/control/ThronedControl.h
@@ -737,6 +741,14 @@ if (Qt6Test_FOUND)
     set_target_properties(throned_rule_line_tests PROPERTIES UNITY_BUILD OFF AUTOMOC ON)
     target_link_libraries(throned_rule_line_tests PRIVATE Qt6::Test Qt6::Widgets Qt6::Network)
     add_test(NAME throned_rule_line_tests COMMAND throned_rule_line_tests)
+
+    qt_add_executable(throned_sub_info_tests
+            tests/test_sub_info.cpp
+            src/configs/sub/SubInfo.cpp
+    )
+    set_target_properties(throned_sub_info_tests PROPERTIES UNITY_BUILD OFF AUTOMOC ON)
+    target_link_libraries(throned_sub_info_tests PRIVATE Qt6::Test)
+    add_test(NAME throned_sub_info_tests COMMAND throned_sub_info_tests)
 
     qt_add_executable(throned_log_level_tests tests/test_log_level.cpp)
     set_target_properties(throned_log_level_tests PROPERTIES UNITY_BUILD OFF AUTOMOC ON)

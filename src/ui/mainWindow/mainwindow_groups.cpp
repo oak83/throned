@@ -7,6 +7,7 @@
 #include <QVBoxLayout>
 
 #include "include/configs/sub/GroupUpdater.hpp"
+#include "include/configs/sub/SubInfo.h"
 #include "include/database/GroupsRepo.h"
 #include "include/ui/group/dialog_edit_group.h"
 #include "include/ui/mainWindow/MainWindowInternal.h"
@@ -81,6 +82,7 @@ void MainWindow::refresh_groups() {
             ui->tabWidget->addTab(widget2, group->name);
         }
         ui->tabWidget->tabBar()->setTabData(index, gid);
+        applySubscriptionReadout(index, group);
         index++;
     }
 
@@ -170,4 +172,45 @@ void MainWindow::on_tabWidget_customContextMenuRequested(const QPoint &p) {
         });
     }
     menu.exec(ui->tabWidget->tabBar()->mapToGlobal(p));
+}
+
+// The tab carries the subscription's state: a usage hairline under the name, and
+// the numbers behind it in the tooltip, so the strip stays one line high.
+void MainWindow::applySubscriptionReadout(int index, const std::shared_ptr<Configs::Group> &group) {
+    auto *bar = ui->tabWidget->groupTabBar();
+    if (bar == nullptr || group == nullptr) return;
+
+    const auto sub = Configs::ParseSubInfo(group->info);
+    if (!sub.valid) {
+        bar->setUsage(index, -1);
+        bar->setTabToolTip(index, {});
+        return;
+    }
+
+    bar->setUsage(index, sub.usedFraction());
+
+    QStringList lines;
+    lines << (sub.total == 0
+                  ? tr("Used %1 of an unlimited plan").arg(ReadableSize(sub.used()))
+                  : tr("%1 of %2 used, %3 left")
+                        .arg(ReadableSize(sub.used()), ReadableSize(sub.total), ReadableSize(qMax<qint64>(0, sub.total - sub.used()))));
+
+    if (const int days = sub.daysLeft(QDateTime::currentSecsSinceEpoch()); days >= 0) {
+        lines << (days == 0 ? tr("Expires today (%1)").arg(DisplayTime(sub.expire, QLocale::ShortFormat))
+                            : tr("%n day(s) left (%1)", "", days).arg(DisplayTime(sub.expire, QLocale::ShortFormat)));
+    }
+    if (group->sub_last_update > 0) {
+        lines << tr("Updated %1").arg(DisplayTime(group->sub_last_update, QLocale::ShortFormat));
+    }
+    bar->setTabToolTip(index, lines.join('\n'));
+}
+
+// A subscription refresh rewrites the allowance but leaves the tabs standing, so the
+// readout is repainted on its own rather than through a full rebuild of the strip.
+void MainWindow::refreshSubscriptionReadouts() {
+    auto *bar = ui->tabWidget->groupTabBar();
+    if (bar == nullptr) return;
+    for (int i = 0; i < bar->count(); i++) {
+        applySubscriptionReadout(i, Configs::dataManager->groupsRepo->GetGroup(bar->tabData(i).toInt()));
+    }
 }

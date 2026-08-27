@@ -53,6 +53,10 @@ namespace Configs_sys {
     class CoreProcess;
 }
 
+namespace Configs {
+    class Group;
+}
+
 class TrayProfileSelector;
 class RoutingQuickMenu;
 class TrayOtpCodes;
@@ -113,6 +117,11 @@ public:
     void show_group(int gid);
 
     void refresh_groups();
+
+    // Paints the subscription allowance onto its group tab and puts the numbers in the tooltip.
+    void applySubscriptionReadout(int index, const std::shared_ptr<Configs::Group> &group);
+
+    void refreshSubscriptionReadouts();
 
     void refresh_status(const QString &traffic_update = "");
 
