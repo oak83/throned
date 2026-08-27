@@ -5,6 +5,7 @@
 #include "include/ui/setting/ApplicationPickerDialog.h"
 #include "include/ui/setting/ThemeManager.hpp"
 #include "include/ui/widget/FlowLayout.h"
+#include "include/ui/widget/ActionButton.h"
 #include "include/ui/widget/MaterialIcon.h"
 #include "include/ui/widget/ThronedToggle.h"
 
@@ -54,105 +55,6 @@ constexpr auto Red = "#FF4D56";
 constexpr auto Purple = "#A66CFF";
 constexpr auto Muted = "#A4ABB4";
 
-class ActionButton final : public QAbstractButton {
-public:
-    ActionButton(MaterialIcon::Glyph glyph, const QString &title, const QColor &tone, QWidget *parent = nullptr)
-        : QAbstractButton(parent), glyph_(glyph), title_(title), tone_(tone) {
-        setCheckable(true);
-        setCursor(Qt::PointingHandCursor);
-        setFixedHeight(44);
-        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    }
-
-    void setCount(int count) {
-        count_ = count;
-        update();
-    }
-
-    // A profile name can be far wider than the column, so it scrolls on its own:
-    // the tail of a subscription name is the part that tells them apart.
-    void setScrollsWhenTooLong(bool enabled) {
-        if (!enabled) return;
-        marquee_ = new QTimer(this);
-        marquee_->setInterval(40);
-        connect(marquee_, &QTimer::timeout, this, [this] {
-            offset_ += 1;
-            // Dwell at both ends, then start over from the left.
-            if (offset_ > overflow_ + kMarqueePause) offset_ = -kMarqueePause;
-            update();
-        });
-    }
-
-protected:
-    void paintEvent(QPaintEvent *) override {
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-        const QRectF bounds = rect().adjusted(.5, .5, -.5, -.5);
-        painter.setPen(isChecked() ? tone_ : QColor("#2F3136"));
-        painter.setBrush(isChecked() ? QColor("#193452") : QColor("#222529"));
-        painter.drawRoundedRect(bounds, 6, 6);
-
-        const auto icon = MaterialIcon::pixmap(glyph_, tone_, 18);
-        painter.drawPixmap(13, (height() - 18) / 2, icon);
-        QFont titleFont = font();
-        titleFont.setWeight(QFont::DemiBold);
-        painter.setFont(titleFont);
-        painter.setPen(QColor("#F1F3F5"));
-        const QRect titleRect(43, 0, width() - 85, height());
-        const QFontMetrics metrics(titleFont);
-        // Neither font metric measures a string with fallback emoji correctly:
-        // horizontalAdvance stops the scroll short of the tail, boundingRect runs
-        // it off into blank space. The layout engine that draws it does know.
-        if (naturalWidth_ < 0) {
-            QTextLayout layout(title_, titleFont);
-            layout.beginLayout();
-            QTextLine line = layout.createLine();
-            line.setLineWidth(std::numeric_limits<qreal>::max());
-            layout.endLayout();
-            naturalWidth_ = static_cast<int>(std::ceil(line.naturalTextWidth()));
-        }
-        overflow_ = std::max(0, naturalWidth_ - titleRect.width());
-        if (marquee_ != nullptr) {
-            if (overflow_ > 0 && !marquee_->isActive()) marquee_->start();
-            if (overflow_ <= 0 && marquee_->isActive()) marquee_->stop();
-        }
-        if (marquee_ != nullptr && marquee_->isActive()) {
-            painter.setClipRect(titleRect);
-            painter.drawText(titleRect.translated(-std::clamp(offset_, 0, overflow_), 0),
-                             Qt::AlignVCenter | Qt::AlignLeft, title_);
-            painter.setClipping(false);
-        } else {
-            painter.drawText(titleRect, Qt::AlignVCenter | Qt::AlignLeft,
-                             metrics.elidedText(title_, Qt::ElideRight, titleRect.width()));
-        }
-
-        const QString count = QString::number(count_);
-        const int pillWidth = std::max(26, QFontMetrics(font()).horizontalAdvance(count) + 14);
-        const QRectF pill(width() - pillWidth - 12, (height() - 24) / 2.0, pillWidth, 24);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(isChecked() ? tone_ : QColor("#2B3037"));
-        painter.drawRoundedRect(pill, 5, 5);
-        painter.setPen(QColor("#F7F9FA"));
-        painter.drawText(pill, Qt::AlignCenter, count);
-    }
-
-    // Nothing to animate while the column is off screen.
-    void hideEvent(QHideEvent *) override {
-        if (marquee_ != nullptr) marquee_->stop();
-    }
-
-private:
-    static constexpr int kMarqueePause = 45;
-
-    MaterialIcon::Glyph glyph_;
-    QString title_;
-    QColor tone_;
-    int count_ = 0;
-    QTimer *marquee_ = nullptr;
-    int offset_ = 0;
-    int overflow_ = 0;
-    int naturalWidth_ = -1;
-};
 
 // Same footprint as an action, drawn as an outline so it reads as "make one"
 // rather than as another action sitting in the list.

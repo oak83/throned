@@ -221,6 +221,8 @@ set(PROJECT_SOURCES
         include/ui/mainWindow/TestRunner.h
         include/ui/mainwindow.h
         include/ui/mainwindow.ui
+        include/ui/widget/ActionButton.h
+        src/ui/widget/ActionButton.cpp
         include/ui/widget/StartStopButton.hpp
         src/ui/widget/StartStopButton.cpp
         include/ui/widget/GroupTabBar.h
