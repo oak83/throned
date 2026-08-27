@@ -413,7 +413,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     commandLayout->addWidget(ui->toolButton_startstop);
     rootLayout->addWidget(commandBar);
     // Quick Link buttons
-    auto makeQuickBtn = [this, commandBar](QToolButton *&btn, const QString &name, const char *slot) {
+    auto makeQuickBtn = [this, commandBar, &commandLayout](QToolButton *&btn, const QString &name, const char *slot) {
         btn = new QToolButton(commandBar);
         btn->setObjectName(name);
         btn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);

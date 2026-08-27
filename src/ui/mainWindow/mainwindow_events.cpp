@@ -14,6 +14,7 @@
 #include "include/database/entities/RouteProfile.h"
 #include "include/ui/setting/RouteItem.h"
 #include "include/ui/mainWindow/MainWindowInternal.h"
+#include <QMessageBox>
 #include <QDesktopServices>
 #include <QUrl>
 
