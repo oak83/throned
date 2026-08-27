@@ -67,12 +67,6 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     ui->random_listen_port->setChecked(Configs::dataManager->settingsRepo->random_inbound_port);
     D_LOAD_INT(test_concurrent)
     D_LOAD_STRING(test_latency_url)
-    D_LOAD_STRING(quick_link_name_1)
-    D_LOAD_STRING(quick_link_1)
-    D_LOAD_STRING(quick_link_name_2)
-    D_LOAD_STRING(quick_link_2)
-    D_LOAD_STRING(quick_link_name_3)
-    D_LOAD_STRING(quick_link_3)
     D_LOAD_BOOL(disable_tray)
     ui->reset_proxy_on_disable_sp->setChecked(Configs::dataManager->settingsRepo->reset_proxy_on_disable_sp);
     ui->url_timeout->setText(Int2String(Configs::dataManager->settingsRepo->url_test_timeout_ms));
@@ -442,6 +436,36 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     testingLayout->addWidget(makeFieldRow(tr("Speed test timeout"), {}, ui->test_timeout));
     testingLayout->addWidget(makeFieldRow(tr("Download test URL"), {}, ui->simple_down_url));
     commonLayout->addWidget(testingSection);
+
+    auto *quickLinksSection = makeSection(tr("Quick Links"), tr("Three custom buttons shown on the main toolbar."));
+    auto *quickLinksLayout = qobject_cast<QVBoxLayout *>(quickLinksSection->layout());
+    auto makeLinkRow = [&](QLineEdit *&nameEdit, QLineEdit *&urlEdit, const QString &nameLabel, const QString &urlLabel) {
+        auto *row = new QFrame(commonPage);
+        row->setObjectName(QStringLiteral("settingsField"));
+        auto *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(12, 9, 12, 9);
+        auto *nLabel = new QLabel(nameLabel, row);
+        nLabel->setObjectName(QStringLiteral("settingsFieldTitle"));
+        rowLayout->addWidget(nLabel);
+        nameEdit = new QLineEdit(row);
+        rowLayout->addWidget(nameEdit);
+        auto *uLabel = new QLabel(urlLabel, row);
+        uLabel->setObjectName(QStringLiteral("settingsFieldTitle"));
+        rowLayout->addWidget(uLabel);
+        urlEdit = new QLineEdit(row);
+        rowLayout->addWidget(urlEdit);
+        quickLinksLayout->addWidget(row);
+    };
+    makeLinkRow(m_quickLinkName1, m_quickLink1, tr("Link 1 name"), tr("URL"));
+    makeLinkRow(m_quickLinkName2, m_quickLink2, tr("Link 2 name"), tr("URL"));
+    makeLinkRow(m_quickLinkName3, m_quickLink3, tr("Link 3 name"), tr("URL"));
+    bindings_.bind(m_quickLinkName1, Configs::dataManager->settingsRepo->quick_link_name_1);
+    bindings_.bind(m_quickLink1, Configs::dataManager->settingsRepo->quick_link_1);
+    bindings_.bind(m_quickLinkName2, Configs::dataManager->settingsRepo->quick_link_name_2);
+    bindings_.bind(m_quickLink2, Configs::dataManager->settingsRepo->quick_link_2);
+    bindings_.bind(m_quickLinkName3, Configs::dataManager->settingsRepo->quick_link_name_3);
+    bindings_.bind(m_quickLink3, Configs::dataManager->settingsRepo->quick_link_3);
+    commonLayout->addWidget(quickLinksSection);
     commonLayout->addStretch(1);
 
     auto *oldRoot = ui->gridLayout;
@@ -969,12 +993,6 @@ void DialogBasicSettings::accept() {
     Configs::dataManager->settingsRepo->random_inbound_port = ui->random_listen_port->isChecked();
     D_SAVE_INT(test_concurrent)
     D_SAVE_STRING(test_latency_url)
-    D_SAVE_STRING(quick_link_name_1)
-    D_SAVE_STRING(quick_link_1)
-    D_SAVE_STRING(quick_link_name_2)
-    D_SAVE_STRING(quick_link_2)
-    D_SAVE_STRING(quick_link_name_3)
-    D_SAVE_STRING(quick_link_3)
     D_SAVE_BOOL(disable_tray)
     Configs::dataManager->settingsRepo->proxy_scheme = ui->proxy_scheme->currentText().toLower();
     Configs::dataManager->settingsRepo->speed_test_mode = ui->speedtest_mode->currentIndex();
@@ -1109,6 +1127,7 @@ void DialogBasicSettings::accept() {
     if (needChoosePort) changes << MwArg::ChoosePort;
     if (profileListDisplayChanged) changes << MwArg::ProfileListDisplay;
     MW_dialog_message(MwMessage::UpdateSettings, changes);
+    if (auto *mw = qobject_cast<MainWindow *>(parent())) mw->refreshQuickLinkButtons();
     QDialog::accept();
 }
 

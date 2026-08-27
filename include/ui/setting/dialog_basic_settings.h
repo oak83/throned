@@ -32,6 +32,14 @@ private:
 
     Ui::DialogBasicSettings *ui;
 
+    // Quick Links (custom toolbar buttons)
+    QLineEdit *m_quickLinkName1 = nullptr;
+    QLineEdit *m_quickLink1 = nullptr;
+    QLineEdit *m_quickLinkName2 = nullptr;
+    QLineEdit *m_quickLink2 = nullptr;
+    QLineEdit *m_quickLinkName3 = nullptr;
+    QLineEdit *m_quickLink3 = nullptr;
+
     void applySelectedTheme();
     void applyRegexHighlighting();
 
