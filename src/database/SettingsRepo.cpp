@@ -189,7 +189,13 @@ namespace Configs {
             {"dpi_bypass_method",          &dpi_bypass_method},
             {"dpi_bypass_spoof_sni",       &dpi_bypass_spoof_sni},
             {"dpi_bypass_spoof_method",    &dpi_bypass_spoof_method},
-        };
+    {"quick_link_name_1", &quick_link_name_1},
+    {"quick_link_1", &quick_link_1},
+    {"quick_link_name_2", &quick_link_name_2},
+    {"quick_link_2", &quick_link_2},
+    {"quick_link_name_3", &quick_link_name_3},
+    {"quick_link_3", &quick_link_3},
+    };
 
         stringListMap = {
             {"dns_server_rules",         &dns_server_rules},

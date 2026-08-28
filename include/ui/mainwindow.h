@@ -178,6 +178,8 @@ signals:
     void profile_selected(int id);
 
 public slots:
+    void refreshQuickLinkButtons();
+    void openQuickLink(int idx);
 
     void on_commitDataRequest();
 
@@ -253,6 +255,10 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
+    QToolButton *quickLinkBtn1 = nullptr;
+    QToolButton *quickLinkBtn2 = nullptr;
+    QToolButton *quickLinkBtn3 = nullptr;
+
     // Monotonic, and invalid while the window is active or was never activated; see trayClickEvent().
     QElapsedTimer sinceWindowDeactivated;
     ProfilesTableModel *profilesTableModel = nullptr;

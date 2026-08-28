@@ -404,6 +404,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->toolButton_startstop->setFixedSize(40, 40);
     commandLayout->addSpacing(8);
     commandLayout->addWidget(ui->toolButton_startstop);
+    auto makeQuickBtn = [this, commandBar, &commandLayout](QToolButton *&btn, const QString &name, const std::function<void()> &handler) {
+        btn = new QToolButton(commandBar);
+        btn->setObjectName(name);
+        btn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        btn->setIconSize(QSize(16, 16));
+        btn->setFixedHeight(38);
+        btn->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        connect(btn, &QToolButton::clicked, this, handler);
+        commandLayout->addWidget(btn);
+    };
+    makeQuickBtn(quickLinkBtn1, QStringLiteral("quickLinkBtn1"), [this] { openQuickLink(1); });
+    makeQuickBtn(quickLinkBtn2, QStringLiteral("quickLinkBtn2"), [this] { openQuickLink(2); });
+    makeQuickBtn(quickLinkBtn3, QStringLiteral("quickLinkBtn3"), [this] { openQuickLink(3); });
     rootLayout->addWidget(commandBar);
 
     ui->data_view->setParent(redesignedCentral);

@@ -288,3 +288,27 @@ void MainWindow::start_select_mode(QObject *context, const std::function<void(in
     connectOnce(this, &MainWindow::profile_selected, context, callback);
     refresh_status();
 }
+
+
+void MainWindow::openQuickLink(int idx) {
+    QString url;
+    if (idx == 1) url = Configs::dataManager->settingsRepo->quick_link_1;
+    else if (idx == 2) url = Configs::dataManager->settingsRepo->quick_link_2;
+    else if (idx == 3) url = Configs::dataManager->settingsRepo->quick_link_3;
+    url = url.trimmed();
+    if (url.isEmpty()) {
+        QMessageBox::information(this, tr("Quick Link"),
+            tr("Set the URL in Settings → Basic Settings → Quick Links."));
+        return;
+    }
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        url = "https://" + url;
+    }
+    QDesktopServices::openUrl(QUrl(url));
+}
+
+void MainWindow::refreshQuickLinkButtons() {
+    if (quickLinkBtn1) quickLinkBtn1->setText(Configs::dataManager->settingsRepo->quick_link_name_1);
+    if (quickLinkBtn2) quickLinkBtn2->setText(Configs::dataManager->settingsRepo->quick_link_name_2);
+    if (quickLinkBtn3) quickLinkBtn3->setText(Configs::dataManager->settingsRepo->quick_link_name_3);
+}
