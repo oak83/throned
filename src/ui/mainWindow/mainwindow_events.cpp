@@ -313,32 +313,19 @@ void MainWindow::refreshQuickLinkButtons() {
             ? tr("Link 3") : Configs::dataManager->settingsRepo->quick_link_name_3);
 }
 
-void MainWindow::on_quickLinkBtn1_clicked() {
-    const QString &url = Configs::dataManager->settingsRepo->quick_link_1;
+void MainWindow::openQuickLink(int idx) {
+    QString url;
+    if (idx == 1) url = Configs::dataManager->settingsRepo->quick_link_1;
+    else if (idx == 2) url = Configs::dataManager->settingsRepo->quick_link_2;
+    else if (idx == 3) url = Configs::dataManager->settingsRepo->quick_link_3;
+    url = url.trimmed();
     if (url.isEmpty()) {
-        QMessageBox::information(this, tr("Quick Link 1"),
+        QMessageBox::information(this, tr("Quick Link"),
             tr("Set the URL in Settings → Basic Settings → Quick Links."));
         return;
     }
-    QDesktopServices::openUrl(QUrl(url));
-}
-
-void MainWindow::on_quickLinkBtn2_clicked() {
-    const QString &url = Configs::dataManager->settingsRepo->quick_link_2;
-    if (url.isEmpty()) {
-        QMessageBox::information(this, tr("Quick Link 2"),
-            tr("Set the URL in Settings → Basic Settings → Quick Links."));
-        return;
-    }
-    QDesktopServices::openUrl(QUrl(url));
-}
-
-void MainWindow::on_quickLinkBtn3_clicked() {
-    const QString &url = Configs::dataManager->settingsRepo->quick_link_3;
-    if (url.isEmpty()) {
-        QMessageBox::information(this, tr("Quick Link 3"),
-            tr("Set the URL in Settings → Basic Settings → Quick Links."));
-        return;
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        url = "https://" + url;
     }
     QDesktopServices::openUrl(QUrl(url));
 }

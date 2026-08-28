@@ -170,6 +170,7 @@ signals:
 
 public slots:
     void refreshQuickLinkButtons();
+    void openQuickLink(int idx);
 
     void on_commitDataRequest();
 

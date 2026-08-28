@@ -413,19 +413,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     commandLayout->addWidget(ui->toolButton_startstop);
     rootLayout->addWidget(commandBar);
     // Quick Link buttons
-    auto makeQuickBtn = [this, commandBar, &commandLayout](QToolButton *&btn, const QString &name, const char *slot) {
+    auto makeQuickBtn = [this, commandBar, &commandLayout](QToolButton *&btn, const QString &name, const std::function<void()> &handler) {
         btn = new QToolButton(commandBar);
         btn->setObjectName(name);
         btn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         btn->setIconSize(QSize(16, 16));
         btn->setFixedHeight(38);
         btn->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-        connect(btn, SIGNAL(clicked()), this, slot);
+        connect(btn, &QToolButton::clicked, this, handler);
         commandLayout->addWidget(btn);
     };
-    makeQuickBtn(quickLinkBtn1, QStringLiteral("quickLinkBtn1"), SLOT(on_quickLinkBtn1_clicked()));
-    makeQuickBtn(quickLinkBtn2, QStringLiteral("quickLinkBtn2"), SLOT(on_quickLinkBtn2_clicked()));
-    makeQuickBtn(quickLinkBtn3, QStringLiteral("quickLinkBtn3"), SLOT(on_quickLinkBtn3_clicked()));
+    makeQuickBtn(quickLinkBtn1, QStringLiteral("quickLinkBtn1"), [this] { openQuickLink(1); });
+    makeQuickBtn(quickLinkBtn2, QStringLiteral("quickLinkBtn2"), [this] { openQuickLink(2); });
+    makeQuickBtn(quickLinkBtn3, QStringLiteral("quickLinkBtn3"), [this] { openQuickLink(3); });
     refreshQuickLinkButtons();
 
     ui->data_view->setParent(redesignedCentral);
