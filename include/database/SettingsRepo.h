@@ -25,13 +25,6 @@ namespace Configs {
         QMap<QString, bool*>        boolMap;
         QMap<QString, int*>         intMap;
         QMap<QString, QString*>     stringMap;
-        // Quick Links
-        QString quick_link_name_1;
-        QString quick_link_1;
-        QString quick_link_name_2;
-        QString quick_link_2;
-        QString quick_link_name_3;
-        QString quick_link_3;
         QMap<QString, QStringList*> stringListMap;
 
         void initMaps();
@@ -40,6 +33,13 @@ namespace Configs {
         void saveAllSettings() const;
 
     public:
+        // Quick Links
+        QString quick_link_name_1;
+        QString quick_link_1;
+        QString quick_link_name_2;
+        QString quick_link_2;
+        QString quick_link_name_3;
+        QString quick_link_3;
         bool noSave = false;
 
         explicit SettingsRepo(Database& database);

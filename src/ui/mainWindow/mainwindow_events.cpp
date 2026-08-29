@@ -1,3 +1,6 @@
+#include <QUrl>
+#include <QDesktopServices>
+#include <QMessageBox>
 #include "include/ui/mainwindow.h"
 
 #include <QApplication>
